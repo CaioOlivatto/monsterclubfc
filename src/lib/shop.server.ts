@@ -1,6 +1,10 @@
 // Catálogo da Loja de Gemas e Itens (GDD §8 e §11).
 
-export type ItemKey = "potion_individual" | "potion_collective" | "vital_crystal";
+export type ItemKey =
+  | "potion_individual"
+  | "potion_collective"
+  | "vital_crystal"
+  | "xp_burst";
 
 export interface ItemSpec {
   key: ItemKey;
@@ -32,13 +36,22 @@ export const ITEMS: Record<ItemKey, ItemSpec> = {
     moneyPrice: 80_000,
     gemPrice: 20,
   },
+  xp_burst: {
+    key: "xp_burst",
+    name: "Impulso de XP (24h)",
+    description: "Dobra o XP ganho em partidas e treinos por 24 horas.",
+    moneyPrice: null,
+    gemPrice: 25,
+  },
 };
 
 export const ITEM_KEYS: ItemKey[] = [
   "potion_individual",
   "potion_collective",
   "vital_crystal",
+  "xp_burst",
 ];
+
 
 export interface GemPackage {
   id: string;
