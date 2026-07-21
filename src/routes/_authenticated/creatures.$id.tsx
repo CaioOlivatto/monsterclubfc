@@ -5,6 +5,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { getCreature } from "@/lib/creatures.functions";
 import { trainCreature, restCreature } from "@/lib/training.functions";
+import { spendHalfStar } from "@/lib/progression.functions";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -62,7 +64,9 @@ function CreatureDetail() {
   const fetchOne = useServerFn(getCreature);
   const trainFn = useServerFn(trainCreature);
   const restFn = useServerFn(restCreature);
+  const spendFn = useServerFn(spendHalfStar);
   const { data: c, isLoading, error } = useQuery({
+
     queryKey: ["creature", id],
     queryFn: () => fetchOne({ data: { id } }),
   });
