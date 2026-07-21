@@ -431,37 +431,40 @@ export type Database = {
         Row: {
           away_score: number | null
           away_team_id: string
-          competition_id: string
+          competition_id: string | null
           created_at: string
           home_score: number | null
           home_team_id: string
           id: string
+          is_friendly: boolean
           played_at: string | null
-          round: number
+          round: number | null
           status: Database["public"]["Enums"]["match_status"]
         }
         Insert: {
           away_score?: number | null
           away_team_id: string
-          competition_id: string
+          competition_id?: string | null
           created_at?: string
           home_score?: number | null
           home_team_id: string
           id?: string
+          is_friendly?: boolean
           played_at?: string | null
-          round: number
+          round?: number | null
           status?: Database["public"]["Enums"]["match_status"]
         }
         Update: {
           away_score?: number | null
           away_team_id?: string
-          competition_id?: string
+          competition_id?: string | null
           created_at?: string
           home_score?: number | null
           home_team_id?: string
           id?: string
+          is_friendly?: boolean
           played_at?: string | null
-          round?: number
+          round?: number | null
           status?: Database["public"]["Enums"]["match_status"]
         }
         Relationships: [
