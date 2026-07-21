@@ -24,7 +24,7 @@ function IndexRedirect() {
       try {
         const trainer = await fetchTrainer();
         if (cancelled) return;
-        if (trainer) {
+        if (trainer && trainer.has_roster) {
           nav({ to: "/dashboard", replace: true });
         } else {
           nav({ to: "/onboarding", replace: true });
@@ -32,6 +32,7 @@ function IndexRedirect() {
       } catch {
         if (!cancelled) nav({ to: "/onboarding", replace: true });
       }
+
     })();
     return () => {
       cancelled = true;

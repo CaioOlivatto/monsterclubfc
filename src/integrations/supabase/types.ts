@@ -668,30 +668,45 @@ export type Database = {
       }
       teams: {
         Row: {
+          color: string | null
           competition_id: string | null
           cpu_strength: number | null
           created_at: string
+          dominant_element: Database["public"]["Enums"]["element_type"] | null
+          emblem: string | null
           id: string
           is_player: boolean
           name: string
+          starter_key: string | null
+          style: string | null
           trainer_id: string | null
         }
         Insert: {
+          color?: string | null
           competition_id?: string | null
           cpu_strength?: number | null
           created_at?: string
+          dominant_element?: Database["public"]["Enums"]["element_type"] | null
+          emblem?: string | null
           id?: string
           is_player?: boolean
           name: string
+          starter_key?: string | null
+          style?: string | null
           trainer_id?: string | null
         }
         Update: {
+          color?: string | null
           competition_id?: string | null
           cpu_strength?: number | null
           created_at?: string
+          dominant_element?: Database["public"]["Enums"]["element_type"] | null
+          emblem?: string | null
           id?: string
           is_player?: boolean
           name?: string
+          starter_key?: string | null
+          style?: string | null
           trainer_id?: string | null
         }
         Relationships: [
