@@ -58,11 +58,34 @@ function stars(v: number) {
 function CreatureDetail() {
   const { id } = Route.useParams();
   const nav = useNavigate();
+  const qc = useQueryClient();
   const fetchOne = useServerFn(getCreature);
+  const trainFn = useServerFn(trainCreature);
+  const restFn = useServerFn(restCreature);
   const { data: c, isLoading, error } = useQuery({
     queryKey: ["creature", id],
     queryFn: () => fetchOne({ data: { id } }),
   });
+
+  const trainMut = useMutation({
+    mutationFn: (focus: { kind: "attribute"; key: any } | { kind: "affinity"; key: any }) =>
+      trainFn({ data: { creatureId: id, focus } }),
+    onSuccess: (res) => {
+      toast.success(res.message);
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha no treino"),
+  });
+
+  const restMut = useMutation({
+    mutationFn: () => restFn({ data: { creatureId: id } }),
+    onSuccess: (res) => {
+      toast.success(res.message);
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao descansar"),
+  });
+
 
   if (isLoading) {
     return (
