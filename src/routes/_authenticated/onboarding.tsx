@@ -275,7 +275,7 @@ function Onboarding() {
               {!trainer && (
                 <div className="space-y-3 rounded-lg border border-border/60 bg-card/40 p-3">
                   <p className="text-sm font-medium">
-                    Antes de começar, escolha seus nomes:
+                    Antes de começar, informe seu nome de treinador:
                   </p>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
@@ -289,18 +289,18 @@ function Onboarding() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="academy">Academia</Label>
-                      <Input
-                        id="academy"
-                        value={academyName}
-                        onChange={(e) => setAcademyName(e.target.value)}
-                        placeholder="Ex.: Academia Vulcânica"
-                        maxLength={40}
-                      />
+                      <Label>Time</Label>
+                      <div className="flex h-10 items-center rounded-md border border-border/60 bg-muted/30 px-3 text-sm">
+                        {detail?.team?.emblem}{" "}
+                        <span className="ml-2 font-medium">
+                          {detail?.team?.name}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
+
             </div>
           )}
 
