@@ -560,6 +560,47 @@ export type Database = {
           },
         ]
       }
+      team_lineups: {
+        Row: {
+          bench: Json
+          created_at: string
+          formation: string
+          id: string
+          starters: Json
+          strategy: Database["public"]["Enums"]["strategy_type"]
+          trainer_id: string
+          updated_at: string
+        }
+        Insert: {
+          bench?: Json
+          created_at?: string
+          formation?: string
+          id?: string
+          starters?: Json
+          strategy?: Database["public"]["Enums"]["strategy_type"]
+          trainer_id: string
+          updated_at?: string
+        }
+        Update: {
+          bench?: Json
+          created_at?: string
+          formation?: string
+          id?: string
+          starters?: Json
+          strategy?: Database["public"]["Enums"]["strategy_type"]
+          trainer_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_lineups_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: true
+            referencedRelation: "trainers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teams: {
         Row: {
           competition_id: string
@@ -689,6 +730,7 @@ export type Database = {
       division_type: "bronze" | "prata" | "ouro" | "diamante" | "lendaria"
       element_type: "fogo" | "agua" | "terra" | "ar" | "gelo"
       match_status: "scheduled" | "in_progress" | "finished"
+      strategy_type: "ofensiva" | "equilibrada" | "defensiva"
       transaction_type: "income" | "expense"
       transfer_type: "buy" | "sell"
     }
@@ -822,6 +864,7 @@ export const Constants = {
       division_type: ["bronze", "prata", "ouro", "diamante", "lendaria"],
       element_type: ["fogo", "agua", "terra", "ar", "gelo"],
       match_status: ["scheduled", "in_progress", "finished"],
+      strategy_type: ["ofensiva", "equilibrada", "defensiva"],
       transaction_type: ["income", "expense"],
       transfer_type: ["buy", "sell"],
     },
