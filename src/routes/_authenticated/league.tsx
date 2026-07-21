@@ -105,8 +105,15 @@ function LeaguePage() {
         )}
 
         {comp && data && (
-          <LeagueBody data={data} onPlayNext={() => playMut.mutate()} isPlaying={playMut.isPending} />
+          <LeagueBody
+            data={data}
+            onPlayNext={() => playMut.mutate()}
+            isPlaying={playMut.isPending}
+            onFinishSeason={() => finishMut.mutate()}
+            isFinishing={finishMut.isPending}
+          />
         )}
+
       </main>
     </div>
   );
