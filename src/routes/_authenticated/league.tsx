@@ -151,20 +151,30 @@ function LeagueBody({
   const roundNumbers = [...rounds.keys()].sort((a, b) => a - b);
   const nextRound = roundNumbers.find((r) => rounds.get(r)!.some((m) => m.status === "scheduled"));
 
+  const division = data.competition?.division ?? "bronze";
+  const leagueDone = !nextRound;
+
   return (
     <>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 py-4">
           <div>
-            <CardTitle className="text-base">Próxima rodada</CardTitle>
+            <CardTitle className="text-base capitalize">Divisão {division}</CardTitle>
             <p className="text-xs text-muted-foreground">
-              {nextRound ? `Rodada ${nextRound} de ${roundNumbers.length}` : "Liga concluída"}
+              {leagueDone ? "Temporada concluída — encerre para promoção/rebaixamento." : `Rodada ${nextRound} de ${roundNumbers.length}`}
             </p>
           </div>
-          <Button onClick={onPlayNext} disabled={!nextRound || isPlaying}>
-            <Play className="mr-2 h-4 w-4" />
-            {isPlaying ? "Jogando..." : "Jogar próxima"}
-          </Button>
+          {leagueDone ? (
+            <Button onClick={onFinishSeason} disabled={isFinishing} variant="default">
+              <Trophy className="mr-2 h-4 w-4" />
+              {isFinishing ? "Encerrando..." : "Encerrar temporada"}
+            </Button>
+          ) : (
+            <Button onClick={onPlayNext} disabled={isPlaying}>
+              <Play className="mr-2 h-4 w-4" />
+              {isPlaying ? "Jogando..." : "Jogar próxima"}
+            </Button>
+          )}
         </CardHeader>
         {nextRound && (
           <CardContent className="space-y-2 pb-4">
@@ -176,6 +186,7 @@ function LeagueBody({
           </CardContent>
         )}
       </Card>
+
 
       <Card>
         <CardHeader className="py-4">
