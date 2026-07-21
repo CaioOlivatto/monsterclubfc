@@ -82,8 +82,10 @@ function Onboarding() {
   const [submitting, setSubmitting] = useState(false);
 
   // Inputs de nome — aparecem no diálogo se o treinador ainda não existe
+  // Nome do treinador — aparece no diálogo se ele ainda não existe.
+  // O nome da "academia" passa a ser o nome do time escolhido.
   const [trainerName, setTrainerName] = useState("");
-  const [academyName, setAcademyName] = useState("");
+
 
   useEffect(() => {
     if (trainer?.has_roster) nav({ to: "/dashboard", replace: true });
@@ -106,10 +108,11 @@ function Onboarding() {
   async function confirmChoice() {
     if (!openKey) return;
 
-    // Se ainda não há treinador, cria com os nomes informados
+    // Se ainda não há treinador, cria usando o nome do time como "academia"
+    const teamName: string = detail?.team?.name ?? "";
     if (!trainer) {
-      if (trainerName.trim().length < 2 || academyName.trim().length < 2) {
-        toast.error("Informe nome do treinador e da academia (mín. 2 letras).");
+      if (trainerName.trim().length < 2) {
+        toast.error("Informe o nome do treinador (mín. 2 letras).");
         return;
       }
     }
@@ -120,10 +123,11 @@ function Onboarding() {
         await createFn({
           data: {
             trainer_name: trainerName.trim(),
-            academy_name: academyName.trim(),
+            academy_name: teamName,
           },
         });
       }
+
       await choose({ data: { key: openKey } });
       toast.success("Time escolhido! Liga Bronze iniciada.");
       nav({ to: "/dashboard", replace: true });
@@ -271,7 +275,7 @@ function Onboarding() {
               {!trainer && (
                 <div className="space-y-3 rounded-lg border border-border/60 bg-card/40 p-3">
                   <p className="text-sm font-medium">
-                    Antes de começar, escolha seus nomes:
+                    Antes de começar, informe seu nome de treinador:
                   </p>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
@@ -285,18 +289,18 @@ function Onboarding() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="academy">Academia</Label>
-                      <Input
-                        id="academy"
-                        value={academyName}
-                        onChange={(e) => setAcademyName(e.target.value)}
-                        placeholder="Ex.: Academia Vulcânica"
-                        maxLength={40}
-                      />
+                      <Label>Time</Label>
+                      <div className="flex h-10 items-center rounded-md border border-border/60 bg-muted/30 px-3 text-sm">
+                        {detail?.team?.emblem}{" "}
+                        <span className="ml-2 font-medium">
+                          {detail?.team?.name}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
+
             </div>
           )}
 
