@@ -122,9 +122,19 @@ function Dashboard() {
               Treinador: {trainer.trainer_name} · Nível {trainer.level}
             </p>
           </div>
-          <Button variant="ghost" size="sm" onClick={signOut} className="shrink-0">
-            <LogOut className="mr-2 h-4 w-4" /> Sair
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => weeklyMut.mutate()}
+              disabled={weeklyMut.isPending}
+            >
+              💎 Semanal
+            </Button>
+            <Button variant="ghost" size="sm" onClick={signOut}>
+              <LogOut className="mr-2 h-4 w-4" /> Sair
+            </Button>
+          </div>
         </div>
 
         {academy && (
