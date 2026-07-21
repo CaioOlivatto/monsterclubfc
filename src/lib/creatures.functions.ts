@@ -141,7 +141,7 @@ export const getDashboard = createServerFn({ method: "GET" })
       is_home: boolean;
     };
 
-    if (playerTeam) {
+    if (playerTeam && playerTeam.competition_id) {
       const { data: standings } = await supabase
         .from("standings")
         .select("team_id, points, wins, draws, losses, goals_for, goals_against")
