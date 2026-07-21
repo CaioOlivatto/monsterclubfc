@@ -301,8 +301,10 @@ function Dashboard() {
           <Shortcut icon={<Trophy className="h-5 w-5" />} label="Liga" to="/league" />
           <Shortcut icon={<Trophy className="h-5 w-5" />} label="Copa" to="/cup" />
           <Shortcut icon={<ShoppingBag className="h-5 w-5" />} label="Loja" to="/shop" />
-
+          <Shortcut icon={<Wallet className="h-5 w-5" />} label="Finanças" to="/finances" />
+          <Shortcut icon={<Inbox className="h-5 w-5" />} label="Mensagens" to="/messages" />
         </div>
+
 
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-5 sm:flex-row sm:justify-between">
