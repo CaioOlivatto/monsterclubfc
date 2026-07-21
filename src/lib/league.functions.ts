@@ -50,21 +50,15 @@ type Division = typeof DIVISION_ORDER[number];
 
 // Prêmio por partida na liga por divisão (V / E / D) — Balanceamento §2.1
 const MATCH_PRIZE: Record<Division, [number, number, number]> = {
-  bronze:   [8_000, 3_000, 1_000],
-  prata:   [16_000, 6_000, 2_000],
-  ouro:    [30_000, 12_000, 4_000],
-  diamante:[50_000, 20_000, 8_000],
-  lendaria:[80_000, 30_000, 12_000],
+  bronze:   [15_000,  6_000,  2_000],
+  prata:    [28_000, 11_000,  4_000],
+  ouro:     [50_000, 20_000,  7_000],
+  diamante: [90_000, 36_000, 13_000],
+  lendaria:[160_000, 64_000, 24_000],
 };
 
-// Prêmio total de fim de temporada por divisão (fator aplicado por posição)
-const SEASON_PRIZE_BASE: Record<Division, number> = {
-  bronze:   80_000,
-  prata:    160_000,
-  ouro:     280_000,
-  diamante: 450_000,
-  lendaria: 700_000,
-};
+// Multiplicador aplicado sobre o prêmio de vitória da divisão (fim de temporada)
+const SEASON_POSITION_MULT: number[] = [10, 6, 3, 3, 1.5, 1.5, 0.5, 0.5];
 
 // Salário por temporada baseado no overall (aprox. tier de estrelas)
 function seasonSalary(overall: number): number {
@@ -320,7 +314,22 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
           .maybeSingle();
         stadiumLevel = est?.level ?? 0;
         const capacity = stadiumCapacity(stadiumLevel);
-        const fillRate = outcome === "W" ? 0.85 : outcome === "D" ? 0.7 : 0.55;
+        // Bilheteria (§2.2): ocupação = 70% + 3% × posição_invertida_na_liga
+        const { data: standRows } = await supabase
+          .from("standings")
+          .select("team_id, points, goals_for, goals_against")
+          .eq("competition_id", competition.id);
+        const rankedCur = [...(standRows ?? [])].sort((a: any, b: any) => {
+          if (b.points !== a.points) return b.points - a.points;
+          const gdA = a.goals_for - a.goals_against;
+          const gdB = b.goals_for - b.goals_against;
+          if (gdB !== gdA) return gdB - gdA;
+          return b.goals_for - a.goals_for;
+        });
+        const posIdx = rankedCur.findIndex((r: any) => r.team_id === playerTeam.id);
+        const pos = posIdx >= 0 ? posIdx + 1 : 8;
+        const posInvertida = 9 - pos; // 1º → 8; 8º → 1
+        const fillRate = Math.min(1, 0.70 + 0.03 * posInvertida);
         gate = Math.round(capacity * fillRate * 25);
       }
 
@@ -499,12 +508,9 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
 
     const division = competition.division as Division;
     const divIdx = DIVISION_ORDER.indexOf(division);
-    const factor =
-      position === 1 ? 1 :
-      position === 2 ? 0.7 :
-      position === 3 ? 0.45 :
-      position <= 6 ? 0.2 : 0; // 7º–8º sem prêmio (rebaixamento)
-    const prize = Math.round(SEASON_PRIZE_BASE[division] * factor);
+    const winPrize = MATCH_PRIZE[division][0];
+    const posMult = position >= 1 && position <= 8 ? SEASON_POSITION_MULT[position - 1] : 0;
+    const prize = Math.round(winPrize * posMult);
     const championGems = playerIsChampion ? 50 : 0;
 
     let newDivIdx = divIdx;

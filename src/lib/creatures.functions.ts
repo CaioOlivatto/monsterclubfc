@@ -263,6 +263,20 @@ export const createInitialTrainer = createServerFn({ method: "POST" })
     const { error: cErr } = await supabase.from("creatures").insert(creatures);
     if (cErr) throw cErr;
 
+    // 4. Prédios iniciais (Estádio nv1, CT Treinamento nv1, Centro Médico nv1)
+    //    CT Elemental começa não construído (§7).
+    await supabase.from("buildings").insert([
+      { trainer_id: trainer.id, building_type: "estadio",        level: 1 },
+      { trainer_id: trainer.id, building_type: "ct_treino",      level: 1 },
+      { trainer_id: trainer.id, building_type: "centro_medico",  level: 1 },
+    ]);
+
+    // 5. Itens iniciais (§7): 3 Poção Individual + 1 Poção Coletiva
+    await supabase.from("items").insert([
+      { trainer_id: trainer.id, item_key: "potion_individual", quantity: 3 },
+      { trainer_id: trainer.id, item_key: "potion_collective", quantity: 1 },
+    ]);
+
     return { trainerId: trainer.id };
   });
 

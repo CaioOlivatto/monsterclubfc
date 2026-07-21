@@ -716,6 +716,7 @@ export type Database = {
           academy_name: string
           created_at: string
           id: string
+          last_weekly_gems_at: string | null
           level: number
           trainer_name: string
           updated_at: string
@@ -729,6 +730,7 @@ export type Database = {
           academy_name: string
           created_at?: string
           id?: string
+          last_weekly_gems_at?: string | null
           level?: number
           trainer_name: string
           updated_at?: string
@@ -742,6 +744,7 @@ export type Database = {
           academy_name?: string
           created_at?: string
           id?: string
+          last_weekly_gems_at?: string | null
           level?: number
           trainer_name?: string
           updated_at?: string

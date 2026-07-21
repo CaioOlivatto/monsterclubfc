@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getDashboard } from "@/lib/creatures.functions";
 import { createFriendlyMatch } from "@/lib/match.functions";
+import { claimWeeklyGems } from "@/lib/progression.functions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -81,6 +82,16 @@ function Dashboard() {
     onError: (e: any) => toast.error(e?.message ?? "Não foi possível iniciar a partida."),
   });
 
+  const claimWeekly = useServerFn(claimWeeklyGems);
+  const weeklyMut = useMutation({
+    mutationFn: () => claimWeekly(),
+    onSuccess: (res: any) => {
+      if (res.claimed) toast.success("+30 💎 recompensa semanal!");
+      else toast.info("Próxima recompensa em " + new Date(res.nextAt).toLocaleDateString("pt-BR"));
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao resgatar."),
+  });
+
   async function signOut() {
     await supabase.auth.signOut();
     nav({ to: "/auth", replace: true });
@@ -111,9 +122,19 @@ function Dashboard() {
               Treinador: {trainer.trainer_name} · Nível {trainer.level}
             </p>
           </div>
-          <Button variant="ghost" size="sm" onClick={signOut} className="shrink-0">
-            <LogOut className="mr-2 h-4 w-4" /> Sair
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => weeklyMut.mutate()}
+              disabled={weeklyMut.isPending}
+            >
+              💎 Semanal
+            </Button>
+            <Button variant="ghost" size="sm" onClick={signOut}>
+              <LogOut className="mr-2 h-4 w-4" /> Sair
+            </Button>
+          </div>
         </div>
 
         {academy && (

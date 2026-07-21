@@ -87,11 +87,11 @@ export interface GemPackage {
 
 // Pacotes conforme Tabela de Balanceamento §3.2.
 export const GEM_PACKAGES: GemPackage[] = [
-  { id: "punhado",  name: "Punhado",  gems: 100,  bonus: 0,    price: "R$ 9,90" },
-  { id: "saco",     name: "Saco",     gems: 500,  bonus: 50,   price: "R$ 44,90" },
-  { id: "bau",      name: "Baú",      gems: 1000, bonus: 200,  price: "R$ 89,90" },
-  { id: "cofre",    name: "Cofre",    gems: 2000, bonus: 600,  price: "R$ 179,90" },
-  { id: "tesouro",  name: "Tesouro",  gems: 6000, bonus: 0,    price: "R$ 349,90" },
+  { id: "punhado",  name: "Punhado",  gems: 100,  bonus: 0,   price: "R$ 9,90" },
+  { id: "saco",     name: "Saco",     gems: 500,  bonus: 50,  price: "R$ 44,90" },
+  { id: "bau",      name: "Baú",      gems: 1000, bonus: 200, price: "R$ 89,90" },
+  { id: "cofre",    name: "Cofre",    gems: 2000, bonus: 600, price: "R$ 179,90" },
+  { id: "tesouro",  name: "Tesouro",  gems: 6000, bonus: 0,   price: "R$ 349,90" },
 ];
 
 // Construtor extra (2º / 3º / 4º) e teto absoluto.
