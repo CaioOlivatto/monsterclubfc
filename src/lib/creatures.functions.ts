@@ -265,3 +265,48 @@ export const createInitialTrainer = createServerFn({ method: "POST" })
 
     return { trainerId: trainer.id };
   });
+
+// ---------- roster ----------
+
+export const listMyCreatures = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const { data: trainer } = await supabase
+      .from("trainers")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!trainer) return [];
+    const { data, error } = await supabase
+      .from("creatures")
+      .select(
+        "id, name, element, suggested_position, attack, defense, goalkeeper, physical, strength, overall, energy, xp, half_stars_earned, market_value",
+      )
+      .eq("owner_trainer_id", trainer.id)
+      .order("overall", { ascending: false });
+    if (error) throw error;
+    return data ?? [];
+  });
+
+export const getCreature = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((raw: unknown) => z.object({ id: z.string().uuid() }).parse(raw))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: trainer } = await supabase
+      .from("trainers")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!trainer) throw new Error("Treinador não encontrado.");
+    const { data: creature, error } = await supabase
+      .from("creatures")
+      .select("*")
+      .eq("id", data.id)
+      .eq("owner_trainer_id", trainer.id)
+      .maybeSingle();
+    if (error) throw error;
+    if (!creature) throw new Error("Criatura não encontrada.");
+    return creature;
+  });
