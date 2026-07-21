@@ -23,7 +23,10 @@ import {
   Store,
   Building2,
   ShoppingBag,
+  Inbox,
+  Wallet,
 } from "lucide-react";
+
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
