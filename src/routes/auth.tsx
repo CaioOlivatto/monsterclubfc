@@ -41,36 +41,58 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
+
+  function formatAuthError(message: string) {
+    const normalized = message.toLowerCase();
+    if (normalized.includes("email not confirmed")) {
+      return "Este email ainda não estava confirmado. A confirmação automática já foi ativada; tente entrar novamente.";
+    }
+    if (normalized.includes("invalid login credentials")) {
+      return "Email ou senha incorretos. Confira os dados e tente novamente.";
+    }
+    return message;
+  }
 
   async function handleSignIn(e: FormEvent) {
     e.preventDefault();
+    setMessage(null);
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
     setLoading(false);
     if (error) {
-      toast.error(error.message);
+      const text = formatAuthError(error.message);
+      setMessage({ type: "error", text });
+      toast.error(text);
       return;
     }
-    nav({ to: "/" });
+    setMessage({ type: "success", text: "Login feito. Carregando sua academia..." });
+    nav({ to: "/", replace: true });
   }
 
   async function handleSignUp(e: FormEvent) {
     e.preventDefault();
+    setMessage(null);
     setLoading(true);
     const { error } = await supabase.auth.signUp({
-      email,
+      email: email.trim(),
       password,
       options: { emailRedirectTo: window.location.origin },
     });
     setLoading(false);
     if (error) {
-      toast.error(error.message);
+      const text = formatAuthError(error.message);
+      setMessage({ type: "error", text });
+      toast.error(text);
       return;
     }
-    toast.success(
-      "Conta criada. Se pediu confirmação por email, confirme e faça login.",
-    );
-    nav({ to: "/" });
+    const text = "Conta criada. Carregando sua academia...";
+    setMessage({ type: "success", text });
+    toast.success(text);
+    nav({ to: "/", replace: true });
   }
 
   return (
@@ -90,6 +112,18 @@ function AuthPage() {
             </TabsList>
             <TabsContent value="signin">
               <form onSubmit={handleSignIn} className="space-y-4 pt-4">
+                {message ? (
+                  <div
+                    aria-live="polite"
+                    className={`rounded-md border px-3 py-2 text-sm ${
+                      message.type === "error"
+                        ? "border-destructive/30 bg-destructive/10 text-destructive"
+                        : "border-primary/30 bg-primary/10 text-primary"
+                    }`}
+                  >
+                    {message.text}
+                  </div>
+                ) : null}
                 <div className="space-y-2">
                   <Label htmlFor="signin-email">Email</Label>
                   <Input
@@ -117,6 +151,18 @@ function AuthPage() {
             </TabsContent>
             <TabsContent value="signup">
               <form onSubmit={handleSignUp} className="space-y-4 pt-4">
+                {message ? (
+                  <div
+                    aria-live="polite"
+                    className={`rounded-md border px-3 py-2 text-sm ${
+                      message.type === "error"
+                        ? "border-destructive/30 bg-destructive/10 text-destructive"
+                        : "border-primary/30 bg-primary/10 text-primary"
+                    }`}
+                  >
+                    {message.text}
+                  </div>
+                ) : null}
                 <div className="space-y-2">
                   <Label htmlFor="signup-email">Email</Label>
                   <Input
