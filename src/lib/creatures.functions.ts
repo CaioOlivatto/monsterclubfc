@@ -204,7 +204,7 @@ export const getDashboard = createServerFn({ method: "GET" })
         academy_name: trainer.academy_name,
         level: trainer.level,
       },
-      academy: trainer.academies?.[0] ?? trainer.academies ?? null,
+      academy: trainer.academies ?? null,
       roster: { count: rosterCount, avgEnergy, avgOverall, top: topCreatures },
       standing,
       nextMatch,
