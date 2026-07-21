@@ -123,11 +123,16 @@ function LeagueBody({
   data,
   onPlayNext,
   isPlaying,
+  onFinishSeason,
+  isFinishing,
 }: {
   data: any;
   onPlayNext: () => void;
   isPlaying: boolean;
+  onFinishSeason: () => void;
+  isFinishing: boolean;
 }) {
+
   const teamsById = new Map<string, any>((data.teams ?? []).map((t: any) => [t.id, t]));
   const standings = [...(data.standings ?? [])].sort((a: any, b: any) => {
     if (b.points !== a.points) return b.points - a.points;
