@@ -332,12 +332,13 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
         let playerWonFinal = false;
         for (const m of playerMatches ?? []) {
           const isHome = m.home_team_id === playerTeam.id;
-          const gf = isHome ? m.home_score : m.away_score;
-          const ga = isHome ? m.away_score : m.home_score;
-          if (gf > ga || (gf === ga && false)) bestRound = Math.max(bestRound, m.round as number);
-          else bestRound = Math.max(bestRound, (m.round as number) - 1); // eliminado nesta rodada
+          const gf = (isHome ? m.home_score : m.away_score) ?? 0;
+          const ga = (isHome ? m.away_score : m.home_score) ?? 0;
+          if (gf > ga) bestRound = Math.max(bestRound, m.round as number);
+          else bestRound = Math.max(bestRound, (m.round as number) - 1);
           if (m.round === 3 && gf >= ga) playerWonFinal = true;
         }
+
         // Corrige: se venceu a final, bestRound = 3; senão avaliar reached
         const reachedFinal = (playerMatches ?? []).some((m: any) => m.round === 3);
         const reachedSemi = (playerMatches ?? []).some((m: any) => m.round === 2);
