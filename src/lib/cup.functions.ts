@@ -179,8 +179,13 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
     const home = teams!.find((t: any) => t.id === next.home_team_id) as any;
     const away = teams!.find((t: any) => t.id === next.away_team_id) as any;
 
+    const playerSideRef: { current: EngineSide | null } = { current: null };
     async function side(team: any): Promise<EngineSide> {
-      if (team.is_player) return buildPlayerSide(supabase, trainer.id, team.id, team.name);
+      if (team.is_player) {
+        const s = await buildPlayerSideFromDb(supabase, trainer.id, team.id, team.name);
+        playerSideRef.current = s;
+        return s;
+      }
       return generateCpuSideFor(hashSeed(team.id), team.id, team.name, team.cpu_strength ?? 50);
     }
     let result = simulate(await side(home), await side(away), hashSeed(next.id));
@@ -197,6 +202,7 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
         home_score: result.home_score,
         away_score: result.away_score,
         status: "finished",
+        clima: result.weather,
         played_at: new Date().toISOString(),
       })
       .eq("id", next.id);
@@ -210,6 +216,40 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
       actor_team_id: e.actor_team_id,
     }));
     if (events.length) await supabase.from("match_events").insert(events);
+
+    // XP e mensagem se o jogador participou
+    try {
+      const playerSide: EngineSide | null = playerSideRef.current;
+      if (playerSide) {
+        const isHome = home.is_player;
+        const playerGf = isHome ? result.home_score : result.away_score;
+        const playerGa = isHome ? result.away_score : result.home_score;
+        const outcomeXp: "W" | "D" | "L" =
+          playerGf > playerGa ? "W" : playerGf < playerGa ? "L" : "D";
+        const starterIds = playerSide.starters.map((s) => s.creature.id);
+        const reserveIds = result.used_bench_ids.filter((id) =>
+          playerSide.bench.some((b) => b.creature.id === id),
+        );
+        await applyPostMatchXp(supabase, trainer.id, {
+          starterIds,
+          reserveIds,
+          outcome: outcomeXp,
+          energy_loss: result.energy_loss,
+        });
+        const opponentName = isHome ? away.name : home.name;
+        const roundLabel = CUP_ROUND_NAMES[next.round as number] ?? `Rodada ${next.round}`;
+        await insertMessage(
+          supabase,
+          trainer.id,
+          "match",
+          `Copa — ${roundLabel}: ${outcomeXp === "W" ? "Vitória" : "Derrota"} vs ${opponentName}`,
+          `${isHome ? home.name : away.name} ${playerGf} x ${playerGa} ${isHome ? away.name : home.name} — clima: ${result.weather}.`,
+        );
+      }
+    } catch (e) {
+      console.error("cup xp/message error", e);
+    }
+
 
     // Simula outras partidas da mesma rodada
     const { data: sameRound } = await supabase
