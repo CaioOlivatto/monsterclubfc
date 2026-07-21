@@ -1,0 +1,1 @@
+ALTER TABLE public.trainers ADD COLUMN IF NOT EXISTS last_weekly_gems_at timestamptz;
