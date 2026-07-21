@@ -186,7 +186,15 @@ export const useItem = createServerFn({ method: "POST" })
           .eq("id", cr.id);
       }
       msg = "Todo o elenco recuperou +25% de energia.";
+    } else if (data.itemKey === "xp_burst") {
+      const until = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      await context.supabase
+        .from("trainers")
+        .update({ xp_burst_until: until })
+        .eq("id", trainer.id);
+      msg = "Impulso de XP ativo por 24h!";
     }
+
 
     await context.supabase.from("items").update({ quantity: inv.quantity - 1 }).eq("id", inv.id);
     return { ok: true, message: msg };
