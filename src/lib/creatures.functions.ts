@@ -1,6 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import {
+  STARTER_TEAMS,
+  generateStarterRoster,
+  getStarterTeam,
+  starterTeamSummary,
+  type StarterKey,
+} from "./starter-teams";
+import { generateSchedule, pickCpuTeamNames } from "./league.server";
+
 
 // ---------- gerador de criatura inicial ----------
 const ELEMENTS = ["fogo", "agua", "terra", "ar", "gelo"] as const;
