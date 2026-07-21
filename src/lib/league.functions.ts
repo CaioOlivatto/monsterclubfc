@@ -217,8 +217,13 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     const away = teams!.find((t: any) => t.id === next.away_team_id) as any;
 
     // Constrói os dois lados
+    let playerSide: EngineSide | null = null;
     async function buildSide(team: any): Promise<EngineSide> {
-      if (team.is_player) return buildPlayerSide(supabase, trainer.id, team.id, team.name);
+      if (team.is_player) {
+        const side = await buildPlayerSideFromDb(supabase, trainer.id, team.id, team.name);
+        playerSide = side;
+        return side;
+      }
       const seed = hashSeed(team.id);
       return generateCpuSideFor(seed, team.id, team.name, team.cpu_strength ?? 45);
     }
@@ -234,10 +239,12 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         home_score: result.home_score,
         away_score: result.away_score,
         status: "finished",
+        clima: result.weather,
         played_at: new Date().toISOString(),
       })
       .eq("id", next.id);
     if (uErr) throw uErr;
+
 
     // Persiste eventos (creature_id dos times CPU vira null)
     const eventsToInsert = result.events.map((e) => ({
