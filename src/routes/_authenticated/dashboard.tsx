@@ -82,6 +82,16 @@ function Dashboard() {
     onError: (e: any) => toast.error(e?.message ?? "Não foi possível iniciar a partida."),
   });
 
+  const claimWeekly = useServerFn(claimWeeklyGems);
+  const weeklyMut = useMutation({
+    mutationFn: () => claimWeekly(),
+    onSuccess: (res: any) => {
+      if (res.claimed) toast.success("+30 💎 recompensa semanal!");
+      else toast.info("Próxima recompensa em " + new Date(res.nextAt).toLocaleDateString("pt-BR"));
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao resgatar."),
+  });
+
   async function signOut() {
     await supabase.auth.signOut();
     nav({ to: "/auth", replace: true });
