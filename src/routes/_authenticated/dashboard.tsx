@@ -66,9 +66,16 @@ function fmtMoney(v: number) {
 function Dashboard() {
   const nav = useNavigate();
   const fetchDashboard = useServerFn(getDashboard);
+  const startFriendly = useServerFn(createFriendlyMatch);
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard"],
     queryFn: () => fetchDashboard(),
+  });
+
+  const friendlyMut = useMutation({
+    mutationFn: () => startFriendly(),
+    onSuccess: (res) => nav({ to: "/match/$id", params: { id: res.match_id } }),
+    onError: (e: any) => toast.error(e?.message ?? "Não foi possível iniciar a partida."),
   });
 
   async function signOut() {
