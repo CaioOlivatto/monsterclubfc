@@ -81,7 +81,7 @@ function LineupPage() {
     setFormation(savedFormation);
     setStrategy((data.lineup.strategy as any) ?? "equilibrada");
     const savedStarters = Array.isArray(data.lineup.starters)
-      ? (data.lineup.starters as StarterSlot[])
+      ? (data.lineup.starters as unknown as StarterSlot[])
       : [];
     const newSlots = buildSlots(savedFormation);
     setStarters(
