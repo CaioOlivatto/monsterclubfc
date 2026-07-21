@@ -81,11 +81,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "Monster Club Manager — Gestão de Academia" },
       { name: "description", content: "Jogo de gestão estilo Elifoot com criaturas originais: monte seu elenco, treine, dispute liga e copa." },
       { name: "author", content: "Monster Club Manager" },
-      { property: "og:title", content: "Monster Club Manager" },
-      { property: "og:description", content: "Gerencie sua academia de criaturas, escale seu time e conquiste a liga." },
+      { property: "og:title", content: "Monster Club Manager — Gestão de Academia" },
+      { property: "og:description", content: "Jogo de gestão estilo Elifoot com criaturas originais: monte seu elenco, treine, dispute liga e copa." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
 
+      { name: "twitter:title", content: "Monster Club Manager — Gestão de Academia" },
+      { name: "twitter:description", content: "Jogo de gestão estilo Elifoot com criaturas originais: monte seu elenco, treine, dispute liga e copa." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4be21941-83ad-4624-b222-8d2cc3a2c659/id-preview-9813cd03--46a08301-b1f2-42ec-a1be-b33e8c1d0fd6.lovable.app-1784665928320.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4be21941-83ad-4624-b222-8d2cc3a2c659/id-preview-9813cd03--46a08301-b1f2-42ec-a1be-b33e8c1d0fd6.lovable.app-1784665928320.png" },
     ],
     links: [
       {
