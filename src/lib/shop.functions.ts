@@ -282,13 +282,15 @@ export const unlockSpeed = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data, context }) => {
     const { academy } = await loadCtx(context);
-    const flag = data.mode === "4x" ? "paid_4x" : "paid_instant";
-    if (academy[flag]) return { ok: true, message: "Velocidade já desbloqueada." };
+    const isFourX = data.mode === "4x";
+    if (isFourX ? academy.paid_4x : academy.paid_instant) {
+      return { ok: true, message: "Velocidade já desbloqueada." };
+    }
     const cost = SPEED_UNLOCK_COSTS[data.mode];
     if (academy.gems < cost) throw new Error("Gemas insuficientes.");
-    await context.supabase
-      .from("academies")
-      .update({ gems: academy.gems - cost, [flag]: true })
-      .eq("id", academy.id);
+    const patch = isFourX
+      ? { gems: academy.gems - cost, paid_4x: true }
+      : { gems: academy.gems - cost, paid_instant: true };
+    await context.supabase.from("academies").update(patch).eq("id", academy.id);
     return { ok: true, message: `Velocidade ${data.mode} desbloqueada!` };
   });
