@@ -252,9 +252,17 @@ const ELS: Element[] = ["fogo", "agua", "terra", "ar", "gelo"];
 export function generateCpuSide(seed: number, playerOverall: number): EngineSide {
   const rand = mulberry32(seed ^ 0x5f3759df);
   const name = `${pick(CPU_PREFIXES, rand)} ${pick(CPU_SUFFIXES, rand)}`;
-  // Ajusta força do CPU perto da do jogador (±10)
   const target = Math.max(15, Math.min(95, playerOverall + Math.floor((rand() - 0.5) * 20)));
+  return buildCpuSideCore(seed, target, name, `cpu-${seed}`);
+}
 
+// Variante para liga: nome e força pré-definidos por time.
+export function generateCpuSideFor(seed: number, teamId: string, teamName: string, strength: number): EngineSide {
+  return buildCpuSideCore(seed, strength, teamName, teamId);
+}
+
+function buildCpuSideCore(seed: number, target: number, teamName: string, teamId: string): EngineSide {
+  const rand = mulberry32(seed ^ 0x9e3779b9);
   const roles: SlotRole[] = ["GOL", "DEF", "DEF", "DEF", "DEF", "MEI", "MEI", "MEI", "MEI", "ATA", "ATA"];
   const starters: EngineSlot[] = roles.map((role, i) => {
     const overall = Math.max(10, Math.min(99, Math.round(target + (rand() - 0.5) * 15)));
@@ -262,7 +270,7 @@ export function generateCpuSide(seed: number, playerOverall: number): EngineSide
     return {
       role,
       creature: {
-        id: `cpu-${seed}-${i}`,
+        id: `cpu-${teamId}-${i}`,
         name: `${pick(CPU_PREFIXES, rand)}${pick(CPU_SUFFIXES, rand)}`.replace(/\s+/g, ""),
         element,
         overall,
@@ -275,11 +283,6 @@ export function generateCpuSide(seed: number, playerOverall: number): EngineSide
       },
     };
   });
-
-  return {
-    team_id: `cpu-${seed}`,
-    team_name: name,
-    starters,
-    strategy: "equilibrada",
-  };
+  return { team_id: teamId, team_name: teamName, starters, strategy: "equilibrada" };
 }
+

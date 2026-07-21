@@ -607,6 +607,7 @@ export type Database = {
       teams: {
         Row: {
           competition_id: string
+          cpu_strength: number | null
           created_at: string
           id: string
           is_player: boolean
@@ -615,6 +616,7 @@ export type Database = {
         }
         Insert: {
           competition_id: string
+          cpu_strength?: number | null
           created_at?: string
           id?: string
           is_player?: boolean
@@ -623,6 +625,7 @@ export type Database = {
         }
         Update: {
           competition_id?: string
+          cpu_strength?: number | null
           created_at?: string
           id?: string
           is_player?: boolean
