@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getDashboard } from "@/lib/creatures.functions";
 import { createFriendlyMatch } from "@/lib/match.functions";
+import { claimWeeklyGems } from "@/lib/progression.functions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
