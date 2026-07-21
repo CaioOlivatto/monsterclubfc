@@ -559,11 +559,13 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
       description: `Prêmio de temporada — ${division} • ${position}º lugar`,
     });
 
-    const { data: currentSeason } = await supabase
+    const { data: currentSeason, error: csErr } = await supabase
       .from("game_seasons")
       .select("id, season_number")
       .eq("id", competition.season_id)
       .single();
+    if (csErr || !currentSeason) throw csErr ?? new Error("Temporada atual não encontrada.");
+
     await supabase
       .from("game_seasons")
       .update({ is_current: false, ended_at: new Date().toISOString() })
