@@ -11,6 +11,7 @@ import {
   type Element,
 } from "./match-engine.server";
 import { buildSlots } from "./lineup.server";
+import { stadiumIncome } from "./buildings.server";
 
 async function getTrainer(supabase: any, userId: string) {
   const { data: trainer } = await supabase
@@ -329,6 +330,69 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         })
         .eq("competition_id", competition.id)
         .eq("team_id", u.team_id);
+    }
+
+    // Financeiro pós-partida (apenas para a partida do jogador)
+    try {
+      const isHome = playerTeam.id === home.id;
+      const playerGf = isHome ? result.home_score : result.away_score;
+      const playerGa = isHome ? result.away_score : result.home_score;
+      const outcome: "W" | "D" | "L" =
+        playerGf > playerGa ? "W" : playerGf < playerGa ? "L" : "D";
+      const baseByOutcome = outcome === "W" ? 15000 : outcome === "D" ? 6000 : 3000;
+
+      // Nível do estádio (bilheteria só quando manda o jogo)
+      let stadiumLevel = 0;
+      if (isHome) {
+        const { data: est } = await supabase
+          .from("buildings")
+          .select("level")
+          .eq("trainer_id", trainer.id)
+          .eq("building_type", "estadio")
+          .maybeSingle();
+        stadiumLevel = est?.level ?? 0;
+      }
+      const gate = isHome ? 5000 + stadiumIncome(stadiumLevel) : 0;
+
+      // Salários por rodada = 500 por criatura do elenco
+      const { count: rosterCount } = await supabase
+        .from("creatures")
+        .select("id", { count: "exact", head: true })
+        .eq("owner_trainer_id", trainer.id);
+      const salaries = (rosterCount ?? 0) * 500;
+
+      const gross = baseByOutcome + gate;
+      const net = gross - salaries;
+
+      const { data: acad } = await supabase
+        .from("academies")
+        .select("money")
+        .eq("trainer_id", trainer.id)
+        .maybeSingle();
+      const currentMoney = acad?.money ?? 0;
+      await supabase
+        .from("academies")
+        .update({ money: currentMoney + net })
+        .eq("trainer_id", trainer.id);
+
+      const label = outcome === "W" ? "vitória" : outcome === "D" ? "empate" : "derrota";
+      await supabase.from("financial_transactions").insert([
+        {
+          trainer_id: trainer.id,
+          transaction_type: "income",
+          amount: gross,
+          description: `Rodada ${next.round} — premiação por ${label}${isHome ? ` + bilheteria (estádio nv.${stadiumLevel})` : ""}`,
+        },
+        {
+          trainer_id: trainer.id,
+          transaction_type: "expense",
+          amount: salaries,
+          description: `Rodada ${next.round} — salários do elenco`,
+        },
+      ]);
+    } catch (e) {
+      // não falha a partida se o financeiro der erro
+      console.error("payoff error", e);
     }
 
     // Simula rapidamente as outras partidas da mesma rodada (sem eventos detalhados)
