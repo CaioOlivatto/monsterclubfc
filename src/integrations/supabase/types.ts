@@ -95,25 +95,34 @@ export type Database = {
       }
       competitions: {
         Row: {
+          champion_team_id: string | null
           created_at: string
           division: Database["public"]["Enums"]["division_type"]
           id: string
           season_id: string
+          status: string
           trainer_id: string
+          type: string
         }
         Insert: {
+          champion_team_id?: string | null
           created_at?: string
           division: Database["public"]["Enums"]["division_type"]
           id?: string
           season_id: string
+          status?: string
           trainer_id: string
+          type?: string
         }
         Update: {
+          champion_team_id?: string | null
           created_at?: string
           division?: Database["public"]["Enums"]["division_type"]
           id?: string
           season_id?: string
+          status?: string
           trainer_id?: string
+          type?: string
         }
         Relationships: [
           {
