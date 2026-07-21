@@ -299,8 +299,26 @@ function Dashboard() {
           <Shortcut icon={<ShoppingBag className="h-5 w-5" />} label="Loja" disabled />
         </div>
 
+        <Card>
+          <CardContent className="flex flex-col items-center gap-2 py-5 sm:flex-row sm:justify-between">
+            <div className="text-center sm:text-left">
+              <p className="text-sm font-semibold">Pronto para jogar?</p>
+              <p className="text-xs text-muted-foreground">
+                Dispute uma partida amistosa contra um adversário aleatório usando sua escalação atual.
+              </p>
+            </div>
+            <Button
+              onClick={() => friendlyMut.mutate()}
+              disabled={friendlyMut.isPending}
+            >
+              <Swords className="mr-2 h-4 w-4" />
+              {friendlyMut.isPending ? "Iniciando..." : "Jogar amistoso"}
+            </Button>
+          </CardContent>
+        </Card>
+
         <p className="pt-2 text-center text-xs text-muted-foreground">
-          As telas acima chegam nas próximas etapas.
+          Mercado, liga e construções chegam nas próximas etapas.
         </p>
       </main>
     </div>
