@@ -11,6 +11,7 @@ import {
   type Element,
 } from "./match-engine.server";
 import { buildSlots } from "./lineup.server";
+import { stadiumIncome } from "./buildings.server";
 
 async function getTrainer(supabase: any, userId: string) {
   const { data: trainer } = await supabase
