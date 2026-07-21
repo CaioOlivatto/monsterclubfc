@@ -85,8 +85,9 @@ export const spendHalfStar = createServerFn({ method: "POST" })
 
     const { error } = await supabase
       .from("creatures")
-      .update(update)
+      .update(update as any)
       .eq("id", c.id)
+
       .eq("owner_trainer_id", trainer.id);
     if (error) throw error;
 
