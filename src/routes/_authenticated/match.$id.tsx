@@ -175,22 +175,42 @@ function MatchPage() {
               <Button
                 size="sm"
                 variant={speed === 4 ? "default" : "outline"}
-                onClick={() => setSpeed(4)}
+                onClick={() => {
+                  if (paid.includes("4x")) setSpeed(4);
+                  else payMut.mutate("4x", { onSuccess: () => setSpeed(4) });
+                }}
+                disabled={payMut.isPending}
                 title="Premium"
               >
                 <FastForward className="mr-1 h-3 w-3" /> 4x
+                {!paid.includes("4x") && (
+                  <span className="ml-1 flex items-center text-[10px] text-primary">
+                    <Gem className="h-3 w-3" /> 2
+                  </span>
+                )}
               </Button>
               <Button
                 size="sm"
                 variant={speed === 0 ? "default" : "outline"}
                 onClick={() => {
-                  setSpeed(0);
-                  setPlaying(true);
+                  const go = () => {
+                    setSpeed(0);
+                    setPlaying(true);
+                  };
+                  if (paid.includes("instant")) go();
+                  else payMut.mutate("instant", { onSuccess: go });
                 }}
+                disabled={payMut.isPending}
                 title="Premium+"
               >
                 <SkipForward className="mr-1 h-3 w-3" /> Instantâneo
+                {!paid.includes("instant") && (
+                  <span className="ml-1 flex items-center text-[10px] text-primary">
+                    <Gem className="h-3 w-3" /> 5
+                  </span>
+                )}
               </Button>
+
             </div>
           </CardContent>
         </Card>
