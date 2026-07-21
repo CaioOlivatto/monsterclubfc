@@ -188,14 +188,25 @@ function LineupPage() {
             </Button>
             <h1 className="text-lg font-semibold">Escalação</h1>
           </div>
-          <Button
-            onClick={() => mut.mutate()}
-            disabled={mut.isPending || filledStarters !== 11}
-            size="sm"
-          >
-            <Save className="mr-2 h-4 w-4" />
-            Salvar
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={autoFill}
+              disabled={creatures.length === 0}
+              size="sm"
+              variant="secondary"
+            >
+              <Wand2 className="mr-2 h-4 w-4" />
+              Auto definir
+            </Button>
+            <Button
+              onClick={() => mut.mutate()}
+              disabled={mut.isPending || filledStarters !== 11}
+              size="sm"
+            >
+              <Save className="mr-2 h-4 w-4" />
+              Salvar
+            </Button>
+          </div>
         </div>
       </header>
 
