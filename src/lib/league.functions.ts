@@ -188,10 +188,13 @@ export const getLeague = createServerFn({ method: "GET" })
     const trainer = await getTrainer(supabase, userId);
     const { data: competition } = await supabase
       .from("competitions")
-      .select("id, division, season_id")
+      .select("id, division, season_id, status, champion_team_id")
       .eq("trainer_id", trainer.id)
+      .eq("type", "league")
+      .eq("status", "active")
       .maybeSingle();
     if (!competition) return { competition: null };
+
 
     const [teamsRes, standingsRes, matchesRes] = await Promise.all([
       supabase.from("teams").select("id, name, is_player, cpu_strength").eq("competition_id", competition.id),
