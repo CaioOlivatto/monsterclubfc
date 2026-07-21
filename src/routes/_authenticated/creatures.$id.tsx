@@ -1,12 +1,16 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { toast } from "sonner";
 import { getCreature } from "@/lib/creatures.functions";
+import { trainCreature, restCreature } from "@/lib/training.functions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, BatteryCharging, Coins, Star } from "lucide-react";
+import { ArrowLeft, BatteryCharging, Coins, Dumbbell, Sparkles, Star } from "lucide-react";
+
 
 export const Route = createFileRoute("/_authenticated/creatures/$id")({
   head: () => ({
