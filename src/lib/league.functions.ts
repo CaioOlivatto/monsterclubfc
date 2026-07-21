@@ -361,9 +361,40 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         },
       ]);
     } catch (e) {
-      // não falha a partida se o financeiro der erro
       console.error("payoff error", e);
     }
+
+    // XP pós-partida e mensagem de resultado
+    try {
+      const isHome = playerTeam.id === home.id;
+      const playerGf = isHome ? result.home_score : result.away_score;
+      const playerGa = isHome ? result.away_score : result.home_score;
+      const outcomeXp: "W" | "D" | "L" =
+        playerGf > playerGa ? "W" : playerGf < playerGa ? "L" : "D";
+      if (playerSide) {
+        const starterIds = playerSide.starters.map((s) => s.creature.id);
+        const reserveIds = result.used_bench_ids.filter((id) =>
+          playerSide!.bench.some((b) => b.creature.id === id),
+        );
+        await applyPostMatchXp(supabase, trainer.id, {
+          starterIds,
+          reserveIds,
+          outcome: outcomeXp,
+          energy_loss: result.energy_loss,
+        });
+      }
+      const opponentName = isHome ? away.name : home.name;
+      await insertMessage(
+        supabase,
+        trainer.id,
+        "match",
+        `Rodada ${next.round}: ${outcomeXp === "W" ? "Vitória" : outcomeXp === "D" ? "Empate" : "Derrota"} vs ${opponentName}`,
+        `${isHome ? home.name : away.name} ${playerGf} x ${playerGa} ${isHome ? away.name : home.name} — clima: ${result.weather}.`,
+      );
+    } catch (e) {
+      console.error("xp/message error", e);
+    }
+
 
     // Simula rapidamente as outras partidas da mesma rodada (sem eventos detalhados)
     const { data: sameRound } = await supabase
