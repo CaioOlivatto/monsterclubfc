@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getLeague, startLeague, playNextLeagueMatch } from "@/lib/league.functions";
+import { getLeague, startLeague, playNextLeagueMatch, finishSeasonAndAdvance } from "@/lib/league.functions";
 
 export const Route = createFileRoute("/_authenticated/league")({
   head: () => ({
