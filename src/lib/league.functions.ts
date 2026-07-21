@@ -371,10 +371,11 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       const playerGa = isHome ? result.away_score : result.home_score;
       const outcomeXp: "W" | "D" | "L" =
         playerGf > playerGa ? "W" : playerGf < playerGa ? "L" : "D";
-      if (playerSide) {
-        const starterIds = playerSide.starters.map((s) => s.creature.id);
+      const side: EngineSide | null = playerSide;
+      if (side) {
+        const starterIds = side.starters.map((s) => s.creature.id);
         const reserveIds = result.used_bench_ids.filter((id) =>
-          playerSide!.bench.some((b) => b.creature.id === id),
+          side.bench.some((b) => b.creature.id === id),
         );
         await applyPostMatchXp(supabase, trainer.id, {
           starterIds,
