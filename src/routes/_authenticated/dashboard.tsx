@@ -296,7 +296,9 @@ function Dashboard() {
           <Shortcut icon={<Store className="h-5 w-5" />} label="Mercado" to="/market" />
           <Shortcut icon={<Building2 className="h-5 w-5" />} label="Construções" to="/buildings" />
           <Shortcut icon={<Trophy className="h-5 w-5" />} label="Liga" to="/league" />
+          <Shortcut icon={<Trophy className="h-5 w-5" />} label="Copa" to="/cup" />
           <Shortcut icon={<ShoppingBag className="h-5 w-5" />} label="Loja" to="/shop" />
+
         </div>
 
         <Card>
