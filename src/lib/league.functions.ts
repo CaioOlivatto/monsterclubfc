@@ -50,21 +50,15 @@ type Division = typeof DIVISION_ORDER[number];
 
 // Prêmio por partida na liga por divisão (V / E / D) — Balanceamento §2.1
 const MATCH_PRIZE: Record<Division, [number, number, number]> = {
-  bronze:   [8_000, 3_000, 1_000],
-  prata:   [16_000, 6_000, 2_000],
-  ouro:    [30_000, 12_000, 4_000],
-  diamante:[50_000, 20_000, 8_000],
-  lendaria:[80_000, 30_000, 12_000],
+  bronze:   [15_000,  6_000,  2_000],
+  prata:    [28_000, 11_000,  4_000],
+  ouro:     [50_000, 20_000,  7_000],
+  diamante: [90_000, 36_000, 13_000],
+  lendaria:[160_000, 64_000, 24_000],
 };
 
-// Prêmio total de fim de temporada por divisão (fator aplicado por posição)
-const SEASON_PRIZE_BASE: Record<Division, number> = {
-  bronze:   80_000,
-  prata:    160_000,
-  ouro:     280_000,
-  diamante: 450_000,
-  lendaria: 700_000,
-};
+// Multiplicador aplicado sobre o prêmio de vitória da divisão (fim de temporada)
+const SEASON_POSITION_MULT: number[] = [10, 6, 3, 3, 1.5, 1.5, 0.5, 0.5];
 
 // Salário por temporada baseado no overall (aprox. tier de estrelas)
 function seasonSalary(overall: number): number {
