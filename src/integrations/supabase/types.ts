@@ -14,7 +14,669 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      academies: {
+        Row: {
+          builders: number
+          created_at: string
+          gems: number
+          id: string
+          money: number
+          roster_slots: number
+          trainer_id: string
+          updated_at: string
+        }
+        Insert: {
+          builders?: number
+          created_at?: string
+          gems?: number
+          id?: string
+          money?: number
+          roster_slots?: number
+          trainer_id: string
+          updated_at?: string
+        }
+        Update: {
+          builders?: number
+          created_at?: string
+          gems?: number
+          id?: string
+          money?: number
+          roster_slots?: number
+          trainer_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "academies_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: true
+            referencedRelation: "trainers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      buildings: {
+        Row: {
+          building_type: Database["public"]["Enums"]["building_type"]
+          created_at: string
+          id: string
+          level: number
+          trainer_id: string
+          updated_at: string
+          upgrade_completes_at: string | null
+        }
+        Insert: {
+          building_type: Database["public"]["Enums"]["building_type"]
+          created_at?: string
+          id?: string
+          level?: number
+          trainer_id: string
+          updated_at?: string
+          upgrade_completes_at?: string | null
+        }
+        Update: {
+          building_type?: Database["public"]["Enums"]["building_type"]
+          created_at?: string
+          id?: string
+          level?: number
+          trainer_id?: string
+          updated_at?: string
+          upgrade_completes_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buildings_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "trainers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competitions: {
+        Row: {
+          created_at: string
+          division: Database["public"]["Enums"]["division_type"]
+          id: string
+          season_id: string
+          trainer_id: string
+        }
+        Insert: {
+          created_at?: string
+          division: Database["public"]["Enums"]["division_type"]
+          id?: string
+          season_id: string
+          trainer_id: string
+        }
+        Update: {
+          created_at?: string
+          division?: Database["public"]["Enums"]["division_type"]
+          id?: string
+          season_id?: string
+          trainer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitions_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "game_seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competitions_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "trainers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      creatures: {
+        Row: {
+          aff_agua: number
+          aff_ar: number
+          aff_fogo: number
+          aff_gelo: number
+          aff_terra: number
+          attack: number
+          created_at: string
+          defense: number
+          element: Database["public"]["Enums"]["element_type"]
+          energy: number
+          goalkeeper: number
+          half_stars_earned: number
+          id: string
+          market_value: number
+          name: string
+          overall: number
+          owner_team_id: string | null
+          owner_trainer_id: string | null
+          physical: number
+          strength: number
+          suggested_position: string | null
+          updated_at: string
+          xp: number
+        }
+        Insert: {
+          aff_agua?: number
+          aff_ar?: number
+          aff_fogo?: number
+          aff_gelo?: number
+          aff_terra?: number
+          attack?: number
+          created_at?: string
+          defense?: number
+          element: Database["public"]["Enums"]["element_type"]
+          energy?: number
+          goalkeeper?: number
+          half_stars_earned?: number
+          id?: string
+          market_value?: number
+          name: string
+          overall?: number
+          owner_team_id?: string | null
+          owner_trainer_id?: string | null
+          physical?: number
+          strength?: number
+          suggested_position?: string | null
+          updated_at?: string
+          xp?: number
+        }
+        Update: {
+          aff_agua?: number
+          aff_ar?: number
+          aff_fogo?: number
+          aff_gelo?: number
+          aff_terra?: number
+          attack?: number
+          created_at?: string
+          defense?: number
+          element?: Database["public"]["Enums"]["element_type"]
+          energy?: number
+          goalkeeper?: number
+          half_stars_earned?: number
+          id?: string
+          market_value?: number
+          name?: string
+          overall?: number
+          owner_team_id?: string | null
+          owner_trainer_id?: string | null
+          physical?: number
+          strength?: number
+          suggested_position?: string | null
+          updated_at?: string
+          xp?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creatures_owner_team_fk"
+            columns: ["owner_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creatures_owner_trainer_id_fkey"
+            columns: ["owner_trainer_id"]
+            isOneToOne: false
+            referencedRelation: "trainers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string
+          id: string
+          trainer_id: string
+          transaction_type: Database["public"]["Enums"]["transaction_type"]
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          description: string
+          id?: string
+          trainer_id: string
+          transaction_type: Database["public"]["Enums"]["transaction_type"]
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string
+          id?: string
+          trainer_id?: string
+          transaction_type?: Database["public"]["Enums"]["transaction_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_transactions_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "trainers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      game_seasons: {
+        Row: {
+          ended_at: string | null
+          id: string
+          is_current: boolean
+          season_number: number
+          started_at: string
+          trainer_id: string
+        }
+        Insert: {
+          ended_at?: string | null
+          id?: string
+          is_current?: boolean
+          season_number: number
+          started_at?: string
+          trainer_id: string
+        }
+        Update: {
+          ended_at?: string | null
+          id?: string
+          is_current?: boolean
+          season_number?: number
+          started_at?: string
+          trainer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_seasons_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "trainers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      items: {
+        Row: {
+          id: string
+          item_key: string
+          quantity: number
+          trainer_id: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          item_key: string
+          quantity?: number
+          trainer_id: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          item_key?: string
+          quantity?: number
+          trainer_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "items_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "trainers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      market_listings: {
+        Row: {
+          created_at: string
+          creature_snapshot: Json
+          id: string
+          price: number
+          season_id: string
+          sold: boolean
+          trainer_id: string
+        }
+        Insert: {
+          created_at?: string
+          creature_snapshot: Json
+          id?: string
+          price: number
+          season_id: string
+          sold?: boolean
+          trainer_id: string
+        }
+        Update: {
+          created_at?: string
+          creature_snapshot?: Json
+          id?: string
+          price?: number
+          season_id?: string
+          sold?: boolean
+          trainer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_listings_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "game_seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_listings_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "trainers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      match_events: {
+        Row: {
+          actor_creature_id: string | null
+          actor_team_id: string | null
+          created_at: string
+          description: string | null
+          event_type: string
+          id: string
+          match_id: string
+          minute: number
+        }
+        Insert: {
+          actor_creature_id?: string | null
+          actor_team_id?: string | null
+          created_at?: string
+          description?: string | null
+          event_type: string
+          id?: string
+          match_id: string
+          minute: number
+        }
+        Update: {
+          actor_creature_id?: string | null
+          actor_team_id?: string | null
+          created_at?: string
+          description?: string | null
+          event_type?: string
+          id?: string
+          match_id?: string
+          minute?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "match_events_actor_creature_id_fkey"
+            columns: ["actor_creature_id"]
+            isOneToOne: false
+            referencedRelation: "creatures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_events_actor_team_id_fkey"
+            columns: ["actor_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_events_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      matches: {
+        Row: {
+          away_score: number | null
+          away_team_id: string
+          competition_id: string
+          created_at: string
+          home_score: number | null
+          home_team_id: string
+          id: string
+          played_at: string | null
+          round: number
+          status: Database["public"]["Enums"]["match_status"]
+        }
+        Insert: {
+          away_score?: number | null
+          away_team_id: string
+          competition_id: string
+          created_at?: string
+          home_score?: number | null
+          home_team_id: string
+          id?: string
+          played_at?: string | null
+          round: number
+          status?: Database["public"]["Enums"]["match_status"]
+        }
+        Update: {
+          away_score?: number | null
+          away_team_id?: string
+          competition_id?: string
+          created_at?: string
+          home_score?: number | null
+          home_team_id?: string
+          id?: string
+          played_at?: string | null
+          round?: number
+          status?: Database["public"]["Enums"]["match_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matches_away_team_id_fkey"
+            columns: ["away_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_home_team_id_fkey"
+            columns: ["home_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      standings: {
+        Row: {
+          competition_id: string
+          draws: number
+          goals_against: number
+          goals_for: number
+          id: string
+          losses: number
+          points: number
+          team_id: string
+          wins: number
+        }
+        Insert: {
+          competition_id: string
+          draws?: number
+          goals_against?: number
+          goals_for?: number
+          id?: string
+          losses?: number
+          points?: number
+          team_id: string
+          wins?: number
+        }
+        Update: {
+          competition_id?: string
+          draws?: number
+          goals_against?: number
+          goals_for?: number
+          id?: string
+          losses?: number
+          points?: number
+          team_id?: string
+          wins?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "standings_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "standings_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          competition_id: string
+          created_at: string
+          id: string
+          is_player: boolean
+          name: string
+          trainer_id: string | null
+        }
+        Insert: {
+          competition_id: string
+          created_at?: string
+          id?: string
+          is_player?: boolean
+          name: string
+          trainer_id?: string | null
+        }
+        Update: {
+          competition_id?: string
+          created_at?: string
+          id?: string
+          is_player?: boolean
+          name?: string
+          trainer_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teams_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "trainers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trainers: {
+        Row: {
+          academy_name: string
+          created_at: string
+          id: string
+          level: number
+          trainer_name: string
+          updated_at: string
+          user_id: string
+          xp: number
+        }
+        Insert: {
+          academy_name: string
+          created_at?: string
+          id?: string
+          level?: number
+          trainer_name: string
+          updated_at?: string
+          user_id: string
+          xp?: number
+        }
+        Update: {
+          academy_name?: string
+          created_at?: string
+          id?: string
+          level?: number
+          trainer_name?: string
+          updated_at?: string
+          user_id?: string
+          xp?: number
+        }
+        Relationships: []
+      }
+      transfers: {
+        Row: {
+          amount: number
+          created_at: string
+          creature_id: string | null
+          id: string
+          trainer_id: string
+          transfer_type: Database["public"]["Enums"]["transfer_type"]
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          creature_id?: string | null
+          id?: string
+          trainer_id: string
+          transfer_type: Database["public"]["Enums"]["transfer_type"]
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          creature_id?: string | null
+          id?: string
+          trainer_id?: string
+          transfer_type?: Database["public"]["Enums"]["transfer_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transfers_creature_id_fkey"
+            columns: ["creature_id"]
+            isOneToOne: false
+            referencedRelation: "creatures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transfers_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "trainers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +685,12 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      building_type: "ct_treino" | "ct_elemental" | "estadio" | "centro_medico"
+      division_type: "bronze" | "prata" | "ouro" | "diamante" | "lendaria"
+      element_type: "fogo" | "agua" | "terra" | "ar" | "gelo"
+      match_status: "scheduled" | "in_progress" | "finished"
+      transaction_type: "income" | "expense"
+      transfer_type: "buy" | "sell"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +817,13 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      building_type: ["ct_treino", "ct_elemental", "estadio", "centro_medico"],
+      division_type: ["bronze", "prata", "ouro", "diamante", "lendaria"],
+      element_type: ["fogo", "agua", "terra", "ar", "gelo"],
+      match_status: ["scheduled", "in_progress", "finished"],
+      transaction_type: ["income", "expense"],
+      transfer_type: ["buy", "sell"],
+    },
   },
 } as const
