@@ -8,12 +8,13 @@ type AttrKey = (typeof ATTR_KEYS)[number];
 type AffKey = (typeof AFF_KEYS)[number];
 
 const affColumn: Record<AffKey, string> = {
-  fogo: "affinity_fogo",
-  agua: "affinity_agua",
-  terra: "affinity_terra",
-  ar: "affinity_ar",
-  gelo: "affinity_gelo",
+  fogo: "aff_fogo",
+  agua: "aff_agua",
+  terra: "aff_terra",
+  ar: "aff_ar",
+  gelo: "aff_gelo",
 };
+
 
 const SpendSchema = z.object({
   creatureId: z.string().uuid(),
