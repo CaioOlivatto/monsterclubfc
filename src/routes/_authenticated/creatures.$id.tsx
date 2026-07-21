@@ -1,12 +1,16 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { toast } from "sonner";
 import { getCreature } from "@/lib/creatures.functions";
+import { trainCreature, restCreature } from "@/lib/training.functions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, BatteryCharging, Coins, Star } from "lucide-react";
+import { ArrowLeft, BatteryCharging, Coins, Dumbbell, Sparkles, Star } from "lucide-react";
+
 
 export const Route = createFileRoute("/_authenticated/creatures/$id")({
   head: () => ({
@@ -54,11 +58,34 @@ function stars(v: number) {
 function CreatureDetail() {
   const { id } = Route.useParams();
   const nav = useNavigate();
+  const qc = useQueryClient();
   const fetchOne = useServerFn(getCreature);
+  const trainFn = useServerFn(trainCreature);
+  const restFn = useServerFn(restCreature);
   const { data: c, isLoading, error } = useQuery({
     queryKey: ["creature", id],
     queryFn: () => fetchOne({ data: { id } }),
   });
+
+  const trainMut = useMutation({
+    mutationFn: (focus: { kind: "attribute"; key: any } | { kind: "affinity"; key: any }) =>
+      trainFn({ data: { creatureId: id, focus } }),
+    onSuccess: (res) => {
+      toast.success(res.message);
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha no treino"),
+  });
+
+  const restMut = useMutation({
+    mutationFn: () => restFn({ data: { creatureId: id } }),
+    onSuccess: (res) => {
+      toast.success(res.message);
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao descansar"),
+  });
+
 
   if (isLoading) {
     return (
@@ -176,6 +203,64 @@ function CreatureDetail() {
 
         <Card>
           <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Dumbbell className="h-4 w-4" /> Treinamento
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Cada sessão consome 20 de energia e concede XP. A cada 100 XP em um atributo, +1 ponto (recalcula overall e meia-estrelas). Sessões de afinidade têm chance de +1 no elemento treinado.
+            </p>
+
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Atributos</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                {(["attack", "defense", "goalkeeper", "physical", "strength"] as const).map((k) => (
+                  <Button
+                    key={k}
+                    size="sm"
+                    variant="secondary"
+                    disabled={trainMut.isPending || c.energy < 20}
+                    onClick={() => trainMut.mutate({ kind: "attribute", key: k })}
+                  >
+                    {({ attack: "Ataque", defense: "Defesa", goalkeeper: "Goleiro", physical: "Físico", strength: "Força" } as const)[k]}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Afinidades elementais</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                {(["fogo", "agua", "terra", "ar", "gelo"] as const).map((k) => (
+                  <Button
+                    key={k}
+                    size="sm"
+                    variant="outline"
+                    disabled={trainMut.isPending || c.energy < 20}
+                    onClick={() => trainMut.mutate({ kind: "affinity", key: k })}
+                  >
+                    <Sparkles className="mr-1 h-3 w-3" />
+                    {ELEMENT_LABEL[k]}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-card/40 p-3">
+              <div className="min-w-0 text-sm">
+                <p className="font-medium">Descansar</p>
+                <p className="text-xs text-muted-foreground">Recupera energia com base no Centro Médico.</p>
+              </div>
+              <Button size="sm" onClick={() => restMut.mutate()} disabled={restMut.isPending || c.energy >= 100}>
+                <BatteryCharging className="mr-2 h-4 w-4" /> Descansar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
             <CardTitle className="text-base">Progresso</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
@@ -192,9 +277,6 @@ function CreatureDetail() {
           </CardContent>
         </Card>
 
-        <p className="pt-2 text-center text-xs text-muted-foreground">
-          Ações de treino, evolução e escalação chegam nas próximas etapas.
-        </p>
       </main>
     </div>
   );
