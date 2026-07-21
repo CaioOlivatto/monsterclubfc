@@ -314,7 +314,22 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
           .maybeSingle();
         stadiumLevel = est?.level ?? 0;
         const capacity = stadiumCapacity(stadiumLevel);
-        const fillRate = outcome === "W" ? 0.85 : outcome === "D" ? 0.7 : 0.55;
+        // Bilheteria (§2.2): ocupação = 70% + 3% × posição_invertida_na_liga
+        const { data: standRows } = await supabase
+          .from("standings")
+          .select("team_id, points, goals_for, goals_against")
+          .eq("competition_id", competition.id);
+        const rankedCur = [...(standRows ?? [])].sort((a: any, b: any) => {
+          if (b.points !== a.points) return b.points - a.points;
+          const gdA = a.goals_for - a.goals_against;
+          const gdB = b.goals_for - b.goals_against;
+          if (gdB !== gdA) return gdB - gdA;
+          return b.goals_for - a.goals_for;
+        });
+        const posIdx = rankedCur.findIndex((r: any) => r.team_id === playerTeam.id);
+        const pos = posIdx >= 0 ? posIdx + 1 : 8;
+        const posInvertida = 9 - pos; // 1º → 8; 8º → 1
+        const fillRate = Math.min(1, 0.70 + 0.03 * posInvertida);
         gate = Math.round(capacity * fillRate * 25);
       }
 
