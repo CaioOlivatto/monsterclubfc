@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRosterRouteImport } from './routes/_authenticated/roster'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
+import { Route as AuthenticatedMarketRouteImport } from './routes/_authenticated/market'
 import { Route as AuthenticatedLineupRouteImport } from './routes/_authenticated/lineup'
 import { Route as AuthenticatedLeagueRouteImport } from './routes/_authenticated/league'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -42,6 +43,11 @@ const AuthenticatedRosterRoute = AuthenticatedRosterRouteImport.update({
 const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedMarketRoute = AuthenticatedMarketRouteImport.update({
+  id: '/market',
+  path: '/market',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedLineupRoute = AuthenticatedLineupRouteImport.update({
@@ -77,6 +83,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/league': typeof AuthenticatedLeagueRoute
   '/lineup': typeof AuthenticatedLineupRoute
+  '/market': typeof AuthenticatedMarketRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/roster': typeof AuthenticatedRosterRoute
   '/creatures/$id': typeof AuthenticatedCreaturesIdRoute
@@ -88,6 +95,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/league': typeof AuthenticatedLeagueRoute
   '/lineup': typeof AuthenticatedLineupRoute
+  '/market': typeof AuthenticatedMarketRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/roster': typeof AuthenticatedRosterRoute
   '/creatures/$id': typeof AuthenticatedCreaturesIdRoute
@@ -101,6 +109,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/league': typeof AuthenticatedLeagueRoute
   '/_authenticated/lineup': typeof AuthenticatedLineupRoute
+  '/_authenticated/market': typeof AuthenticatedMarketRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/roster': typeof AuthenticatedRosterRoute
   '/_authenticated/creatures/$id': typeof AuthenticatedCreaturesIdRoute
@@ -114,6 +123,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/league'
     | '/lineup'
+    | '/market'
     | '/onboarding'
     | '/roster'
     | '/creatures/$id'
@@ -125,6 +135,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/league'
     | '/lineup'
+    | '/market'
     | '/onboarding'
     | '/roster'
     | '/creatures/$id'
@@ -137,6 +148,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/league'
     | '/_authenticated/lineup'
+    | '/_authenticated/market'
     | '/_authenticated/onboarding'
     | '/_authenticated/roster'
     | '/_authenticated/creatures/$id'
@@ -186,6 +198,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOnboardingRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/market': {
+      id: '/_authenticated/market'
+      path: '/market'
+      fullPath: '/market'
+      preLoaderRoute: typeof AuthenticatedMarketRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/lineup': {
       id: '/_authenticated/lineup'
       path: '/lineup'
@@ -228,6 +247,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedLeagueRoute: typeof AuthenticatedLeagueRoute
   AuthenticatedLineupRoute: typeof AuthenticatedLineupRoute
+  AuthenticatedMarketRoute: typeof AuthenticatedMarketRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
   AuthenticatedRosterRoute: typeof AuthenticatedRosterRoute
   AuthenticatedCreaturesIdRoute: typeof AuthenticatedCreaturesIdRoute
@@ -238,6 +258,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedLeagueRoute: AuthenticatedLeagueRoute,
   AuthenticatedLineupRoute: AuthenticatedLineupRoute,
+  AuthenticatedMarketRoute: AuthenticatedMarketRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
   AuthenticatedRosterRoute: AuthenticatedRosterRoute,
   AuthenticatedCreaturesIdRoute: AuthenticatedCreaturesIdRoute,
