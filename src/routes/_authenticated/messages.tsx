@@ -16,9 +16,9 @@ import { Check, CheckCheck, Inbox, Trash2 } from "lucide-react";
 export const Route = createFileRoute("/_authenticated/messages")({
   head: () => ({
     meta: [
-      { title: "Caixa de mensagens — Futebol de Criaturas" },
+      { title: "Caixa de mensagens — Monster Club Manager" },
       { name: "description", content: "Eventos, resultados e avisos da sua academia." },
-      { property: "og:title", content: "Caixa de mensagens — Futebol de Criaturas" },
+      { property: "og:title", content: "Caixa de mensagens — Monster Club Manager" },
       { property: "og:description", content: "Eventos, resultados e avisos da sua academia." },
     ],
   }),

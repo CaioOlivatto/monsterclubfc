@@ -12,7 +12,7 @@ import { getCup, startCup, playNextCupMatch } from "@/lib/cup.functions";
 export const Route = createFileRoute("/_authenticated/cup")({
   head: () => ({
     meta: [
-      { title: "Copa — Futebol de Criaturas" },
+      { title: "Copa — Monster Club Manager" },
       { name: "description", content: "Torneio eliminatório com 8 times e chaveamento em quartas, semi e final." },
     ],
   }),

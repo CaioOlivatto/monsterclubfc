@@ -31,12 +31,12 @@ import {
 export const Route = createFileRoute("/_authenticated/buildings")({
   head: () => ({
     meta: [
-      { title: "Construções — Futebol de Criaturas" },
+      { title: "Construções — Monster Club Manager" },
       {
         name: "description",
         content: "Construa e evolua a infraestrutura da sua academia.",
       },
-      { property: "og:title", content: "Construções — Futebol de Criaturas" },
+      { property: "og:title", content: "Construções — Monster Club Manager" },
       {
         property: "og:description",
         content: "Estádio, centro de treinamento, CT elemental e centro médico.",

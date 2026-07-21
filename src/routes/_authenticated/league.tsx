@@ -12,7 +12,7 @@ import { getLeague, startLeague, playNextLeagueMatch, finishSeasonAndAdvance } f
 export const Route = createFileRoute("/_authenticated/league")({
   head: () => ({
     meta: [
-      { title: "Liga — Futebol de Criaturas" },
+      { title: "Liga — Monster Club Manager" },
       { name: "description", content: "Classificação, calendário e resultados da liga da sua academia." },
     ],
   }),

@@ -9,9 +9,9 @@ import { Coins, Gem, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 export const Route = createFileRoute("/_authenticated/finances")({
   head: () => ({
     meta: [
-      { title: "Finanças — Futebol de Criaturas" },
+      { title: "Finanças — Monster Club Manager" },
       { name: "description", content: "Extrato financeiro completo da sua academia." },
-      { property: "og:title", content: "Finanças — Futebol de Criaturas" },
+      { property: "og:title", content: "Finanças — Monster Club Manager" },
       { property: "og:description", content: "Extrato financeiro completo da sua academia." },
     ],
   }),

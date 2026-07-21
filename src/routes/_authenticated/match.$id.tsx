@@ -13,9 +13,9 @@ import { ArrowLeft, Play, Pause, FastForward, SkipForward, Gem } from "lucide-re
 export const Route = createFileRoute("/_authenticated/match/$id")({
   head: () => ({
     meta: [
-      { title: "Partida ao Vivo — Futebol de Criaturas" },
+      { title: "Partida ao Vivo — Monster Club Manager" },
       { name: "description", content: "Assista à sua partida minuto a minuto." },
-      { property: "og:title", content: "Partida — Futebol de Criaturas" },
+      { property: "og:title", content: "Partida — Monster Club Manager" },
       { property: "og:description", content: "Assista à sua partida minuto a minuto." },
     ],
   }),
