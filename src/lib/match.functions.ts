@@ -22,21 +22,24 @@ async function ensurePlayerTeam(supabase: any, trainerId: string, teamName: stri
     .select("id")
     .eq("trainer_id", trainerId)
     .eq("is_player", true)
+    .is("competition_id", null)
+    .order("created_at", { ascending: true })
+    .limit(1)
     .maybeSingle();
   if (existing) return existing.id;
   const { data: created, error } = await supabase
     .from("teams")
-    .insert({ trainer_id: trainerId, is_player: true, name: teamName })
+    .insert({ trainer_id: trainerId, is_player: true, name: teamName, competition_id: null })
     .select("id")
     .single();
   if (error) throw error;
   return created.id;
 }
 
-async function ensureCpuTeam(supabase: any, name: string): Promise<string> {
+async function ensureCpuTeam(supabase: any, trainerId: string, name: string, strength: number): Promise<string> {
   const { data: created, error } = await supabase
     .from("teams")
-    .insert({ trainer_id: null, is_player: false, name })
+    .insert({ trainer_id: trainerId, is_player: false, name, competition_id: null, cpu_strength: strength })
     .select("id")
     .single();
   if (error) throw error;
@@ -91,7 +94,10 @@ export const createFriendlyMatch = createServerFn({ method: "POST" })
 
     const seed = Math.floor(Math.random() * 2 ** 31);
     const cpuSide = generateCpuSide(seed, playerOverall);
-    const awayTeamId = await ensureCpuTeam(supabase, cpuSide.team_name);
+    const cpuOverall = Math.round(
+      cpuSide.starters.reduce((a, s) => a + s.creature.overall, 0) / cpuSide.starters.length,
+    );
+    const awayTeamId = await ensureCpuTeam(supabase, trainer.id, cpuSide.team_name, cpuOverall);
 
     const finalHome: EngineSide = { ...homeSide, team_id: homeTeamId };
     const finalAway: EngineSide = { ...cpuSide, team_id: awayTeamId };
