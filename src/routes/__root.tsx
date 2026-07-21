@@ -77,14 +77,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "Futebol de Criaturas — Gestão de Academia" },
+      { name: "description", content: "Jogo de gestão estilo Elifoot com criaturas originais: monte seu elenco, treine, dispute liga e copa." },
+      { name: "author", content: "Futebol de Criaturas" },
+      { property: "og:title", content: "Futebol de Criaturas" },
+      { property: "og:description", content: "Gerencie sua academia de criaturas, escale seu time e conquiste a liga." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
+
     ],
     links: [
       {
