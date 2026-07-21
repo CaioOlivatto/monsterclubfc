@@ -1,126 +1,76 @@
+# Escolha de time inicial (6 times fixos)
 
-# Aplicar Tabela de Balanceamento (MVP v1)
+Adiciona uma etapa após o cadastro do treinador: selecionar 1 entre 6 times pré-montados. O time escolhido vira o elenco do jogador; os outros 5 viram adversários da 5ª Divisão – Liga Bronze (mais 2 CPU gerados para fechar 8).
 
-Traz os números do jogo para os valores oficiais do documento: curva de XP lenta, economia por temporada, custos/tempos das construções, loja em gemas, velocidades permanentes e valor de mercado por estrelas.
+## 1. Especificação dos 6 times
 
-## Escopo
+Constantes fixas em `src/lib/starter-teams.server.ts`:
 
-### 1. Curva de XP e evolução (§1)
+| # | Nome | Elemento dom. | Estilo | Cor | Escudo |
+|---|------|---------------|--------|-----|--------|
+| 1 | Titãs de Pedra | terra | defensivo | marrom/âmbar | 🗿 |
+| 2 | Furacões do Vento | ar | ofensivo | lilás/branco | 🌀 |
+| 3 | Chamas Rubras | fogo | ofensivo | vermelho/laranja | 🔥 |
+| 4 | Marés Profundas | agua | equilibrado | azul | 🌊 |
+| 5 | Lâminas de Gelo | gelo | defensivo | ciano/branco | ❄️ |
+| 6 | Guardiões Mistos | mesclado | equilibrado | verde/dourado | 🛡️ |
 
-**`src/lib/xp.server.ts` — reescrever a distribuição de meia-estrelas**
-- Curva `custoMeiaEstrela(n) = round(850 × 1,35^(n−1), 10)` — 10 degraus até 5★.
-- Contar meia-estrelas ganhas com base em `xp` acumulado + `half_stars_earned`, incrementando `pending_half_stars` quando `xp ≥ soma_custos(half_stars_earned + pending + 1)`.
-- CT de Treinamento: multiplicador `1 + 0,05 × nível` (era 0,10).
-- Burst de XP: multiplicador variável (5/10/15%), não mais fixo em 2×.
-- Reservas: `entrou no jogo → 50%` do XP do titular (independente de resultado); `não entrou → 25 XP só em vitória`.
+Cada time = 22 criaturas (3 GOL, 7 DEF, 7 MEI, 5 ATA), soma ~41★, sendo ~10 entre 0,5–1,5★, ~9 entre 2–2,5★, ~3 destaques 3★. Distribuição por elemento: dominante ~70%, apoio ~20%, resto ~10%; Guardiões Mistos ~20% cada elemento. Viés de atributos:
+- defensivo: +defesa/goleiro/strength
+- ofensivo: +attack/physical
+- equilibrado: distribuição plana
 
-**`src/lib/training.functions.ts` — usar mesma curva**
-- Trocar a lógica ad-hoc "a cada 100 XP → +1 atributo" por incremento de `xp` puro; a subida de estrela vem exclusivamente via `pending_half_stars` na tela da criatura.
-- Bônus CT ajustado para +5%/nível.
-- Bônus CT Elemental: mantém treino de afinidade, mas com nova regra de teto por nível (ver §3).
+Nomes das criaturas: prefixo temático por elemento + sufixo do gerador existente, com seed determinística por time para reprodutibilidade.
 
-### 2. Economia — Dinheiro (§2)
+## 2. Backend
 
-**`src/lib/league.functions.ts` — `playNextLeagueMatch`**
-- Premiação por divisão (V/E/D):
-  - bronze 15.000 / 6.000 / 2.000
-  - prata 28.000 / 11.000 / 4.000
-  - ouro 50.000 / 20.000 / 7.000
-  - diamante 90.000 / 36.000 / 13.000
-  - lendaria 160.000 / 64.000 / 24.000
-- Bilheteria só quando o jogador é mandante: `capacidade × ocupação × 25`, ocupação = `0,70 + 0,03 × (9 − posição_atual)` (líder = 94%).
-- **Remover** cobrança de salário por rodada.
+**`src/lib/starter-teams.server.ts`** (novo) — catálogo dos 6 times e `generateStarterRoster(teamKey, ownerTrainerId | null)` retornando 22 rows de criatura com atributos, elemento e afinidade inicial já ajustados.
 
-**`src/lib/league.functions.ts` — `finishSeasonAndAdvance`**
-- Bônus de posição (multiplicador × prêmio de vitória da divisão): 1º=×10, 2º=×6, 3º–4º=×3, 5º–6º=×1,5, 7º–8º=×0,5.
-- Aplicar **salários por temporada**: soma `salário_por_estrela(criatura)` sobre todo o elenco.
-  - Estrela ≈ `overall / 20`, arredondado para meia-estrela.
-  - Faixas: 0–1★ $4k, 1,5–2★ $9k, 2,5–3★ $20k, 3,5–4★ $45k, 4,5–5★ $90k.
-- Inserir transação "Salários da temporada X" no extrato.
-- Rebaixamento: bronze nunca cai; lendária nunca promove.
+**`src/lib/creatures.functions.ts`**
+- `createInitialTrainer` deixa de gerar as 18 criaturas aleatórias e não cria mais a Liga; retorna `trainerId` sem elenco.
+- Nova `listStarterTeams`: devolve os 6 cards com resumo (força total, ataque médio, defesa médio) — sem criaturas.
+- Nova `getStarterTeamDetail({ key })`: devolve as 22 criaturas do time (para o modal de detalhe).
+- Nova `chooseStarterTeam({ key })`:
+  - valida que o treinador não tem criaturas ainda,
+  - insere as 22 criaturas do time escolhido como `owner_trainer_id = trainer.id`,
+  - cria a competição de liga (bronze / 5ª divisão) para o treinador,
+  - insere o time do jogador com nome, cor, escudo, elemento dominante,
+  - insere os outros 5 times como CPU na mesma competição, cada um com seu elenco de 22 criaturas (`owner_trainer_id = null`, `cpu_team_key` para identificar),
+  - gera mais 2 times CPU aleatórios pra fechar 8,
+  - cria `standings` zeradas e o `schedule` round-robin duplo (reaproveita `generateSchedule`),
+  - $400.000 e 50💎 (sobrescreve os 300k do onboarding se necessário — ajustar `createInitialTrainer` para já criar academia com esses valores).
 
-### 3. Construções (§5)
+## 3. Migração de banco
 
-**`src/lib/buildings.server.ts`**
-- Novas tabelas de `COSTS` e `DURATIONS` por tipo, seguindo o doc:
-  - `ct_treino`: custos [—, 120k, 350k, 900k, 2,2M]; tempos [—, 8h, 20h, 2d, 4d]; efeito +5%×nível XP.
-  - `ct_elemental`: [80k, 250k, 650k, 1,5M, 3,2M]; [6h, 16h, 1,5d, 3d, 5d]; teto afinidade [5, 8, 11, 13, 15]%.
-  - `estadio`: [—, 200k, 600k, 1,6M, 3,8M]; [—, 12h, 1d, 2,5d, 5d]; capacidades [8k, 15k, 25k, 40k, 60k].
-  - `centro_medico`: [60k, 180k, 500k, 1,3M, 3M]; [5h, 14h, 1,5d, 3d, 5d]; +25%×nível recuperação.
-- Novo helper `stadiumCapacity(level)` para uso na bilheteria (substitui o `stadiumIncome` fixo).
-- `trainingXpMultiplier` passa a `1 + 0,05 × nível`.
+- `teams`: adicionar `color text`, `emblem text`, `dominant_element element_type`, `starter_key text` (identifica qual dos 6 times fixos, útil pra idempotência e UI).
+- `creatures`: adicionar `cpu_team_id uuid references teams(id) on delete cascade` para associar criaturas CPU dos 5 times rivais (nullable; jogador continua usando `owner_trainer_id`).
+- GRANTs mantidos; políticas RLS existentes continuam válidas — CPU creatures ficam acessíveis via `teams.trainer_id = auth.uid()` na competição do jogador (adicionar policy de SELECT em creatures via `cpu_team_id` cuja team pertence à competição do treinador).
 
-**`src/lib/buildings.functions.ts` — `finishNowWithGems`**
-- Acelerar: 1 💎 por cada **10 min** restantes (era 30 min).
+## 4. Frontend
 
-**Teto de afinidade** — no `CT Elemental`, `trainCreature` respeita `cap = 5 + 3 × (nível−1)` (níveis 1–5 = 5/8/11/13/15) e não ultrapassa esse valor.
+**`src/routes/_authenticated/onboarding.tsx`** — vira wizard de 2 passos:
+1. Passo 1 (atual): nome do treinador + academia → chama `createInitialTrainer`.
+2. Passo 2 (novo): grid dos 6 times (`listStarterTeams`). Cada card: escudo grande, nome, badge de elemento, badge de estilo, força (⭐ soma) e resumo ATK/DEF médios, cor de acento. Clique → dialog com lista das 22 criaturas (nome, elemento, posição, estrelas). Botão "Escolher este time" → `chooseStarterTeam` → `/dashboard`.
 
-### 4. Mercado (§6)
+Se o jogador atualizar sem escolher, ao voltar em `/` a lógica em `src/routes/index.tsx` precisa distinguir "tem trainer mas não tem criaturas" → mandar pra `/onboarding` passo 2. Ajustar `getMyTrainer` para retornar também `has_roster`.
 
-**`src/lib/market.server.ts`**
-- 24 listagens, rotação **por temporada**: passar `seasonNumber` como parte da seed; assinatura `generateMarketListings(trainerId, seasonNumber, count=24)`.
-- Distribuição: 60% 0,5–1,5★, 30% 2–2,5★, 8% 3–3,5★, 2% 4★+.
-- Preço base pela tabela de estrelas: 15k, 35k, 70k, 130k, 240k, 430k, 780k, 1.4M, 2.5M, 4.5M (com `mod_elemento = 1,0`).
-- Venda: 90% do valor de mercado (já implementado, manter).
+## 5. Impactos
 
-**`src/lib/market.functions.ts` e páginas** — passar `seasonNumber` (buscar `game_seasons` do treinador). `nextRotationTimestamp` vira estimativa baseada no fim previsto da temporada (ou "próxima temporada" como texto).
+- `createFriendlyMatch`, `startLeague` etc. continuam funcionando — mas `startLeague` não é mais chamada pelo onboarding (fica só como fallback manual). O jogador já entra na liga direto pelo `chooseStarterTeam`.
+- Textos: divisão sempre "5ª Divisão – Liga Bronze".
 
-### 5. Loja de Gemas (§3.3, §4)
+## Detalhes técnicos
 
-**`src/lib/shop.server.ts`**
-- Pacotes de gemas: 100/R$9,90, 550(+10%)/R$44,90, 1.200(+20%)/R$89,90, 2.600(+30%)/R$179,90, 6.000/R$349,90.
-- Construtor extra escalonado: 2º=250💎, 3º=600💎, 4º=1.200💎, teto 4.
-- Expansão de elenco: 24→30 = 400💎; 30→36 = 900💎.
-- Substituir item único `xp_burst` por três variantes: `xp_burst_5` (80💎), `xp_burst_10` (150💎), `xp_burst_15` (220💎), duração "1 temporada" (contador de 14 partidas de liga).
-- Novos itens permanentes: `speed_4x` (300💎) e `speed_instant` (800💎), com efeito de flag na conta.
-
-**`src/lib/shop.functions.ts`**
-- `buyExtraBuilder` usa a tabela escalonada e valida `builders`.
-- `expandRoster` usa os novos custos.
-- `useItem` (xp_burst_*): grava `xp_burst_multiplier` e `xp_burst_matches_left = 14` no treinador.
-- Nova função `buySpeedUnlock({ mode })` que credita `paid_4x` / `paid_instant` na academia.
-
-### 6. Velocidade de partida (§4)
-
-**Migração + `match.functions.ts` + `src/routes/_authenticated/match.$id.tsx`**
-- Adicionar `academies.paid_4x boolean default false` e `academies.paid_instant boolean default false`.
-- `payMatchSpeed` deixa de existir como "por partida"; a UI passa a ler flags na academia e a tela só exibe o CTA "Desbloquear" quando ainda não comprou.
-- Botões 4x/Instantâneo continuam grátis pra quem já desbloqueou.
-
-### 7. XP Burst com contador por temporada
-
-**Migração** — adicionar em `trainers`:
-- `xp_burst_multiplier real default 1.0`
-- `xp_burst_matches_left integer default 0`
-- Manter `xp_burst_until` (obsoleto, mas sem quebrar dados).
-
-**`xp.server.ts`** — se `xp_burst_matches_left > 0`, aplica `xp_burst_multiplier` e decrementa 1 depois de creditar XP.
-
-## Migração de banco (uma única)
-
-```sql
-ALTER TABLE public.academies
-  ADD COLUMN IF NOT EXISTS paid_4x boolean NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS paid_instant boolean NOT NULL DEFAULT false;
-
-ALTER TABLE public.trainers
-  ADD COLUMN IF NOT EXISTS xp_burst_multiplier real NOT NULL DEFAULT 1.0,
-  ADD COLUMN IF NOT EXISTS xp_burst_matches_left integer NOT NULL DEFAULT 0;
-```
-
-## Fora de escopo (respeitando o GDD Fase 2)
-
-- `mod_elemento` no mercado (fica 1,0).
-- Ocupação exata do estádio afinada por playtest — usamos a fórmula acima como ponto de partida.
-- Recompensa semanal de gemas por login e bônus de campeão em gemas (o doc menciona 30/semana e +50 para campeão) — pode entrar depois; se quiser, incluo o +50💎 no `finishSeasonAndAdvance` do campeão da divisão do jogador nesta mesma passada.
+- Todos os inserts em uma única server function transacional (múltiplos `insert`; sem `rpc`). Se qualquer passo falhar, cleanup manual das criaturas/times criados antes de rethrow.
+- Seed determinística por `starter_key` para o gerador de nomes das criaturas → mesma escolha sempre produz o mesmo elenco (facilita QA).
+- 5 times rivais + jogador = 6; +2 CPUs gerados via `pickCpuTeamNames` para totalizar 8.
 
 ## Verificação
 
-- `bun run build` (typecheck via tsgo já roda).
-- Sanidade: rodar `getBuildings`, `getShopState`, `getMarket` via `invoke-server-function` e conferir números.
+- `bun run build`.
+- Fluxo manual: novo usuário → onboarding passo 1 → passo 2 → escolher Titãs → dashboard mostra 22 criaturas, $400k, 50💎, liga Bronze com 8 times.
 
----
+## Fora de escopo
 
-**Perguntas antes de eu implementar:**
-1. Confirmo o formato "1 temporada = 14 partidas de liga" para duração do XP Burst? (é a leitura mais fiel do GDD; alternativa seria "até o fim da temporada atual".)
-2. Incluir o **bônus de +50💎 para o campeão da liga** já nesta rodada?
+- Editar cor/escudo do time depois de escolhido.
+- Balancear afinidades elementais iniciais além do dominante (afinidades ficam em 0 exceto pequeno bônus no elemento dominante das criaturas do estilo ofensivo do Fogo, conforme GDD).
