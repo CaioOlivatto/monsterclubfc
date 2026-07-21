@@ -363,7 +363,7 @@ function ResourceChip({
   value: string;
 }) {
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-card/50 px-3 py-2">
+    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-border/60 bg-card/50 px-2 py-2 sm:px-3">
       <div className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
         {icon}
       </div>
