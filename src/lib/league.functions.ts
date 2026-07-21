@@ -6,12 +6,10 @@ import {
   simulate,
   generateCpuSideFor,
   type EngineSide,
-  type EngineSlot,
-  type SlotRole,
-  type Element,
 } from "./match-engine.server";
-import { buildSlots } from "./lineup.server";
 import { stadiumIncome } from "./buildings.server";
+import { buildPlayerSideFromDb } from "./player-side.server";
+import { applyPostMatchXp, insertMessage } from "./xp.server";
 
 async function getTrainer(supabase: any, userId: string) {
   const { data: trainer } = await supabase
@@ -40,57 +38,13 @@ async function ensureCurrentSeason(supabase: any, trainerId: string) {
   return created;
 }
 
-async function buildPlayerSide(
-  supabase: any,
-  trainerId: string,
-  teamId: string,
-  teamName: string,
-): Promise<EngineSide> {
-  const { data: lineup } = await supabase
-    .from("team_lineups")
-    .select("formation, strategy, starters")
-    .eq("trainer_id", trainerId)
-    .maybeSingle();
-  if (!lineup) throw new Error("Você ainda não tem escalação salva. Vá em Escalação primeiro.");
-  const savedStarters = (lineup.starters ?? []) as { slot: number; role: SlotRole; creature_id: string | null }[];
-  const ids = savedStarters.map((s) => s.creature_id).filter(Boolean) as string[];
-  if (ids.length !== 11) throw new Error("Preencha os 11 titulares antes de jogar.");
-  const { data: creatures, error } = await supabase
-    .from("creatures")
-    .select("id, name, element, overall, physical, affinity_fogo, affinity_agua, affinity_terra, affinity_ar, affinity_gelo")
-    .in("id", ids);
-  if (error) throw error;
-  const byId = new Map<string, any>((creatures ?? []).map((c: any) => [c.id, c]));
-  const slots = buildSlots(lineup.formation);
-  const starters: EngineSlot[] = slots.map((s) => {
-    const saved = savedStarters.find((x) => x.slot === s.index);
-    const c = saved?.creature_id ? byId.get(saved.creature_id) : null;
-    if (!c) throw new Error("Escalação inválida — recomponha os titulares.");
-    return {
-      role: s.role,
-      creature: {
-        id: c.id,
-        name: c.name,
-        element: c.element as Element,
-        overall: c.overall,
-        physical: c.physical,
-        affinity_fogo: c.affinity_fogo ?? 0,
-        affinity_agua: c.affinity_agua ?? 0,
-        affinity_terra: c.affinity_terra ?? 0,
-        affinity_ar: c.affinity_ar ?? 0,
-        affinity_gelo: c.affinity_gelo ?? 0,
-      },
-    };
-  });
-  return { team_id: teamId, team_name: teamName, starters, strategy: lineup.strategy };
-}
-
 async function playerAverage(supabase: any, trainerId: string): Promise<number> {
-  const { data } = await supabase.from("creatures").select("overall").eq("trainer_id", trainerId);
+  const { data } = await supabase.from("creatures").select("overall").eq("owner_trainer_id", trainerId);
   const list = (data ?? []) as { overall: number }[];
   if (!list.length) return 45;
   return Math.round(list.reduce((a, c) => a + c.overall, 0) / list.length);
 }
+
 
 export const startLeague = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
