@@ -21,6 +21,8 @@ export type Database = {
           gems: number
           id: string
           money: number
+          paid_4x: boolean
+          paid_instant: boolean
           roster_slots: number
           trainer_id: string
           updated_at: string
@@ -31,6 +33,8 @@ export type Database = {
           gems?: number
           id?: string
           money?: number
+          paid_4x?: boolean
+          paid_instant?: boolean
           roster_slots?: number
           trainer_id: string
           updated_at?: string
@@ -41,6 +45,8 @@ export type Database = {
           gems?: number
           id?: string
           money?: number
+          paid_4x?: boolean
+          paid_instant?: boolean
           roster_slots?: number
           trainer_id?: string
           updated_at?: string
@@ -715,6 +721,8 @@ export type Database = {
           updated_at: string
           user_id: string
           xp: number
+          xp_burst_matches_left: number
+          xp_burst_multiplier: number
           xp_burst_until: string | null
         }
         Insert: {
@@ -726,6 +734,8 @@ export type Database = {
           updated_at?: string
           user_id: string
           xp?: number
+          xp_burst_matches_left?: number
+          xp_burst_multiplier?: number
           xp_burst_until?: string | null
         }
         Update: {
@@ -737,6 +747,8 @@ export type Database = {
           updated_at?: string
           user_id?: string
           xp?: number
+          xp_burst_matches_left?: number
+          xp_burst_multiplier?: number
           xp_burst_until?: string | null
         }
         Relationships: []
