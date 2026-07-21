@@ -4,6 +4,7 @@ import { z } from "zod";
 import { simulate, generateCpuSide, type EngineSide } from "./match-engine.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
+import { SPEED_UNLOCK_COSTS } from "./shop.server";
 
 async function getTrainerCtx(supabase: any, userId: string) {
   const { data: trainer } = await supabase
@@ -42,41 +43,38 @@ async function ensureCpuTeam(supabase: any, name: string): Promise<string> {
   return created.id;
 }
 
-const SPEED_COSTS: Record<string, number> = { "4x": 2, instant: 5 };
-
-export const payMatchSpeed = createServerFn({ method: "POST" })
+/**
+ * Desbloqueio PERMANENTE de velocidade de simulação (4x ou instantâneo).
+ * Após comprar, o botão fica disponível em todas as partidas seguintes sem custo.
+ */
+export const buySpeedUnlock = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((raw: unknown) =>
-    z.object({ match_id: z.string().uuid(), mode: z.enum(["4x", "instant"]) }).parse(raw),
+    z.object({ mode: z.enum(["4x", "instant"]) }).parse(raw),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const trainer = await getTrainerCtx(supabase, userId);
-    const { data: match } = await supabase
-      .from("matches")
-      .select("id, speed_paid, home_team_id, away_team_id")
-      .eq("id", data.match_id)
-      .maybeSingle();
-    if (!match) throw new Error("Partida não encontrada.");
-    const paid: string[] = Array.isArray(match.speed_paid)
-      ? (match.speed_paid as any[]).map((x) => String(x))
-      : [];
-    if (paid.includes(data.mode)) return { ok: true, alreadyPaid: true };
-
     const { data: academy } = await supabase
       .from("academies")
-      .select("id, gems")
+      .select("id, gems, paid_4x, paid_instant")
       .eq("trainer_id", trainer.id)
       .maybeSingle();
     if (!academy) throw new Error("Academia não encontrada.");
-    const cost = SPEED_COSTS[data.mode];
-    if (academy.gems < cost) throw new Error("Gemas insuficientes.");
+    const flag = data.mode === "4x" ? "paid_4x" : "paid_instant";
+    if (academy[flag]) return { ok: true, alreadyUnlocked: true };
 
-    paid.push(data.mode);
-    await supabase.from("academies").update({ gems: academy.gems - cost }).eq("id", academy.id);
-    await supabase.from("matches").update({ speed_paid: paid }).eq("id", match.id);
-    return { ok: true, alreadyPaid: false, remaining: academy.gems - cost };
+    const cost = SPEED_UNLOCK_COSTS[data.mode];
+    if (academy.gems < cost) throw new Error("Gemas insuficientes.");
+    await supabase
+      .from("academies")
+      .update({ gems: academy.gems - cost, [flag]: true })
+      .eq("id", academy.id);
+    return { ok: true, alreadyUnlocked: false };
   });
+
+// Compat legado: mantém o nome antigo, mas agora sempre desbloqueia permanentemente.
+export const payMatchSpeed = buySpeedUnlock;
 
 export const createFriendlyMatch = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -127,16 +125,19 @@ export const createFriendlyMatch = createServerFn({ method: "POST" })
       await supabase.from("match_events").insert(eventsToInsert);
     }
 
-    // XP + energia pós-partida (mesmo amistoso)
     const outcome: "W" | "D" | "L" =
       result.home_score > result.away_score ? "W" : result.home_score < result.away_score ? "L" : "D";
-    const playerStarterIds = homeSide.starters.map((s) => s.creature.id);
-    const playerReserveIds = result.used_bench_ids.filter((id) =>
+    const starterIds = homeSide.starters.map((s) => s.creature.id);
+    const enteredReserveIds = result.used_bench_ids.filter((id: string) =>
       homeSide.bench.some((b) => b.creature.id === id),
     );
+    const unusedReserveIds = homeSide.bench
+      .map((b) => b.creature.id)
+      .filter((id) => !enteredReserveIds.includes(id));
     await applyPostMatchXp(supabase, trainer.id, {
-      starterIds: playerStarterIds,
-      reserveIds: playerReserveIds,
+      starterIds,
+      enteredReserveIds,
+      unusedReserveIds,
       outcome,
       energy_loss: result.energy_loss,
     });
@@ -153,7 +154,7 @@ export const getMatch = createServerFn({ method: "GET" })
 
     const { data: match, error } = await supabase
       .from("matches")
-      .select("id, home_team_id, away_team_id, home_score, away_score, status, is_friendly, played_at, clima, speed_paid")
+      .select("id, home_team_id, away_team_id, home_score, away_score, status, is_friendly, played_at, clima")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw error;
@@ -169,20 +170,33 @@ export const getMatch = createServerFn({ method: "GET" })
     const isPlayerMatch = home?.trainer_id === trainer.id || away?.trainer_id === trainer.id;
     if (!isPlayerMatch) throw new Error("Você não tem acesso a essa partida.");
 
-    const { data: events } = await supabase
-      .from("match_events")
-      .select("minute, event_type, description, actor_creature_id, actor_team_id")
-      .eq("match_id", match.id)
-      .order("minute", { ascending: true })
-      .order("created_at", { ascending: true });
+    const [{ data: events }, { data: academy }] = await Promise.all([
+      supabase
+        .from("match_events")
+        .select("minute, event_type, description, actor_creature_id, actor_team_id")
+        .eq("match_id", match.id)
+        .order("minute", { ascending: true })
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("academies")
+        .select("paid_4x, paid_instant, gems")
+        .eq("trainer_id", trainer.id)
+        .maybeSingle(),
+    ]);
 
     return {
       match,
       home: home ? { id: home.id, name: home.name } : null,
       away: away ? { id: away.id, name: away.name } : null,
       events: events ?? [],
+      speed: {
+        paid_4x: academy?.paid_4x ?? false,
+        paid_instant: academy?.paid_instant ?? false,
+        cost_4x: SPEED_UNLOCK_COSTS["4x"],
+        cost_instant: SPEED_UNLOCK_COSTS.instant,
+        gems: academy?.gems ?? 0,
+      },
     };
   });
 
-// Mantido para não quebrar chamadas legadas; reencaminha para o helper compartilhado.
 export { insertMessage };

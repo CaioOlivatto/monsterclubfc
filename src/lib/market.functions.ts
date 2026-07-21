@@ -1,16 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import {
-  generateMarketListings,
-  findListing,
-  nextRotationTimestamp,
-} from "./market.server";
+import { generateMarketListings, findListing } from "./market.server";
 
 async function getTrainerWithAcademy(
   supabase: any,
   userId: string,
-): Promise<{ id: string; money: number; roster_slots: number }> {
+): Promise<{ id: string; money: number; roster_slots: number; season_number: number }> {
   const { data: trainer, error } = await supabase
     .from("trainers")
     .select("id, academies(money, roster_slots)")
@@ -20,7 +16,18 @@ async function getTrainerWithAcademy(
   if (!trainer) throw new Error("Treinador não encontrado.");
   const academy = Array.isArray(trainer.academies) ? trainer.academies[0] : trainer.academies;
   if (!academy) throw new Error("Academia não encontrada.");
-  return { id: trainer.id, money: academy.money, roster_slots: academy.roster_slots };
+  const seasonNumber = await currentSeasonNumber(supabase, trainer.id);
+  return { id: trainer.id, money: academy.money, roster_slots: academy.roster_slots, season_number: seasonNumber };
+}
+
+async function currentSeasonNumber(supabase: any, trainerId: string): Promise<number> {
+  const { data } = await supabase
+    .from("game_seasons")
+    .select("season_number")
+    .eq("trainer_id", trainerId)
+    .eq("is_current", true)
+    .maybeSingle();
+  return data?.season_number ?? 1;
 }
 
 export const getMarket = createServerFn({ method: "GET" })
@@ -35,6 +42,7 @@ export const getMarket = createServerFn({ method: "GET" })
       .maybeSingle();
     if (!trainer) throw new Error("Treinador não encontrado.");
     const academy = Array.isArray(trainer.academies) ? trainer.academies[0] : trainer.academies;
+    const seasonNumber = await currentSeasonNumber(supabase, trainer.id);
 
     const { data: creatures } = await supabase
       .from("creatures")
@@ -42,7 +50,7 @@ export const getMarket = createServerFn({ method: "GET" })
       .eq("owner_trainer_id", trainer.id)
       .order("overall", { ascending: false });
 
-    const listings = generateMarketListings(trainer.id);
+    const listings = generateMarketListings(trainer.id, seasonNumber);
     const rosterCount = creatures?.length ?? 0;
 
     return {
@@ -52,7 +60,8 @@ export const getMarket = createServerFn({ method: "GET" })
       roster_count: rosterCount,
       my_creatures: creatures ?? [],
       listings,
-      rotates_at: nextRotationTimestamp(),
+      season_number: seasonNumber,
+      rotation_label: "Próxima renovação: início da próxima temporada",
     };
   });
 
@@ -63,7 +72,6 @@ export const buyCreature = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const trainer = await getTrainerWithAcademy(supabase, userId);
 
-    // Contagem atual do elenco
     const { count } = await supabase
       .from("creatures")
       .select("id", { count: "exact", head: true })
@@ -75,14 +83,13 @@ export const buyCreature = createServerFn({ method: "POST" })
       );
     }
 
-    const listing = findListing(trainer.id, data.listing_id);
+    const listing = findListing(trainer.id, trainer.season_number, data.listing_id);
     if (!listing) throw new Error("Oferta não encontrada ou já expirou.");
 
     if (trainer.money < listing.price) {
       throw new Error("Dinheiro insuficiente para essa contratação.");
     }
 
-    // Cria a criatura
     const { data: created, error: cErr } = await supabase
       .from("creatures")
       .insert({
@@ -108,14 +115,12 @@ export const buyCreature = createServerFn({ method: "POST" })
       .single();
     if (cErr) throw cErr;
 
-    // Debita o dinheiro
     const { error: aErr } = await supabase
       .from("academies")
       .update({ money: trainer.money - listing.price })
       .eq("trainer_id", trainer.id);
     if (aErr) throw aErr;
 
-    // Registra financeiro + transferência
     await supabase.from("financial_transactions").insert({
       trainer_id: trainer.id,
       transaction_type: "expense",
@@ -139,7 +144,6 @@ export const sellCreature = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const trainer = await getTrainerWithAcademy(supabase, userId);
 
-    // Não pode vender se ficar com menos de 11 criaturas
     const { count } = await supabase
       .from("creatures")
       .select("id", { count: "exact", head: true })
@@ -157,7 +161,6 @@ export const sellCreature = createServerFn({ method: "POST" })
     if (fErr) throw fErr;
     if (!creature) throw new Error("Criatura não encontrada.");
 
-    // Preço de venda: 90% do valor de mercado
     const salePrice = Math.round((creature.market_value * 0.9) / 100) * 100;
 
     const { error: dErr } = await supabase
