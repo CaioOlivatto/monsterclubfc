@@ -143,9 +143,9 @@ export const claimWeeklyGems = createServerFn({ method: "POST" })
     });
     await supabase.from("messages").insert({
       trainer_id: trainer.id,
-      subject: "Recompensa semanal",
+      kind: "reward",
+      title: "Recompensa semanal",
       body: "Você recebeu 30 💎 pela sua atividade semanal.",
-      category: "reward",
     });
 
     return {
