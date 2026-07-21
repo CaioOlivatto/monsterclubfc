@@ -1,12 +1,14 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getMatch } from "@/lib/match.functions";
+import { toast } from "sonner";
+import { getMatch, payMatchSpeed } from "@/lib/match.functions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Play, Pause, FastForward, SkipForward } from "lucide-react";
+import { ArrowLeft, Play, Pause, FastForward, SkipForward, Gem } from "lucide-react";
+
 
 export const Route = createFileRoute("/_authenticated/match/$id")({
   head: () => ({
