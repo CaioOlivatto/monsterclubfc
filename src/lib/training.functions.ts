@@ -121,11 +121,12 @@ export const trainCreature = createServerFn({ method: "POST" })
 
     const { data: updated, error: uErr } = await context.supabase
       .from("creatures")
-      .update(update)
+      .update(update as any)
       .eq("id", creature.id)
       .select("*")
       .single();
     if (uErr) throw uErr;
+
 
     return { creature: updated, message: msg };
   });
