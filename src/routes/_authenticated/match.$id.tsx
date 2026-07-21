@@ -1,12 +1,14 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getMatch } from "@/lib/match.functions";
+import { toast } from "sonner";
+import { getMatch, payMatchSpeed } from "@/lib/match.functions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Play, Pause, FastForward, SkipForward } from "lucide-react";
+import { ArrowLeft, Play, Pause, FastForward, SkipForward, Gem } from "lucide-react";
+
 
 export const Route = createFileRoute("/_authenticated/match/$id")({
   head: () => ({
@@ -26,16 +28,32 @@ function MatchPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const fetchMatch = useServerFn(getMatch);
+  const payFn = useServerFn(payMatchSpeed);
+  const qc = useQueryClient();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["match", id],
     queryFn: () => fetchMatch({ data: { id } }),
   });
 
+  const paid: string[] = Array.isArray((data as any)?.speed_paid)
+    ? ((data as any).speed_paid as any[]).map((x) => String(x))
+    : [];
+
+  const payMut = useMutation({
+    mutationFn: (mode: "4x" | "instant") => payFn({ data: { match_id: id, mode } }),
+    onSuccess: (_res, mode) => {
+      toast.success(mode === "4x" ? "Velocidade 4x liberada!" : "Velocidade instantânea liberada!");
+      qc.invalidateQueries({ queryKey: ["match", id] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha no pagamento"),
+  });
+
   const [minute, setMinute] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState<Speed>(1);
   const timerRef = useRef<number | null>(null);
+
 
   // Reset se troca de partida
   useEffect(() => {
@@ -157,22 +175,42 @@ function MatchPage() {
               <Button
                 size="sm"
                 variant={speed === 4 ? "default" : "outline"}
-                onClick={() => setSpeed(4)}
+                onClick={() => {
+                  if (paid.includes("4x")) setSpeed(4);
+                  else payMut.mutate("4x", { onSuccess: () => setSpeed(4) });
+                }}
+                disabled={payMut.isPending}
                 title="Premium"
               >
                 <FastForward className="mr-1 h-3 w-3" /> 4x
+                {!paid.includes("4x") && (
+                  <span className="ml-1 flex items-center text-[10px] text-primary">
+                    <Gem className="h-3 w-3" /> 2
+                  </span>
+                )}
               </Button>
               <Button
                 size="sm"
                 variant={speed === 0 ? "default" : "outline"}
                 onClick={() => {
-                  setSpeed(0);
-                  setPlaying(true);
+                  const go = () => {
+                    setSpeed(0);
+                    setPlaying(true);
+                  };
+                  if (paid.includes("instant")) go();
+                  else payMut.mutate("instant", { onSuccess: go });
                 }}
+                disabled={payMut.isPending}
                 title="Premium+"
               >
                 <SkipForward className="mr-1 h-3 w-3" /> Instantâneo
+                {!paid.includes("instant") && (
+                  <span className="ml-1 flex items-center text-[10px] text-primary">
+                    <Gem className="h-3 w-3" /> 5
+                  </span>
+                )}
               </Button>
+
             </div>
           </CardContent>
         </Card>

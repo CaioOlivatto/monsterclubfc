@@ -5,6 +5,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { getCreature } from "@/lib/creatures.functions";
 import { trainCreature, restCreature } from "@/lib/training.functions";
+import { spendHalfStar } from "@/lib/progression.functions";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -62,7 +64,9 @@ function CreatureDetail() {
   const fetchOne = useServerFn(getCreature);
   const trainFn = useServerFn(trainCreature);
   const restFn = useServerFn(restCreature);
+  const spendFn = useServerFn(spendHalfStar);
   const { data: c, isLoading, error } = useQuery({
+
     queryKey: ["creature", id],
     queryFn: () => fetchOne({ data: { id } }),
   });
@@ -85,6 +89,17 @@ function CreatureDetail() {
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao descansar"),
   });
+
+  const spendMut = useMutation({
+    mutationFn: (focus: { kind: "attribute"; key: any } | { kind: "affinity"; key: any }) =>
+      spendFn({ data: { creatureId: id, focus } }),
+    onSuccess: (res) => {
+      toast.success(res.message);
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao aplicar"),
+  });
+
 
 
   if (isLoading) {
@@ -159,6 +174,55 @@ function CreatureDetail() {
             icon={<Coins className="h-4 w-4" />}
           />
         </div>
+
+        {(c.pending_half_stars ?? 0) > 0 && (
+          <Card className="border-primary/50 bg-primary/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Star className="h-4 w-4 text-primary" />
+                {c.pending_half_stars} meia-estrela(s) para aplicar
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Escolha onde investir. +5 no atributo escolhido, ou +1 numa afinidade.
+              </p>
+              <div>
+                <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Atributo (+5)</p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                  {(["attack", "defense", "goalkeeper", "physical", "strength"] as const).map((k) => (
+                    <Button
+                      key={k}
+                      size="sm"
+                      disabled={spendMut.isPending}
+                      onClick={() => spendMut.mutate({ kind: "attribute", key: k })}
+                    >
+                      {({ attack: "Ataque", defense: "Defesa", goalkeeper: "Goleiro", physical: "Físico", strength: "Força" } as const)[k]}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Afinidade (+1)</p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                  {(["fogo", "agua", "terra", "ar", "gelo"] as const).map((k) => (
+                    <Button
+                      key={k}
+                      size="sm"
+                      variant="outline"
+                      disabled={spendMut.isPending}
+                      onClick={() => spendMut.mutate({ kind: "affinity", key: k })}
+                    >
+                      <Sparkles className="mr-1 h-3 w-3" />
+                      {ELEMENT_LABEL[k]}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
 
         <Card>
           <CardHeader className="pb-2">

@@ -129,7 +129,7 @@ function generateOne(rng: () => number, tier: "low" | "mid" | "high"): MarketLis
  * A janela muda a cada 6 horas (4 rotações por dia).
  */
 export function generateMarketListings(trainerId: string, count = 12): MarketListing[] {
-  const windowMs = 6 * 60 * 60 * 1000;
+  const windowMs = 24 * 60 * 60 * 1000;
   const windowIndex = Math.floor(Date.now() / windowMs);
   const seed = hashString(`${trainerId}:${windowIndex}`);
   const rng = mulberry32(seed);
@@ -146,7 +146,7 @@ export function generateMarketListings(trainerId: string, count = 12): MarketLis
 }
 
 export function nextRotationTimestamp(): number {
-  const windowMs = 6 * 60 * 60 * 1000;
+  const windowMs = 24 * 60 * 60 * 1000;
   return (Math.floor(Date.now() / windowMs) + 1) * windowMs;
 }
 

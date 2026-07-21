@@ -6,12 +6,10 @@ import {
   simulate,
   generateCpuSideFor,
   type EngineSide,
-  type EngineSlot,
-  type SlotRole,
-  type Element,
 } from "./match-engine.server";
-import { buildSlots } from "./lineup.server";
 import { stadiumIncome } from "./buildings.server";
+import { buildPlayerSideFromDb } from "./player-side.server";
+import { applyPostMatchXp, insertMessage } from "./xp.server";
 
 async function getTrainer(supabase: any, userId: string) {
   const { data: trainer } = await supabase
@@ -40,57 +38,13 @@ async function ensureCurrentSeason(supabase: any, trainerId: string) {
   return created;
 }
 
-async function buildPlayerSide(
-  supabase: any,
-  trainerId: string,
-  teamId: string,
-  teamName: string,
-): Promise<EngineSide> {
-  const { data: lineup } = await supabase
-    .from("team_lineups")
-    .select("formation, strategy, starters")
-    .eq("trainer_id", trainerId)
-    .maybeSingle();
-  if (!lineup) throw new Error("Você ainda não tem escalação salva. Vá em Escalação primeiro.");
-  const savedStarters = (lineup.starters ?? []) as { slot: number; role: SlotRole; creature_id: string | null }[];
-  const ids = savedStarters.map((s) => s.creature_id).filter(Boolean) as string[];
-  if (ids.length !== 11) throw new Error("Preencha os 11 titulares antes de jogar.");
-  const { data: creatures, error } = await supabase
-    .from("creatures")
-    .select("id, name, element, overall, physical, affinity_fogo, affinity_agua, affinity_terra, affinity_ar, affinity_gelo")
-    .in("id", ids);
-  if (error) throw error;
-  const byId = new Map<string, any>((creatures ?? []).map((c: any) => [c.id, c]));
-  const slots = buildSlots(lineup.formation);
-  const starters: EngineSlot[] = slots.map((s) => {
-    const saved = savedStarters.find((x) => x.slot === s.index);
-    const c = saved?.creature_id ? byId.get(saved.creature_id) : null;
-    if (!c) throw new Error("Escalação inválida — recomponha os titulares.");
-    return {
-      role: s.role,
-      creature: {
-        id: c.id,
-        name: c.name,
-        element: c.element as Element,
-        overall: c.overall,
-        physical: c.physical,
-        affinity_fogo: c.affinity_fogo ?? 0,
-        affinity_agua: c.affinity_agua ?? 0,
-        affinity_terra: c.affinity_terra ?? 0,
-        affinity_ar: c.affinity_ar ?? 0,
-        affinity_gelo: c.affinity_gelo ?? 0,
-      },
-    };
-  });
-  return { team_id: teamId, team_name: teamName, starters, strategy: lineup.strategy };
-}
-
 async function playerAverage(supabase: any, trainerId: string): Promise<number> {
-  const { data } = await supabase.from("creatures").select("overall").eq("trainer_id", trainerId);
+  const { data } = await supabase.from("creatures").select("overall").eq("owner_trainer_id", trainerId);
   const list = (data ?? []) as { overall: number }[];
   if (!list.length) return 45;
   return Math.round(list.reduce((a, c) => a + c.overall, 0) / list.length);
 }
+
 
 export const startLeague = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -263,8 +217,13 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     const away = teams!.find((t: any) => t.id === next.away_team_id) as any;
 
     // Constrói os dois lados
+    const playerSideRef: { current: EngineSide | null } = { current: null };
     async function buildSide(team: any): Promise<EngineSide> {
-      if (team.is_player) return buildPlayerSide(supabase, trainer.id, team.id, team.name);
+      if (team.is_player) {
+        const side = await buildPlayerSideFromDb(supabase, trainer.id, team.id, team.name);
+        playerSideRef.current = side;
+        return side;
+      }
       const seed = hashSeed(team.id);
       return generateCpuSideFor(seed, team.id, team.name, team.cpu_strength ?? 45);
     }
@@ -280,10 +239,12 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         home_score: result.home_score,
         away_score: result.away_score,
         status: "finished",
+        clima: result.weather,
         played_at: new Date().toISOString(),
       })
       .eq("id", next.id);
     if (uErr) throw uErr;
+
 
     // Persiste eventos (creature_id dos times CPU vira null)
     const eventsToInsert = result.events.map((e) => ({
@@ -400,9 +361,41 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         },
       ]);
     } catch (e) {
-      // não falha a partida se o financeiro der erro
       console.error("payoff error", e);
     }
+
+    // XP pós-partida e mensagem de resultado
+    try {
+      const isHome = playerTeam.id === home.id;
+      const playerGf = isHome ? result.home_score : result.away_score;
+      const playerGa = isHome ? result.away_score : result.home_score;
+      const outcomeXp: "W" | "D" | "L" =
+        playerGf > playerGa ? "W" : playerGf < playerGa ? "L" : "D";
+      const side: EngineSide | null = playerSideRef.current;
+      if (side) {
+        const starterIds = side.starters.map((s) => s.creature.id);
+        const reserveIds = result.used_bench_ids.filter((id) =>
+          side.bench.some((b) => b.creature.id === id),
+        );
+        await applyPostMatchXp(supabase, trainer.id, {
+          starterIds,
+          reserveIds,
+          outcome: outcomeXp,
+          energy_loss: result.energy_loss,
+        });
+      }
+      const opponentName = isHome ? away.name : home.name;
+      await insertMessage(
+        supabase,
+        trainer.id,
+        "match",
+        `Rodada ${next.round}: ${outcomeXp === "W" ? "Vitória" : outcomeXp === "D" ? "Empate" : "Derrota"} vs ${opponentName}`,
+        `${isHome ? home.name : away.name} ${playerGf} x ${playerGa} ${isHome ? away.name : home.name} — clima: ${result.weather}.`,
+      );
+    } catch (e) {
+      console.error("xp/message error", e);
+    }
+
 
     // Simula rapidamente as outras partidas da mesma rodada (sem eventos detalhados)
     const { data: sameRound } = await supabase

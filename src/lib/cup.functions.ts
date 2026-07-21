@@ -2,6 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { simulate, generateCpuSideFor, type EngineSide } from "./match-engine.server";
 import { pickCpuTeamNames } from "./league.server";
+import { buildPlayerSideFromDb } from "./player-side.server";
+import { applyPostMatchXp, insertMessage } from "./xp.server";
 
 const CUP_ROUND_NAMES: Record<number, string> = { 1: "Quartas", 2: "Semifinal", 3: "Final" };
 
@@ -16,7 +18,7 @@ async function getTrainer(supabase: any, userId: string) {
 }
 
 async function playerAverage(supabase: any, trainerId: string): Promise<number> {
-  const { data } = await supabase.from("creatures").select("overall").eq("trainer_id", trainerId);
+  const { data } = await supabase.from("creatures").select("overall").eq("owner_trainer_id", trainerId);
   const list = (data ?? []) as { overall: number }[];
   if (!list.length) return 45;
   return Math.round(list.reduce((a, c) => a + c.overall, 0) / list.length);
@@ -31,51 +33,6 @@ function hashSeed(s: string): number {
   return h >>> 0;
 }
 
-async function buildPlayerSide(
-  supabase: any,
-  trainerId: string,
-  teamId: string,
-  teamName: string,
-): Promise<EngineSide> {
-  // Reutiliza lineup salva
-  const { buildSlots } = await import("./lineup.server");
-  const { data: lineup } = await supabase
-    .from("team_lineups")
-    .select("formation, strategy, starters")
-    .eq("trainer_id", trainerId)
-    .maybeSingle();
-  if (!lineup) throw new Error("Salve uma escalação antes de jogar a copa.");
-  const savedStarters = (lineup.starters ?? []) as { slot: number; role: any; creature_id: string | null }[];
-  const ids = savedStarters.map((s) => s.creature_id).filter(Boolean) as string[];
-  if (ids.length !== 11) throw new Error("Preencha os 11 titulares antes de jogar.");
-  const { data: creatures } = await supabase
-    .from("creatures")
-    .select("id, name, element, overall, physical, affinity_fogo, affinity_agua, affinity_terra, affinity_ar, affinity_gelo")
-    .in("id", ids);
-  const byId = new Map<string, any>((creatures ?? []).map((c: any) => [c.id, c]));
-  const slots = buildSlots(lineup.formation);
-  const starters = slots.map((s) => {
-    const saved = savedStarters.find((x) => x.slot === s.index);
-    const c = saved?.creature_id ? byId.get(saved.creature_id) : null;
-    if (!c) throw new Error("Escalação inválida — recomponha os titulares.");
-    return {
-      role: s.role,
-      creature: {
-        id: c.id,
-        name: c.name,
-        element: c.element,
-        overall: c.overall,
-        physical: c.physical,
-        affinity_fogo: c.affinity_fogo ?? 0,
-        affinity_agua: c.affinity_agua ?? 0,
-        affinity_terra: c.affinity_terra ?? 0,
-        affinity_ar: c.affinity_ar ?? 0,
-        affinity_gelo: c.affinity_gelo ?? 0,
-      },
-    };
-  });
-  return { team_id: teamId, team_name: teamName, starters, strategy: lineup.strategy };
-}
 
 export const getCup = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -222,8 +179,13 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
     const home = teams!.find((t: any) => t.id === next.home_team_id) as any;
     const away = teams!.find((t: any) => t.id === next.away_team_id) as any;
 
+    const playerSideRef: { current: EngineSide | null } = { current: null };
     async function side(team: any): Promise<EngineSide> {
-      if (team.is_player) return buildPlayerSide(supabase, trainer.id, team.id, team.name);
+      if (team.is_player) {
+        const s = await buildPlayerSideFromDb(supabase, trainer.id, team.id, team.name);
+        playerSideRef.current = s;
+        return s;
+      }
       return generateCpuSideFor(hashSeed(team.id), team.id, team.name, team.cpu_strength ?? 50);
     }
     let result = simulate(await side(home), await side(away), hashSeed(next.id));
@@ -240,6 +202,7 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
         home_score: result.home_score,
         away_score: result.away_score,
         status: "finished",
+        clima: result.weather,
         played_at: new Date().toISOString(),
       })
       .eq("id", next.id);
@@ -253,6 +216,40 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
       actor_team_id: e.actor_team_id,
     }));
     if (events.length) await supabase.from("match_events").insert(events);
+
+    // XP e mensagem se o jogador participou
+    try {
+      const playerSide: EngineSide | null = playerSideRef.current;
+      if (playerSide) {
+        const isHome = home.is_player;
+        const playerGf = isHome ? result.home_score : result.away_score;
+        const playerGa = isHome ? result.away_score : result.home_score;
+        const outcomeXp: "W" | "D" | "L" =
+          playerGf > playerGa ? "W" : playerGf < playerGa ? "L" : "D";
+        const starterIds = playerSide.starters.map((s) => s.creature.id);
+        const reserveIds = result.used_bench_ids.filter((id) =>
+          playerSide.bench.some((b) => b.creature.id === id),
+        );
+        await applyPostMatchXp(supabase, trainer.id, {
+          starterIds,
+          reserveIds,
+          outcome: outcomeXp,
+          energy_loss: result.energy_loss,
+        });
+        const opponentName = isHome ? away.name : home.name;
+        const roundLabel = CUP_ROUND_NAMES[next.round as number] ?? `Rodada ${next.round}`;
+        await insertMessage(
+          supabase,
+          trainer.id,
+          "match",
+          `Copa — ${roundLabel}: ${outcomeXp === "W" ? "Vitória" : "Derrota"} vs ${opponentName}`,
+          `${isHome ? home.name : away.name} ${playerGf} x ${playerGa} ${isHome ? away.name : home.name} — clima: ${result.weather}.`,
+        );
+      }
+    } catch (e) {
+      console.error("cup xp/message error", e);
+    }
+
 
     // Simula outras partidas da mesma rodada
     const { data: sameRound } = await supabase

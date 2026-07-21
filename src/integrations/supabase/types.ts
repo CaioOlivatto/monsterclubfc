@@ -161,6 +161,7 @@ export type Database = {
           overall: number
           owner_team_id: string | null
           owner_trainer_id: string | null
+          pending_half_stars: number
           physical: number
           strength: number
           suggested_position: string | null
@@ -186,6 +187,7 @@ export type Database = {
           overall?: number
           owner_team_id?: string | null
           owner_trainer_id?: string | null
+          pending_half_stars?: number
           physical?: number
           strength?: number
           suggested_position?: string | null
@@ -211,6 +213,7 @@ export type Database = {
           overall?: number
           owner_team_id?: string | null
           owner_trainer_id?: string | null
+          pending_half_stars?: number
           physical?: number
           strength?: number
           suggested_position?: string | null
@@ -440,6 +443,7 @@ export type Database = {
         Row: {
           away_score: number | null
           away_team_id: string
+          clima: string | null
           competition_id: string | null
           created_at: string
           home_score: number | null
@@ -448,11 +452,13 @@ export type Database = {
           is_friendly: boolean
           played_at: string | null
           round: number | null
+          speed_paid: Json
           status: Database["public"]["Enums"]["match_status"]
         }
         Insert: {
           away_score?: number | null
           away_team_id: string
+          clima?: string | null
           competition_id?: string | null
           created_at?: string
           home_score?: number | null
@@ -461,11 +467,13 @@ export type Database = {
           is_friendly?: boolean
           played_at?: string | null
           round?: number | null
+          speed_paid?: Json
           status?: Database["public"]["Enums"]["match_status"]
         }
         Update: {
           away_score?: number | null
           away_team_id?: string
+          clima?: string | null
           competition_id?: string | null
           created_at?: string
           home_score?: number | null
@@ -474,6 +482,7 @@ export type Database = {
           is_friendly?: boolean
           played_at?: string | null
           round?: number | null
+          speed_paid?: Json
           status?: Database["public"]["Enums"]["match_status"]
         }
         Relationships: [
@@ -496,6 +505,44 @@ export type Database = {
             columns: ["home_team_id"]
             isOneToOne: false
             referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          kind: string
+          read: boolean
+          title: string
+          trainer_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          kind: string
+          read?: boolean
+          title: string
+          trainer_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          read?: boolean
+          title?: string
+          trainer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "trainers"
             referencedColumns: ["id"]
           },
         ]
@@ -668,6 +715,7 @@ export type Database = {
           updated_at: string
           user_id: string
           xp: number
+          xp_burst_until: string | null
         }
         Insert: {
           academy_name: string
@@ -678,6 +726,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           xp?: number
+          xp_burst_until?: string | null
         }
         Update: {
           academy_name?: string
@@ -688,6 +737,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           xp?: number
+          xp_burst_until?: string | null
         }
         Relationships: []
       }
