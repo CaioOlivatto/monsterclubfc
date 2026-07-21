@@ -283,7 +283,7 @@ function Dashboard() {
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Shortcut icon={<Users className="h-5 w-5" />} label="Elenco" to="/roster" />
-          <Shortcut icon={<Swords className="h-5 w-5" />} label="Escalação" disabled />
+          <Shortcut icon={<Swords className="h-5 w-5" />} label="Escalação" to="/lineup" />
           <Shortcut icon={<Store className="h-5 w-5" />} label="Mercado" disabled />
           <Shortcut icon={<Building2 className="h-5 w-5" />} label="Construções" disabled />
           <Shortcut icon={<Trophy className="h-5 w-5" />} label="Liga" disabled />
