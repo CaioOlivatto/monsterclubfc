@@ -15,9 +15,11 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedShopRouteImport } from './routes/_authenticated/shop'
 import { Route as AuthenticatedRosterRouteImport } from './routes/_authenticated/roster'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
+import { Route as AuthenticatedMessagesRouteImport } from './routes/_authenticated/messages'
 import { Route as AuthenticatedMarketRouteImport } from './routes/_authenticated/market'
 import { Route as AuthenticatedLineupRouteImport } from './routes/_authenticated/lineup'
 import { Route as AuthenticatedLeagueRouteImport } from './routes/_authenticated/league'
+import { Route as AuthenticatedFinancesRouteImport } from './routes/_authenticated/finances'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCupRouteImport } from './routes/_authenticated/cup'
 import { Route as AuthenticatedBuildingsRouteImport } from './routes/_authenticated/buildings'
@@ -53,6 +55,11 @@ const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedMessagesRoute = AuthenticatedMessagesRouteImport.update({
+  id: '/messages',
+  path: '/messages',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedMarketRoute = AuthenticatedMarketRouteImport.update({
   id: '/market',
   path: '/market',
@@ -66,6 +73,11 @@ const AuthenticatedLineupRoute = AuthenticatedLineupRouteImport.update({
 const AuthenticatedLeagueRoute = AuthenticatedLeagueRouteImport.update({
   id: '/league',
   path: '/league',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedFinancesRoute = AuthenticatedFinancesRouteImport.update({
+  id: '/finances',
+  path: '/finances',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
@@ -101,9 +113,11 @@ export interface FileRoutesByFullPath {
   '/buildings': typeof AuthenticatedBuildingsRoute
   '/cup': typeof AuthenticatedCupRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/finances': typeof AuthenticatedFinancesRoute
   '/league': typeof AuthenticatedLeagueRoute
   '/lineup': typeof AuthenticatedLineupRoute
   '/market': typeof AuthenticatedMarketRoute
+  '/messages': typeof AuthenticatedMessagesRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/roster': typeof AuthenticatedRosterRoute
   '/shop': typeof AuthenticatedShopRoute
@@ -116,9 +130,11 @@ export interface FileRoutesByTo {
   '/buildings': typeof AuthenticatedBuildingsRoute
   '/cup': typeof AuthenticatedCupRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/finances': typeof AuthenticatedFinancesRoute
   '/league': typeof AuthenticatedLeagueRoute
   '/lineup': typeof AuthenticatedLineupRoute
   '/market': typeof AuthenticatedMarketRoute
+  '/messages': typeof AuthenticatedMessagesRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/roster': typeof AuthenticatedRosterRoute
   '/shop': typeof AuthenticatedShopRoute
@@ -133,9 +149,11 @@ export interface FileRoutesById {
   '/_authenticated/buildings': typeof AuthenticatedBuildingsRoute
   '/_authenticated/cup': typeof AuthenticatedCupRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/finances': typeof AuthenticatedFinancesRoute
   '/_authenticated/league': typeof AuthenticatedLeagueRoute
   '/_authenticated/lineup': typeof AuthenticatedLineupRoute
   '/_authenticated/market': typeof AuthenticatedMarketRoute
+  '/_authenticated/messages': typeof AuthenticatedMessagesRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/roster': typeof AuthenticatedRosterRoute
   '/_authenticated/shop': typeof AuthenticatedShopRoute
@@ -150,9 +168,11 @@ export interface FileRouteTypes {
     | '/buildings'
     | '/cup'
     | '/dashboard'
+    | '/finances'
     | '/league'
     | '/lineup'
     | '/market'
+    | '/messages'
     | '/onboarding'
     | '/roster'
     | '/shop'
@@ -165,9 +185,11 @@ export interface FileRouteTypes {
     | '/buildings'
     | '/cup'
     | '/dashboard'
+    | '/finances'
     | '/league'
     | '/lineup'
     | '/market'
+    | '/messages'
     | '/onboarding'
     | '/roster'
     | '/shop'
@@ -181,9 +203,11 @@ export interface FileRouteTypes {
     | '/_authenticated/buildings'
     | '/_authenticated/cup'
     | '/_authenticated/dashboard'
+    | '/_authenticated/finances'
     | '/_authenticated/league'
     | '/_authenticated/lineup'
     | '/_authenticated/market'
+    | '/_authenticated/messages'
     | '/_authenticated/onboarding'
     | '/_authenticated/roster'
     | '/_authenticated/shop'
@@ -241,6 +265,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOnboardingRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/messages': {
+      id: '/_authenticated/messages'
+      path: '/messages'
+      fullPath: '/messages'
+      preLoaderRoute: typeof AuthenticatedMessagesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/market': {
       id: '/_authenticated/market'
       path: '/market'
@@ -260,6 +291,13 @@ declare module '@tanstack/react-router' {
       path: '/league'
       fullPath: '/league'
       preLoaderRoute: typeof AuthenticatedLeagueRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/finances': {
+      id: '/_authenticated/finances'
+      path: '/finances'
+      fullPath: '/finances'
+      preLoaderRoute: typeof AuthenticatedFinancesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard': {
@@ -304,9 +342,11 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedBuildingsRoute: typeof AuthenticatedBuildingsRoute
   AuthenticatedCupRoute: typeof AuthenticatedCupRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedFinancesRoute: typeof AuthenticatedFinancesRoute
   AuthenticatedLeagueRoute: typeof AuthenticatedLeagueRoute
   AuthenticatedLineupRoute: typeof AuthenticatedLineupRoute
   AuthenticatedMarketRoute: typeof AuthenticatedMarketRoute
+  AuthenticatedMessagesRoute: typeof AuthenticatedMessagesRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
   AuthenticatedRosterRoute: typeof AuthenticatedRosterRoute
   AuthenticatedShopRoute: typeof AuthenticatedShopRoute
@@ -318,9 +358,11 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedBuildingsRoute: AuthenticatedBuildingsRoute,
   AuthenticatedCupRoute: AuthenticatedCupRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedFinancesRoute: AuthenticatedFinancesRoute,
   AuthenticatedLeagueRoute: AuthenticatedLeagueRoute,
   AuthenticatedLineupRoute: AuthenticatedLineupRoute,
   AuthenticatedMarketRoute: AuthenticatedMarketRoute,
+  AuthenticatedMessagesRoute: AuthenticatedMessagesRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
   AuthenticatedRosterRoute: AuthenticatedRosterRoute,
   AuthenticatedShopRoute: AuthenticatedShopRoute,
