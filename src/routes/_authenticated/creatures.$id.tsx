@@ -90,6 +90,17 @@ function CreatureDetail() {
     onError: (e: any) => toast.error(e?.message ?? "Falha ao descansar"),
   });
 
+  const spendMut = useMutation({
+    mutationFn: (focus: { kind: "attribute"; key: any } | { kind: "affinity"; key: any }) =>
+      spendFn({ data: { creatureId: id, focus } }),
+    onSuccess: (res) => {
+      toast.success(res.message);
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao aplicar"),
+  });
+
+
 
   if (isLoading) {
     return (
