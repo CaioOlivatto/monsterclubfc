@@ -493,12 +493,9 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
 
     const division = competition.division as Division;
     const divIdx = DIVISION_ORDER.indexOf(division);
-    const factor =
-      position === 1 ? 1 :
-      position === 2 ? 0.7 :
-      position === 3 ? 0.45 :
-      position <= 6 ? 0.2 : 0; // 7º–8º sem prêmio (rebaixamento)
-    const prize = Math.round(SEASON_PRIZE_BASE[division] * factor);
+    const winPrize = MATCH_PRIZE[division][0];
+    const posMult = position >= 1 && position <= 8 ? SEASON_POSITION_MULT[position - 1] : 0;
+    const prize = Math.round(winPrize * posMult);
     const championGems = playerIsChampion ? 50 : 0;
 
     let newDivIdx = divIdx;
