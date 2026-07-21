@@ -108,10 +108,11 @@ function Onboarding() {
   async function confirmChoice() {
     if (!openKey) return;
 
-    // Se ainda não há treinador, cria com os nomes informados
+    // Se ainda não há treinador, cria usando o nome do time como "academia"
+    const teamName: string = detail?.team?.name ?? "";
     if (!trainer) {
-      if (trainerName.trim().length < 2 || academyName.trim().length < 2) {
-        toast.error("Informe nome do treinador e da academia (mín. 2 letras).");
+      if (trainerName.trim().length < 2) {
+        toast.error("Informe o nome do treinador (mín. 2 letras).");
         return;
       }
     }
@@ -122,10 +123,11 @@ function Onboarding() {
         await createFn({
           data: {
             trainer_name: trainerName.trim(),
-            academy_name: academyName.trim(),
+            academy_name: teamName,
           },
         });
       }
+
       await choose({ data: { key: openKey } });
       toast.success("Time escolhido! Liga Bronze iniciada.");
       nav({ to: "/dashboard", replace: true });
