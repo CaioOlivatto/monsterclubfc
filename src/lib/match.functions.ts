@@ -1,15 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import {
-  simulate,
-  generateCpuSide,
-  type EngineSide,
-  type EngineSlot,
-  type SlotRole,
-  type Element,
-} from "./match-engine.server";
-import { buildSlots } from "./lineup.server";
+import { simulate, generateCpuSide, type EngineSide } from "./match-engine.server";
+import { buildPlayerSideFromDb } from "./player-side.server";
+import { applyPostMatchXp, insertMessage } from "./xp.server";
 
 async function getTrainerCtx(supabase: any, userId: string) {
   const { data: trainer } = await supabase
@@ -48,52 +42,39 @@ async function ensureCpuTeam(supabase: any, name: string): Promise<string> {
   return created.id;
 }
 
-async function buildPlayerSide(supabase: any, trainerId: string, teamId: string, teamName: string): Promise<EngineSide> {
-  const { data: lineup } = await supabase
-    .from("team_lineups")
-    .select("formation, strategy, starters")
-    .eq("trainer_id", trainerId)
-    .maybeSingle();
-  if (!lineup) throw new Error("Você ainda não tem escalação salva. Vá em Escalação primeiro.");
-  const savedStarters = (lineup.starters ?? []) as { slot: number; role: SlotRole; creature_id: string | null }[];
-  const ids = savedStarters.map((s) => s.creature_id).filter(Boolean) as string[];
-  if (ids.length !== 11) throw new Error("Preencha os 11 titulares antes de jogar.");
-  const { data: creatures, error } = await supabase
-    .from("creatures")
-    .select("id, name, element, overall, physical, affinity_fogo, affinity_agua, affinity_terra, affinity_ar, affinity_gelo")
-    .in("id", ids);
-  if (error) throw error;
-  const byId = new Map<string, any>((creatures ?? []).map((c: any) => [c.id, c]));
+const SPEED_COSTS: Record<string, number> = { "4x": 2, instant: 5 };
 
-  const slots = buildSlots(lineup.formation);
-  const starters: EngineSlot[] = slots.map((s) => {
-    const saved = savedStarters.find((x) => x.slot === s.index);
-    const c = saved?.creature_id ? byId.get(saved.creature_id) : null;
-    if (!c) throw new Error("Escalação inválida — recomponha os titulares.");
-    return {
-      role: s.role,
-      creature: {
-        id: c.id,
-        name: c.name,
-        element: c.element as Element,
-        overall: c.overall,
-        physical: c.physical,
-        affinity_fogo: c.affinity_fogo ?? 0,
-        affinity_agua: c.affinity_agua ?? 0,
-        affinity_terra: c.affinity_terra ?? 0,
-        affinity_ar: c.affinity_ar ?? 0,
-        affinity_gelo: c.affinity_gelo ?? 0,
-      },
-    };
+export const payMatchSpeed = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((raw: unknown) =>
+    z.object({ match_id: z.string().uuid(), mode: z.enum(["4x", "instant"]) }).parse(raw),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const trainer = await getTrainerCtx(supabase, userId);
+    const { data: match } = await supabase
+      .from("matches")
+      .select("id, speed_paid, home_team_id, away_team_id")
+      .eq("id", data.match_id)
+      .maybeSingle();
+    if (!match) throw new Error("Partida não encontrada.");
+    const paid: string[] = Array.isArray(match.speed_paid) ? [...match.speed_paid] : [];
+    if (paid.includes(data.mode)) return { ok: true, alreadyPaid: true };
+
+    const { data: academy } = await supabase
+      .from("academies")
+      .select("id, gems")
+      .eq("trainer_id", trainer.id)
+      .maybeSingle();
+    if (!academy) throw new Error("Academia não encontrada.");
+    const cost = SPEED_COSTS[data.mode];
+    if (academy.gems < cost) throw new Error("Gemas insuficientes.");
+
+    paid.push(data.mode);
+    await supabase.from("academies").update({ gems: academy.gems - cost }).eq("id", academy.id);
+    await supabase.from("matches").update({ speed_paid: paid }).eq("id", match.id);
+    return { ok: true, alreadyPaid: false, remaining: academy.gems - cost };
   });
-
-  return {
-    team_id: teamId,
-    team_name: teamName,
-    starters,
-    strategy: lineup.strategy,
-  };
-}
 
 export const createFriendlyMatch = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -101,11 +82,8 @@ export const createFriendlyMatch = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const trainer = await getTrainerCtx(supabase, userId);
 
-    // Garante time do jogador
     const homeTeamId = await ensurePlayerTeam(supabase, trainer.id, trainer.academy_name);
-
-    // Monta escalação do jogador para descobrir força e nome
-    const homeSide = await buildPlayerSide(supabase, trainer.id, homeTeamId, trainer.academy_name);
+    const homeSide = await buildPlayerSideFromDb(supabase, trainer.id, homeTeamId, trainer.academy_name);
     const playerOverall = Math.round(
       homeSide.starters.reduce((a, s) => a + s.creature.overall, 0) / homeSide.starters.length,
     );
@@ -114,12 +92,10 @@ export const createFriendlyMatch = createServerFn({ method: "POST" })
     const cpuSide = generateCpuSide(seed, playerOverall);
     const awayTeamId = await ensureCpuTeam(supabase, cpuSide.team_name);
 
-    // Simula
     const finalHome: EngineSide = { ...homeSide, team_id: homeTeamId };
     const finalAway: EngineSide = { ...cpuSide, team_id: awayTeamId };
     const result = simulate(finalHome, finalAway, seed);
 
-    // Cria partida
     const { data: match, error: mErr } = await supabase
       .from("matches")
       .insert({
@@ -129,13 +105,13 @@ export const createFriendlyMatch = createServerFn({ method: "POST" })
         away_score: result.away_score,
         status: "finished",
         is_friendly: true,
+        clima: result.weather,
         played_at: new Date().toISOString(),
       })
       .select("id")
       .single();
     if (mErr) throw mErr;
 
-    // Persiste eventos (somente os que têm actor_creature_id do time do jogador; CPU actor_creature_id é fictício)
     const eventsToInsert = result.events.map((e) => ({
       match_id: match.id,
       minute: e.minute,
@@ -146,9 +122,22 @@ export const createFriendlyMatch = createServerFn({ method: "POST" })
       actor_team_id: e.actor_team_id,
     }));
     if (eventsToInsert.length) {
-      const { error: eErr } = await supabase.from("match_events").insert(eventsToInsert);
-      if (eErr) throw eErr;
+      await supabase.from("match_events").insert(eventsToInsert);
     }
+
+    // XP + energia pós-partida (mesmo amistoso)
+    const outcome: "W" | "D" | "L" =
+      result.home_score > result.away_score ? "W" : result.home_score < result.away_score ? "L" : "D";
+    const playerStarterIds = homeSide.starters.map((s) => s.creature.id);
+    const playerReserveIds = result.used_bench_ids.filter((id) =>
+      homeSide.bench.some((b) => b.creature.id === id),
+    );
+    await applyPostMatchXp(supabase, trainer.id, {
+      starterIds: playerStarterIds,
+      reserveIds: playerReserveIds,
+      outcome,
+      energy_loss: result.energy_loss,
+    });
 
     return { match_id: match.id };
   });
@@ -162,7 +151,7 @@ export const getMatch = createServerFn({ method: "GET" })
 
     const { data: match, error } = await supabase
       .from("matches")
-      .select("id, home_team_id, away_team_id, home_score, away_score, status, is_friendly, played_at")
+      .select("id, home_team_id, away_team_id, home_score, away_score, status, is_friendly, played_at, clima, speed_paid")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw error;
@@ -175,7 +164,6 @@ export const getMatch = createServerFn({ method: "GET" })
     const home = teams?.find((t: any) => t.id === match.home_team_id);
     const away = teams?.find((t: any) => t.id === match.away_team_id);
 
-    // Autorização: um dos times deve ser do treinador
     const isPlayerMatch = home?.trainer_id === trainer.id || away?.trainer_id === trainer.id;
     if (!isPlayerMatch) throw new Error("Você não tem acesso a essa partida.");
 
@@ -193,3 +181,6 @@ export const getMatch = createServerFn({ method: "GET" })
       events: events ?? [],
     };
   });
+
+// Mantido para não quebrar chamadas legadas; reencaminha para o helper compartilhado.
+export { insertMessage };
