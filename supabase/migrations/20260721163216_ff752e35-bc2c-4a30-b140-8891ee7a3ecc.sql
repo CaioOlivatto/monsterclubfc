@@ -1,0 +1,3 @@
+ALTER TABLE public.matches ALTER COLUMN competition_id DROP NOT NULL;
+ALTER TABLE public.matches ALTER COLUMN round DROP NOT NULL;
+ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS is_friendly BOOLEAN NOT NULL DEFAULT false;
