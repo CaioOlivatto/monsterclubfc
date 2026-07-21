@@ -91,8 +91,14 @@ export const getMyTrainer = createServerFn({ method: "GET" })
       .eq("user_id", context.userId)
       .maybeSingle();
     if (error) throw error;
-    return data;
+    if (!data) return null;
+    const { count } = await context.supabase
+      .from("creatures")
+      .select("id", { count: "exact", head: true })
+      .eq("owner_trainer_id", data.id);
+    return { ...data, has_roster: (count ?? 0) > 0 };
   });
+
 
 export const getDashboard = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
