@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedShopRouteImport } from './routes/_authenticated/shop'
 import { Route as AuthenticatedRosterRouteImport } from './routes/_authenticated/roster'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedMarketRouteImport } from './routes/_authenticated/market'
@@ -35,6 +36,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedShopRoute = AuthenticatedShopRouteImport.update({
+  id: '/shop',
+  path: '/shop',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedRosterRoute = AuthenticatedRosterRouteImport.update({
   id: '/roster',
@@ -93,6 +99,7 @@ export interface FileRoutesByFullPath {
   '/market': typeof AuthenticatedMarketRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/roster': typeof AuthenticatedRosterRoute
+  '/shop': typeof AuthenticatedShopRoute
   '/creatures/$id': typeof AuthenticatedCreaturesIdRoute
   '/match/$id': typeof AuthenticatedMatchIdRoute
 }
@@ -106,6 +113,7 @@ export interface FileRoutesByTo {
   '/market': typeof AuthenticatedMarketRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/roster': typeof AuthenticatedRosterRoute
+  '/shop': typeof AuthenticatedShopRoute
   '/creatures/$id': typeof AuthenticatedCreaturesIdRoute
   '/match/$id': typeof AuthenticatedMatchIdRoute
 }
@@ -121,6 +129,7 @@ export interface FileRoutesById {
   '/_authenticated/market': typeof AuthenticatedMarketRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/roster': typeof AuthenticatedRosterRoute
+  '/_authenticated/shop': typeof AuthenticatedShopRoute
   '/_authenticated/creatures/$id': typeof AuthenticatedCreaturesIdRoute
   '/_authenticated/match/$id': typeof AuthenticatedMatchIdRoute
 }
@@ -136,6 +145,7 @@ export interface FileRouteTypes {
     | '/market'
     | '/onboarding'
     | '/roster'
+    | '/shop'
     | '/creatures/$id'
     | '/match/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -149,6 +159,7 @@ export interface FileRouteTypes {
     | '/market'
     | '/onboarding'
     | '/roster'
+    | '/shop'
     | '/creatures/$id'
     | '/match/$id'
   id:
@@ -163,6 +174,7 @@ export interface FileRouteTypes {
     | '/_authenticated/market'
     | '/_authenticated/onboarding'
     | '/_authenticated/roster'
+    | '/_authenticated/shop'
     | '/_authenticated/creatures/$id'
     | '/_authenticated/match/$id'
   fileRoutesById: FileRoutesById
@@ -195,6 +207,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/shop': {
+      id: '/_authenticated/shop'
+      path: '/shop'
+      fullPath: '/shop'
+      preLoaderRoute: typeof AuthenticatedShopRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/roster': {
       id: '/_authenticated/roster'
@@ -270,6 +289,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedMarketRoute: typeof AuthenticatedMarketRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
   AuthenticatedRosterRoute: typeof AuthenticatedRosterRoute
+  AuthenticatedShopRoute: typeof AuthenticatedShopRoute
   AuthenticatedCreaturesIdRoute: typeof AuthenticatedCreaturesIdRoute
   AuthenticatedMatchIdRoute: typeof AuthenticatedMatchIdRoute
 }
@@ -282,6 +302,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedMarketRoute: AuthenticatedMarketRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
   AuthenticatedRosterRoute: AuthenticatedRosterRoute,
+  AuthenticatedShopRoute: AuthenticatedShopRoute,
   AuthenticatedCreaturesIdRoute: AuthenticatedCreaturesIdRoute,
   AuthenticatedMatchIdRoute: AuthenticatedMatchIdRoute,
 }
