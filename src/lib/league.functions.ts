@@ -225,10 +225,13 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
 
     const { data: competition } = await supabase
       .from("competitions")
-      .select("id")
+      .select("id, division")
       .eq("trainer_id", trainer.id)
+      .eq("type", "league")
+      .eq("status", "active")
       .maybeSingle();
     if (!competition) throw new Error("Nenhuma liga em andamento.");
+
 
     // Time do jogador nessa liga
     const { data: playerTeam } = await supabase
