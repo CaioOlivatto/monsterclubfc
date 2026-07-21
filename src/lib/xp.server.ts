@@ -1,71 +1,109 @@
-// Distribuição de XP pós-partida (GDD §6.1).
-// Aplica ganho de XP; a cada 100 XP acumulado, incrementa pending_half_stars.
-// O jogador escolhe manualmente em qual atributo/afinidade aplicar (§6.3).
+// Distribuição de XP pós-partida (GDD §6.1 + Tabela de Balanceamento §1).
+// Curva de meia-estrela crescente: custo(n) = round(850 * 1.35^(n-1), 10)
+// CT de Treinamento: +5% por nível.
+// Burst de XP: multiplicador variável (1.05/1.10/1.15) por N partidas.
+
+const HALF_STAR_COSTS: number[] = Array.from({ length: 10 }, (_, i) =>
+  Math.round((850 * Math.pow(1.35, i)) / 10) * 10,
+);
+
+/** Custo em XP para atingir a próxima meia-estrela (n = 1..10). */
+export function halfStarCost(n: number): number {
+  if (n < 1 || n > 10) return Infinity;
+  return HALF_STAR_COSTS[n - 1];
+}
+
+/** Total de meia-estrelas que os `xp` acumulados destravam (0..10). */
+export function halfStarsFromXp(xp: number): number {
+  let acc = 0;
+  for (let i = 0; i < HALF_STAR_COSTS.length; i++) {
+    acc += HALF_STAR_COSTS[i];
+    if (xp < acc) return i;
+  }
+  return 10;
+}
 
 export async function applyPostMatchXp(
   supabase: any,
   trainerId: string,
   opts: {
-    starterIds: string[]; // titulares (do time do jogador)
-    reserveIds: string[]; // reservas do banco
+    starterIds: string[];                    // titulares que começaram a partida
+    enteredReserveIds: string[];             // reservas que entraram em jogo
+    unusedReserveIds: string[];              // reservas do banco que não entraram
     outcome: "W" | "D" | "L";
     energy_loss: Record<string, number>;
   },
 ) {
   const base = opts.outcome === "W" ? 100 : opts.outcome === "D" ? 50 : 0;
-  if (base === 0 && opts.outcome !== "L") return;
 
-  // Bônus do CT de Treinamento: +10% por nível
+  // CT Treinamento: +5% por nível
   const { data: buildings } = await supabase
     .from("buildings")
     .select("building_type, level")
     .eq("trainer_id", trainerId);
   const ctLevel =
     (buildings ?? []).find((b: any) => b.building_type === "ct_treino")?.level ?? 0;
-  const ctBonus = 1 + ctLevel * 0.1;
+  const ctBonus = 1 + ctLevel * 0.05;
 
-  // Burst XP ativo?
+  // Burst XP baseado em contador de partidas
   const { data: trainer } = await supabase
     .from("trainers")
-    .select("xp_burst_until")
+    .select("xp_burst_multiplier, xp_burst_matches_left")
     .eq("id", trainerId)
     .maybeSingle();
-  const burstActive =
-    trainer?.xp_burst_until && new Date(trainer.xp_burst_until).getTime() > Date.now();
-  const burstMult = burstActive ? 2 : 1;
+  const burstLeft = trainer?.xp_burst_matches_left ?? 0;
+  const burstMult = burstLeft > 0 ? Number(trainer?.xp_burst_multiplier ?? 1) : 1;
 
   const starterXp = Math.round(base * ctBonus * burstMult);
-  const reserveXp = Math.round(base * 0.25 * ctBonus * burstMult);
+  const enteredXp = Math.round(base * 0.5 * ctBonus * burstMult);
+  // Reserva que não entrou: 25 XP fixo só em vitória
+  const benchXp = opts.outcome === "W" ? Math.round(25 * ctBonus * burstMult) : 0;
 
-  const targets: Array<{ id: string; add: number }> = [
-    ...opts.starterIds.map((id) => ({ id, add: starterXp })),
-    ...opts.reserveIds.map((id) => ({ id, add: reserveXp })),
-  ];
-  if (!targets.length) return;
+  const targets: Array<{ id: string; add: number }> = [];
+  for (const id of opts.starterIds) targets.push({ id, add: starterXp });
+  for (const id of opts.enteredReserveIds) targets.push({ id, add: enteredXp });
+  for (const id of opts.unusedReserveIds) targets.push({ id, add: benchXp });
 
-  const ids = targets.map((t) => t.id);
+  // Aplica energia mesmo quando XP for zero (derrota)
+  const allIds = Array.from(new Set(targets.map((t) => t.id).concat(Object.keys(opts.energy_loss))));
+  if (!allIds.length) {
+    await tickBurst(supabase, trainerId, burstLeft);
+    return;
+  }
+
   const { data: creatures } = await supabase
     .from("creatures")
-    .select("id, xp, pending_half_stars, energy")
-    .in("id", ids)
+    .select("id, xp, pending_half_stars, half_stars_earned, energy")
+    .in("id", allIds)
     .eq("owner_trainer_id", trainerId);
 
   for (const c of creatures ?? []) {
-    const t = targets.find((x) => x.id === c.id);
-    if (!t) continue;
-    const newXp = (c.xp ?? 0) + t.add;
-    const gainedStars = Math.floor(newXp / 100) - Math.floor((c.xp ?? 0) / 100);
+    const add = targets.filter((t) => t.id === c.id).reduce((a, t) => a + t.add, 0);
+    const newXp = (c.xp ?? 0) + add;
+    const totalHalfStars = halfStarsFromXp(newXp);
+    const applied = c.half_stars_earned ?? 0;
+    const pending = Math.max(0, Math.min(10 - applied, totalHalfStars - applied));
     const loss = opts.energy_loss[c.id] ?? 0;
     const newEnergy = Math.max(0, (c.energy ?? 100) - loss);
     await supabase
       .from("creatures")
       .update({
         xp: newXp,
-        pending_half_stars: (c.pending_half_stars ?? 0) + Math.max(0, gainedStars),
+        pending_half_stars: pending,
         energy: newEnergy,
       })
       .eq("id", c.id);
   }
+
+  await tickBurst(supabase, trainerId, burstLeft);
+}
+
+async function tickBurst(supabase: any, trainerId: string, current: number) {
+  if (current <= 0) return;
+  const next = current - 1;
+  const patch: Record<string, any> = { xp_burst_matches_left: next };
+  if (next === 0) patch.xp_burst_multiplier = 1;
+  await supabase.from("trainers").update(patch).eq("id", trainerId);
 }
 
 export async function insertMessage(
