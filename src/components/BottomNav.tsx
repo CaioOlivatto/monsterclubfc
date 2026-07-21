@@ -1,13 +1,14 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { Home, Users, Swords, Trophy, Store } from "lucide-react";
+import { Home, Users, Trophy, Store, Inbox } from "lucide-react";
 
 const items = [
   { to: "/dashboard", label: "Início", icon: Home },
   { to: "/roster", label: "Elenco", icon: Users },
-  { to: "/lineup", label: "Escalação", icon: Swords },
   { to: "/league", label: "Liga", icon: Trophy },
   { to: "/market", label: "Mercado", icon: Store },
+  { to: "/messages", label: "Mensagens", icon: Inbox },
 ] as const;
+
 
 export function BottomNav() {
   const { pathname } = useLocation();
