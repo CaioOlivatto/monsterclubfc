@@ -110,29 +110,32 @@ function Dashboard() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border/60 bg-card/40 backdrop-blur">
-        <div className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-4 sm:flex sm:flex-wrap sm:justify-between">
+        <div className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-4 py-4 sm:flex sm:flex-wrap sm:justify-between sm:gap-4">
           <div className="min-w-0">
             <p className="text-xs uppercase tracking-wider text-muted-foreground">
               Academia
             </p>
-            <h1 className="truncate text-xl font-bold sm:text-2xl">
+            <h1 className="truncate text-lg font-bold sm:text-2xl">
               {academy ? trainer.academy_name : trainer.trainer_name}
             </h1>
-            <p className="truncate text-sm text-muted-foreground">
+            <p className="truncate text-xs text-muted-foreground sm:text-sm">
               Treinador: {trainer.trainer_name} · Nível {trainer.level}
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <Button
               variant="outline"
               size="sm"
+              className="px-2 sm:px-3"
               onClick={() => weeklyMut.mutate()}
               disabled={weeklyMut.isPending}
             >
-              💎 Semanal
+              <Gem className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">Semanal</span>
             </Button>
-            <Button variant="ghost" size="sm" onClick={signOut}>
-              <LogOut className="mr-2 h-4 w-4" /> Sair
+            <Button variant="ghost" size="sm" className="px-2 sm:px-3" onClick={signOut}>
+              <LogOut className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Sair</span>
             </Button>
           </div>
         </div>
@@ -363,12 +366,12 @@ function ResourceChip({
   value: string;
 }) {
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-card/50 px-3 py-2">
+    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-border/60 bg-card/50 px-2 py-2 sm:px-3">
       <div className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
         {icon}
       </div>
-      <div className="min-w-0">
-        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[10px] uppercase tracking-wider text-muted-foreground">
           {label}
         </p>
         <p className="truncate text-sm font-semibold">{value}</p>
