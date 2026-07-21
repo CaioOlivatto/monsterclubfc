@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getLeague, startLeague, playNextLeagueMatch } from "@/lib/league.functions";
+import { getLeague, startLeague, playNextLeagueMatch, finishSeasonAndAdvance } from "@/lib/league.functions";
 
 export const Route = createFileRoute("/_authenticated/league")({
   head: () => ({
@@ -46,6 +46,23 @@ function LeaguePage() {
     onSuccess: (res: any) => nav({ to: "/match/$id", params: { id: res.match_id } }),
     onError: (e: any) => toast.error(e?.message ?? "Não foi possível jogar a próxima partida."),
   });
+
+  const finishSeasonFn = useServerFn(finishSeasonAndAdvance);
+  const finishMut = useMutation({
+    mutationFn: () => finishSeasonFn(),
+    onSuccess: (res: any) => {
+      const parts = [
+        `${res.position}º lugar`,
+        res.promoted ? `Promoção → ${res.newDivision}` : res.relegated ? `Rebaixamento → ${res.newDivision}` : `Continua em ${res.newDivision}`,
+        `+$${res.prize.toLocaleString()}`,
+      ];
+      toast.success(`Temporada ${res.newSeasonNumber - 1} encerrada: ${parts.join(" • ")}`);
+      qc.invalidateQueries({ queryKey: ["league"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Não foi possível encerrar a temporada."),
+  });
+
 
   if (isLoading) {
     return (
@@ -88,8 +105,15 @@ function LeaguePage() {
         )}
 
         {comp && data && (
-          <LeagueBody data={data} onPlayNext={() => playMut.mutate()} isPlaying={playMut.isPending} />
+          <LeagueBody
+            data={data}
+            onPlayNext={() => playMut.mutate()}
+            isPlaying={playMut.isPending}
+            onFinishSeason={() => finishMut.mutate()}
+            isFinishing={finishMut.isPending}
+          />
         )}
+
       </main>
     </div>
   );
@@ -99,11 +123,16 @@ function LeagueBody({
   data,
   onPlayNext,
   isPlaying,
+  onFinishSeason,
+  isFinishing,
 }: {
   data: any;
   onPlayNext: () => void;
   isPlaying: boolean;
+  onFinishSeason: () => void;
+  isFinishing: boolean;
 }) {
+
   const teamsById = new Map<string, any>((data.teams ?? []).map((t: any) => [t.id, t]));
   const standings = [...(data.standings ?? [])].sort((a: any, b: any) => {
     if (b.points !== a.points) return b.points - a.points;
@@ -122,20 +151,30 @@ function LeagueBody({
   const roundNumbers = [...rounds.keys()].sort((a, b) => a - b);
   const nextRound = roundNumbers.find((r) => rounds.get(r)!.some((m) => m.status === "scheduled"));
 
+  const division = data.competition?.division ?? "bronze";
+  const leagueDone = !nextRound;
+
   return (
     <>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 py-4">
           <div>
-            <CardTitle className="text-base">Próxima rodada</CardTitle>
+            <CardTitle className="text-base capitalize">Divisão {division}</CardTitle>
             <p className="text-xs text-muted-foreground">
-              {nextRound ? `Rodada ${nextRound} de ${roundNumbers.length}` : "Liga concluída"}
+              {leagueDone ? "Temporada concluída — encerre para promoção/rebaixamento." : `Rodada ${nextRound} de ${roundNumbers.length}`}
             </p>
           </div>
-          <Button onClick={onPlayNext} disabled={!nextRound || isPlaying}>
-            <Play className="mr-2 h-4 w-4" />
-            {isPlaying ? "Jogando..." : "Jogar próxima"}
-          </Button>
+          {leagueDone ? (
+            <Button onClick={onFinishSeason} disabled={isFinishing} variant="default">
+              <Trophy className="mr-2 h-4 w-4" />
+              {isFinishing ? "Encerrando..." : "Encerrar temporada"}
+            </Button>
+          ) : (
+            <Button onClick={onPlayNext} disabled={isPlaying}>
+              <Play className="mr-2 h-4 w-4" />
+              {isPlaying ? "Jogando..." : "Jogar próxima"}
+            </Button>
+          )}
         </CardHeader>
         {nextRound && (
           <CardContent className="space-y-2 pb-4">
@@ -147,6 +186,7 @@ function LeagueBody({
           </CardContent>
         )}
       </Card>
+
 
       <Card>
         <CardHeader className="py-4">

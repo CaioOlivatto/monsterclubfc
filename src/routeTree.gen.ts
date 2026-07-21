@@ -19,6 +19,7 @@ import { Route as AuthenticatedMarketRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedLineupRouteImport } from './routes/_authenticated/lineup'
 import { Route as AuthenticatedLeagueRouteImport } from './routes/_authenticated/league'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedCupRouteImport } from './routes/_authenticated/cup'
 import { Route as AuthenticatedBuildingsRouteImport } from './routes/_authenticated/buildings'
 import { Route as AuthenticatedMatchIdRouteImport } from './routes/_authenticated/match.$id'
 import { Route as AuthenticatedCreaturesIdRouteImport } from './routes/_authenticated/creatures.$id'
@@ -72,6 +73,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedCupRoute = AuthenticatedCupRouteImport.update({
+  id: '/cup',
+  path: '/cup',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedBuildingsRoute = AuthenticatedBuildingsRouteImport.update({
   id: '/buildings',
   path: '/buildings',
@@ -93,6 +99,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/buildings': typeof AuthenticatedBuildingsRoute
+  '/cup': typeof AuthenticatedCupRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/league': typeof AuthenticatedLeagueRoute
   '/lineup': typeof AuthenticatedLineupRoute
@@ -107,6 +114,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/buildings': typeof AuthenticatedBuildingsRoute
+  '/cup': typeof AuthenticatedCupRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/league': typeof AuthenticatedLeagueRoute
   '/lineup': typeof AuthenticatedLineupRoute
@@ -123,6 +131,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/buildings': typeof AuthenticatedBuildingsRoute
+  '/_authenticated/cup': typeof AuthenticatedCupRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/league': typeof AuthenticatedLeagueRoute
   '/_authenticated/lineup': typeof AuthenticatedLineupRoute
@@ -139,6 +148,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/buildings'
+    | '/cup'
     | '/dashboard'
     | '/league'
     | '/lineup'
@@ -153,6 +163,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/buildings'
+    | '/cup'
     | '/dashboard'
     | '/league'
     | '/lineup'
@@ -168,6 +179,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/buildings'
+    | '/_authenticated/cup'
     | '/_authenticated/dashboard'
     | '/_authenticated/league'
     | '/_authenticated/lineup'
@@ -257,6 +269,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/cup': {
+      id: '/_authenticated/cup'
+      path: '/cup'
+      fullPath: '/cup'
+      preLoaderRoute: typeof AuthenticatedCupRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/buildings': {
       id: '/_authenticated/buildings'
       path: '/buildings'
@@ -283,6 +302,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedBuildingsRoute: typeof AuthenticatedBuildingsRoute
+  AuthenticatedCupRoute: typeof AuthenticatedCupRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedLeagueRoute: typeof AuthenticatedLeagueRoute
   AuthenticatedLineupRoute: typeof AuthenticatedLineupRoute
@@ -296,6 +316,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedBuildingsRoute: AuthenticatedBuildingsRoute,
+  AuthenticatedCupRoute: AuthenticatedCupRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedLeagueRoute: AuthenticatedLeagueRoute,
   AuthenticatedLineupRoute: AuthenticatedLineupRoute,
