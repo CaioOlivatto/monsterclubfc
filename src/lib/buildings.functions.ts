@@ -190,8 +190,8 @@ export const finishNowWithGems = createServerFn({ method: "POST" })
         .eq("id", b.id);
       return { spent: 0 };
     }
-    // Custo: 1 gema a cada 30 minutos restantes (mínimo 1)
-    const cost = Math.max(1, Math.ceil(remainingMs / (30 * 60 * 1000)));
+    // Balanceamento §5.3: 1 gema a cada 10 minutos restantes (mínimo 1).
+    const cost = Math.max(1, Math.ceil(remainingMs / (10 * 60 * 1000)));
     if (trainer.gems < cost) throw new Error(`Você precisa de ${cost} 💎 para acelerar.`);
 
     await supabase
