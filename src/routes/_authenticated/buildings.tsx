@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   getBuildings,
@@ -46,7 +46,7 @@ export const Route = createFileRoute("/_authenticated/buildings")({
   component: BuildingsPage,
 });
 
-const ICONS: Record<string, JSX.Element> = {
+const ICONS: Record<string, ReactNode> = {
   ct_treino: <Dumbbell className="h-5 w-5" />,
   ct_elemental: <Sparkles className="h-5 w-5" />,
   estadio: <Trophy className="h-5 w-5" />,

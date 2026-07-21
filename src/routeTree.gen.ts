@@ -18,6 +18,7 @@ import { Route as AuthenticatedMarketRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedLineupRouteImport } from './routes/_authenticated/lineup'
 import { Route as AuthenticatedLeagueRouteImport } from './routes/_authenticated/league'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedBuildingsRouteImport } from './routes/_authenticated/buildings'
 import { Route as AuthenticatedMatchIdRouteImport } from './routes/_authenticated/match.$id'
 import { Route as AuthenticatedCreaturesIdRouteImport } from './routes/_authenticated/creatures.$id'
 
@@ -65,6 +66,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedBuildingsRoute = AuthenticatedBuildingsRouteImport.update({
+  id: '/buildings',
+  path: '/buildings',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedMatchIdRoute = AuthenticatedMatchIdRouteImport.update({
   id: '/match/$id',
   path: '/match/$id',
@@ -80,6 +86,7 @@ const AuthenticatedCreaturesIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/buildings': typeof AuthenticatedBuildingsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/league': typeof AuthenticatedLeagueRoute
   '/lineup': typeof AuthenticatedLineupRoute
@@ -92,6 +99,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/buildings': typeof AuthenticatedBuildingsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/league': typeof AuthenticatedLeagueRoute
   '/lineup': typeof AuthenticatedLineupRoute
@@ -106,6 +114,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/_authenticated/buildings': typeof AuthenticatedBuildingsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/league': typeof AuthenticatedLeagueRoute
   '/_authenticated/lineup': typeof AuthenticatedLineupRoute
@@ -120,6 +129,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/buildings'
     | '/dashboard'
     | '/league'
     | '/lineup'
@@ -132,6 +142,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/buildings'
     | '/dashboard'
     | '/league'
     | '/lineup'
@@ -145,6 +156,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/_authenticated/buildings'
     | '/_authenticated/dashboard'
     | '/_authenticated/league'
     | '/_authenticated/lineup'
@@ -226,6 +238,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/buildings': {
+      id: '/_authenticated/buildings'
+      path: '/buildings'
+      fullPath: '/buildings'
+      preLoaderRoute: typeof AuthenticatedBuildingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/match/$id': {
       id: '/_authenticated/match/$id'
       path: '/match/$id'
@@ -244,6 +263,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedBuildingsRoute: typeof AuthenticatedBuildingsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedLeagueRoute: typeof AuthenticatedLeagueRoute
   AuthenticatedLineupRoute: typeof AuthenticatedLineupRoute
@@ -255,6 +275,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedBuildingsRoute: AuthenticatedBuildingsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedLeagueRoute: AuthenticatedLeagueRoute,
   AuthenticatedLineupRoute: AuthenticatedLineupRoute,
