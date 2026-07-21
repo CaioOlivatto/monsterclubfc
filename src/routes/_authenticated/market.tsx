@@ -174,10 +174,8 @@ function MarketPage() {
                 {data?.roster_count ?? 0}/{data?.roster_slots ?? 0}
               </span>
             </div>
-            {data?.rotates_at && (
-              <p className="text-xs text-muted-foreground">
-                Novas ofertas em <RotationTimer target={data.rotates_at} />
-              </p>
+            {data?.rotation_label && (
+              <p className="text-xs text-muted-foreground">{data.rotation_label}</p>
             )}
           </CardContent>
         </Card>

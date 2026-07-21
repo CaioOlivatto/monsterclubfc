@@ -61,15 +61,16 @@ export const buySpeedUnlock = createServerFn({ method: "POST" })
       .eq("trainer_id", trainer.id)
       .maybeSingle();
     if (!academy) throw new Error("Academia não encontrada.");
-    const flag = data.mode === "4x" ? "paid_4x" : "paid_instant";
-    if (academy[flag]) return { ok: true, alreadyUnlocked: true };
-
+    const isFourX = data.mode === "4x";
+    if (isFourX ? academy.paid_4x : academy.paid_instant) {
+      return { ok: true, alreadyUnlocked: true };
+    }
     const cost = SPEED_UNLOCK_COSTS[data.mode];
     if (academy.gems < cost) throw new Error("Gemas insuficientes.");
-    await supabase
-      .from("academies")
-      .update({ gems: academy.gems - cost, [flag]: true })
-      .eq("id", academy.id);
+    const patch = isFourX
+      ? { gems: academy.gems - cost, paid_4x: true }
+      : { gems: academy.gems - cost, paid_instant: true };
+    await supabase.from("academies").update(patch).eq("id", academy.id);
     return { ok: true, alreadyUnlocked: false };
   });
 
