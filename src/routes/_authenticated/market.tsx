@@ -357,14 +357,3 @@ function MarketPage() {
   );
 }
 
-function RotationTimer({ target }: { target: number }) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(id);
-  }, []);
-  const diff = Math.max(0, target - now);
-  const h = Math.floor(diff / 3_600_000);
-  const m = Math.floor((diff % 3_600_000) / 60_000);
-  return <span className="font-mono">{h}h{m.toString().padStart(2, "0")}m</span>;
-}
