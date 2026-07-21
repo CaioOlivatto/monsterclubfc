@@ -109,7 +109,7 @@ export const startLeague = createServerFn({ method: "POST" })
 
     const { data: competition, error: cErr } = await supabase
       .from("competitions")
-      .insert({ trainer_id: trainer.id, season_id: season.id, division: "amadora" })
+      .insert({ trainer_id: trainer.id, season_id: season.id, division: "bronze" })
       .select("id")
       .single();
     if (cErr) throw cErr;
@@ -336,7 +336,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       .from("matches")
       .select("id, home_team_id, away_team_id")
       .eq("competition_id", competition.id)
-      .eq("round", next.round)
+      .eq("round", next.round as number)
       .eq("status", "scheduled");
     for (const m of sameRound ?? []) {
       const { data: pair } = await supabase
