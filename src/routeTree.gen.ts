@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRosterRouteImport } from './routes/_authenticated/roster'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
+import { Route as AuthenticatedLineupRouteImport } from './routes/_authenticated/lineup'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCreaturesIdRouteImport } from './routes/_authenticated/creatures.$id'
 
@@ -41,6 +42,11 @@ const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedLineupRoute = AuthenticatedLineupRouteImport.update({
+  id: '/lineup',
+  path: '/lineup',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -57,6 +63,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/lineup': typeof AuthenticatedLineupRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/roster': typeof AuthenticatedRosterRoute
   '/creatures/$id': typeof AuthenticatedCreaturesIdRoute
@@ -65,6 +72,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/lineup': typeof AuthenticatedLineupRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/roster': typeof AuthenticatedRosterRoute
   '/creatures/$id': typeof AuthenticatedCreaturesIdRoute
@@ -75,6 +83,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/lineup': typeof AuthenticatedLineupRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/roster': typeof AuthenticatedRosterRoute
   '/_authenticated/creatures/$id': typeof AuthenticatedCreaturesIdRoute
@@ -85,6 +94,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/dashboard'
+    | '/lineup'
     | '/onboarding'
     | '/roster'
     | '/creatures/$id'
@@ -93,6 +103,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/dashboard'
+    | '/lineup'
     | '/onboarding'
     | '/roster'
     | '/creatures/$id'
@@ -102,6 +113,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/dashboard'
+    | '/_authenticated/lineup'
     | '/_authenticated/onboarding'
     | '/_authenticated/roster'
     | '/_authenticated/creatures/$id'
@@ -150,6 +162,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOnboardingRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/lineup': {
+      id: '/_authenticated/lineup'
+      path: '/lineup'
+      fullPath: '/lineup'
+      preLoaderRoute: typeof AuthenticatedLineupRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -169,6 +188,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedLineupRoute: typeof AuthenticatedLineupRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
   AuthenticatedRosterRoute: typeof AuthenticatedRosterRoute
   AuthenticatedCreaturesIdRoute: typeof AuthenticatedCreaturesIdRoute
@@ -176,6 +196,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedLineupRoute: AuthenticatedLineupRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
   AuthenticatedRosterRoute: AuthenticatedRosterRoute,
   AuthenticatedCreaturesIdRoute: AuthenticatedCreaturesIdRoute,
