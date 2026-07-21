@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type MouseEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,8 +38,6 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const nav = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
 
@@ -54,12 +52,24 @@ function AuthPage() {
     return message;
   }
 
-  async function handleSignIn(e: FormEvent) {
-    e.preventDefault();
+  function readCredentials(form: HTMLFormElement | null) {
+    const formData = new FormData(form ?? undefined);
+    return {
+      email: String(formData.get("email") ?? "").trim(),
+      password: String(formData.get("password") ?? ""),
+    };
+  }
+
+  async function signInWithForm(form: HTMLFormElement | null) {
+    const { email, password } = readCredentials(form);
+    if (!email || !password) {
+      setMessage({ type: "error", text: "Preencha email e senha para entrar." });
+      return;
+    }
     setMessage(null);
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email,
       password,
     });
     setLoading(false);
@@ -73,12 +83,16 @@ function AuthPage() {
     nav({ to: "/", replace: true });
   }
 
-  async function handleSignUp(e: FormEvent) {
-    e.preventDefault();
+  async function signUpWithForm(form: HTMLFormElement | null) {
+    const { email, password } = readCredentials(form);
+    if (!email || !password) {
+      setMessage({ type: "error", text: "Preencha email e senha para criar a conta." });
+      return;
+    }
     setMessage(null);
     setLoading(true);
     const { error } = await supabase.auth.signUp({
-      email: email.trim(),
+      email,
       password,
       options: { emailRedirectTo: window.location.origin },
     });
@@ -93,6 +107,26 @@ function AuthPage() {
     setMessage({ type: "success", text });
     toast.success(text);
     nav({ to: "/", replace: true });
+  }
+
+  async function handleSignIn(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    await signInWithForm(e.currentTarget);
+  }
+
+  async function handleSignInClick(e: MouseEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    await signInWithForm(e.currentTarget.form);
+  }
+
+  async function handleSignUp(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    await signUpWithForm(e.currentTarget);
+  }
+
+  async function handleSignUpClick(e: MouseEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    await signUpWithForm(e.currentTarget.form);
   }
 
   return (
@@ -128,23 +162,21 @@ function AuthPage() {
                   <Label htmlFor="signin-email">Email</Label>
                   <Input
                     id="signin-email"
+                    name="email"
                     type="email"
                     required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signin-pw">Senha</Label>
                   <Input
                     id="signin-pw"
+                    name="password"
                     type="password"
                     required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="button" onClick={handleSignInClick} className="w-full" disabled={loading}>
                   {loading ? "Entrando..." : "Entrar"}
                 </Button>
               </form>
@@ -167,24 +199,22 @@ function AuthPage() {
                   <Label htmlFor="signup-email">Email</Label>
                   <Input
                     id="signup-email"
+                    name="email"
                     type="email"
                     required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-pw">Senha</Label>
                   <Input
                     id="signup-pw"
+                    name="password"
                     type="password"
                     required
                     minLength={6}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="button" onClick={handleSignUpClick} className="w-full" disabled={loading}>
                   {loading ? "Criando..." : "Criar conta"}
                 </Button>
               </form>
