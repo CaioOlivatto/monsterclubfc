@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Save, Shield, Swords, Scale } from "lucide-react";
+import { ArrowLeft, Save, Shield, Swords, Scale, Wand2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/lineup")({
   head: () => ({
