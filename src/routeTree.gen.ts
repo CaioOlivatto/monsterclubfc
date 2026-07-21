@@ -16,6 +16,7 @@ import { Route as AuthenticatedRosterRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedLineupRouteImport } from './routes/_authenticated/lineup'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedMatchIdRouteImport } from './routes/_authenticated/match.$id'
 import { Route as AuthenticatedCreaturesIdRouteImport } from './routes/_authenticated/creatures.$id'
 
 const AuthRoute = AuthRouteImport.update({
@@ -52,6 +53,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedMatchIdRoute = AuthenticatedMatchIdRouteImport.update({
+  id: '/match/$id',
+  path: '/match/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedCreaturesIdRoute =
   AuthenticatedCreaturesIdRouteImport.update({
     id: '/creatures/$id',
@@ -67,6 +73,7 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/roster': typeof AuthenticatedRosterRoute
   '/creatures/$id': typeof AuthenticatedCreaturesIdRoute
+  '/match/$id': typeof AuthenticatedMatchIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/roster': typeof AuthenticatedRosterRoute
   '/creatures/$id': typeof AuthenticatedCreaturesIdRoute
+  '/match/$id': typeof AuthenticatedMatchIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/roster': typeof AuthenticatedRosterRoute
   '/_authenticated/creatures/$id': typeof AuthenticatedCreaturesIdRoute
+  '/_authenticated/match/$id': typeof AuthenticatedMatchIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -98,6 +107,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/roster'
     | '/creatures/$id'
+    | '/match/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -107,6 +117,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/roster'
     | '/creatures/$id'
+    | '/match/$id'
   id:
     | '__root__'
     | '/'
@@ -117,6 +128,7 @@ export interface FileRouteTypes {
     | '/_authenticated/onboarding'
     | '/_authenticated/roster'
     | '/_authenticated/creatures/$id'
+    | '/_authenticated/match/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -176,6 +188,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/match/$id': {
+      id: '/_authenticated/match/$id'
+      path: '/match/$id'
+      fullPath: '/match/$id'
+      preLoaderRoute: typeof AuthenticatedMatchIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/creatures/$id': {
       id: '/_authenticated/creatures/$id'
       path: '/creatures/$id'
@@ -192,6 +211,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
   AuthenticatedRosterRoute: typeof AuthenticatedRosterRoute
   AuthenticatedCreaturesIdRoute: typeof AuthenticatedCreaturesIdRoute
+  AuthenticatedMatchIdRoute: typeof AuthenticatedMatchIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -200,6 +220,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
   AuthenticatedRosterRoute: AuthenticatedRosterRoute,
   AuthenticatedCreaturesIdRoute: AuthenticatedCreaturesIdRoute,
+  AuthenticatedMatchIdRoute: AuthenticatedMatchIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
