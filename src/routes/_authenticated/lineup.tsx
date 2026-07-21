@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Save, Shield, Swords, Scale } from "lucide-react";
+import { ArrowLeft, Save, Shield, Swords, Scale, Wand2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/lineup")({
   head: () => ({
@@ -122,6 +122,38 @@ function LineupPage() {
   };
   const removeFromBench = (id: string) => setBench((b) => b.filter((x) => x !== id));
 
+  const autoFill = () => {
+    // ordena criaturas por overall desc, energia desc como desempate
+    const pool = [...creatures].sort(
+      (a, b) => b.overall - a.overall || (b.energy ?? 0) - (a.energy ?? 0),
+    );
+    const used = new Set<string>();
+    const newStarters: StarterSlot[] = slots.map((s) => ({ slot: s.index, role: s.role, creature_id: null }));
+
+    // 1ª passada: preencher com posição sugerida compatível
+    for (const s of newStarters) {
+      const hint = ROLE_HINT[s.role];
+      const pick = pool.find((c) => !used.has(c.id) && hint.includes(c.suggested_position ?? ""));
+      if (pick) { s.creature_id = pick.id; used.add(pick.id); }
+    }
+    // 2ª passada: preencher slots vazios com melhores restantes
+    for (const s of newStarters) {
+      if (s.creature_id) continue;
+      const pick = pool.find((c) => !used.has(c.id));
+      if (pick) { s.creature_id = pick.id; used.add(pick.id); }
+    }
+    // reservas: próximos melhores até MAX_BENCH
+    const newBench: string[] = [];
+    for (const c of pool) {
+      if (newBench.length >= MAX_BENCH) break;
+      if (!used.has(c.id)) { newBench.push(c.id); used.add(c.id); }
+    }
+
+    setStarters(newStarters);
+    setBench(newBench);
+    toast.success("Escalação automática aplicada — lembre de salvar!");
+  };
+
   const mut = useMutation({
     mutationFn: async () => {
       await save({
@@ -156,14 +188,25 @@ function LineupPage() {
             </Button>
             <h1 className="text-lg font-semibold">Escalação</h1>
           </div>
-          <Button
-            onClick={() => mut.mutate()}
-            disabled={mut.isPending || filledStarters !== 11}
-            size="sm"
-          >
-            <Save className="mr-2 h-4 w-4" />
-            Salvar
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={autoFill}
+              disabled={creatures.length === 0}
+              size="sm"
+              variant="secondary"
+            >
+              <Wand2 className="mr-2 h-4 w-4" />
+              Auto definir
+            </Button>
+            <Button
+              onClick={() => mut.mutate()}
+              disabled={mut.isPending || filledStarters !== 11}
+              size="sm"
+            >
+              <Save className="mr-2 h-4 w-4" />
+              Salvar
+            </Button>
+          </div>
         </div>
       </header>
 
