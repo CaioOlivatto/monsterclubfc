@@ -20,12 +20,12 @@ import { ArrowLeft, Save, Shield, Swords, Scale } from "lucide-react";
 export const Route = createFileRoute("/_authenticated/lineup")({
   head: () => ({
     meta: [
-      { title: "Escalação — Futebol de Criaturas" },
+      { title: "Escalação — Monster Club Manager" },
       {
         name: "description",
         content: "Monte a formação e estratégia do seu time de criaturas.",
       },
-      { property: "og:title", content: "Escalação — Futebol de Criaturas" },
+      { property: "og:title", content: "Escalação — Monster Club Manager" },
       {
         property: "og:description",
         content: "Escolha formação, titulares e reservas.",

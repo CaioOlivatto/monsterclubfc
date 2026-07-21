@@ -78,10 +78,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Futebol de Criaturas — Gestão de Academia" },
+      { title: "Monster Club Manager — Gestão de Academia" },
       { name: "description", content: "Jogo de gestão estilo Elifoot com criaturas originais: monte seu elenco, treine, dispute liga e copa." },
-      { name: "author", content: "Futebol de Criaturas" },
-      { property: "og:title", content: "Futebol de Criaturas" },
+      { name: "author", content: "Monster Club Manager" },
+      { property: "og:title", content: "Monster Club Manager" },
       { property: "og:description", content: "Gerencie sua academia de criaturas, escale seu time e conquiste a liga." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

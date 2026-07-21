@@ -12,9 +12,9 @@ import { ArrowLeft, Search, BatteryCharging, Star } from "lucide-react";
 export const Route = createFileRoute("/_authenticated/roster")({
   head: () => ({
     meta: [
-      { title: "Elenco — Futebol de Criaturas" },
+      { title: "Elenco — Monster Club Manager" },
       { name: "description", content: "Todas as criaturas da sua academia." },
-      { property: "og:title", content: "Elenco — Futebol de Criaturas" },
+      { property: "og:title", content: "Elenco — Monster Club Manager" },
       { property: "og:description", content: "Todas as criaturas da sua academia." },
     ],
   }),

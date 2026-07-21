@@ -17,13 +17,13 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Entrar — Futebol de Criaturas" },
+      { title: "Entrar — Monster Club Manager" },
       {
         name: "description",
         content:
           "Entre ou crie sua academia e comande um elenco de criaturas na liga.",
       },
-      { property: "og:title", content: "Entrar — Futebol de Criaturas" },
+      { property: "og:title", content: "Entrar — Monster Club Manager" },
       {
         property: "og:description",
         content:
@@ -133,7 +133,7 @@ function AuthPage() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Futebol de Criaturas</CardTitle>
+          <CardTitle className="text-2xl">Monster Club Manager</CardTitle>
           <CardDescription>
             Entre na sua academia ou comece uma nova jornada.
           </CardDescription>

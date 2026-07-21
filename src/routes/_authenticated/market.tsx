@@ -20,12 +20,12 @@ import { ArrowLeft, Coins, Store, Users, Star } from "lucide-react";
 export const Route = createFileRoute("/_authenticated/market")({
   head: () => ({
     meta: [
-      { title: "Mercado — Futebol de Criaturas" },
+      { title: "Mercado — Monster Club Manager" },
       {
         name: "description",
         content: "Compre e venda criaturas para reforçar seu elenco.",
       },
-      { property: "og:title", content: "Mercado — Futebol de Criaturas" },
+      { property: "og:title", content: "Mercado — Monster Club Manager" },
       {
         property: "og:description",
         content: "Ofertas rotativas de criaturas de outras academias.",

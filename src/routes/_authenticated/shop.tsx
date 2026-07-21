@@ -28,9 +28,9 @@ import { ArrowLeft, Coins, Gem, Hammer, Package, Users, Zap } from "lucide-react
 export const Route = createFileRoute("/_authenticated/shop")({
   head: () => ({
     meta: [
-      { title: "Loja — Futebol de Criaturas" },
+      { title: "Loja — Monster Club Manager" },
       { name: "description", content: "Pacotes de gemas, itens e upgrades da academia." },
-      { property: "og:title", content: "Loja — Futebol de Criaturas" },
+      { property: "og:title", content: "Loja — Monster Club Manager" },
       { property: "og:description", content: "Pacotes de gemas, itens e upgrades da academia." },
     ],
   }),

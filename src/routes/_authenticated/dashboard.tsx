@@ -32,12 +32,12 @@ import {
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
     meta: [
-      { title: "Dashboard — Futebol de Criaturas" },
+      { title: "Dashboard — Monster Club Manager" },
       {
         name: "description",
         content: "Painel da sua academia de criaturas: recursos, elenco, liga e próxima partida.",
       },
-      { property: "og:title", content: "Dashboard — Futebol de Criaturas" },
+      { property: "og:title", content: "Dashboard — Monster Club Manager" },
       {
         property: "og:description",
         content: "Gerencie sua academia de criaturas.",

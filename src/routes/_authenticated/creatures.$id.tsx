@@ -17,9 +17,9 @@ import { ArrowLeft, BatteryCharging, Coins, Dumbbell, Sparkles, Star } from "luc
 export const Route = createFileRoute("/_authenticated/creatures/$id")({
   head: () => ({
     meta: [
-      { title: "Detalhe da criatura — Futebol de Criaturas" },
+      { title: "Detalhe da criatura — Monster Club Manager" },
       { name: "description", content: "Ficha completa da sua criatura." },
-      { property: "og:title", content: "Detalhe da criatura — Futebol de Criaturas" },
+      { property: "og:title", content: "Detalhe da criatura — Monster Club Manager" },
       { property: "og:description", content: "Ficha completa da sua criatura." },
     ],
   }),

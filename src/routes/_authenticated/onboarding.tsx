@@ -17,7 +17,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/_authenticated/onboarding")({
   head: () => ({
     meta: [
-      { title: "Criar treinador — Futebol de Criaturas" },
+      { title: "Criar treinador — Monster Club Manager" },
       {
         name: "description",
         content: "Escolha o nome do treinador e da sua academia.",
