@@ -28,16 +28,32 @@ function MatchPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const fetchMatch = useServerFn(getMatch);
+  const payFn = useServerFn(payMatchSpeed);
+  const qc = useQueryClient();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["match", id],
     queryFn: () => fetchMatch({ data: { id } }),
   });
 
+  const paid: string[] = Array.isArray((data as any)?.speed_paid)
+    ? ((data as any).speed_paid as any[]).map((x) => String(x))
+    : [];
+
+  const payMut = useMutation({
+    mutationFn: (mode: "4x" | "instant") => payFn({ data: { match_id: id, mode } }),
+    onSuccess: (_res, mode) => {
+      toast.success(mode === "4x" ? "Velocidade 4x liberada!" : "Velocidade instantânea liberada!");
+      qc.invalidateQueries({ queryKey: ["match", id] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha no pagamento"),
+  });
+
   const [minute, setMinute] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState<Speed>(1);
   const timerRef = useRef<number | null>(null);
+
 
   // Reset se troca de partida
   useEffect(() => {
