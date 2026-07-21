@@ -1,0 +1,1 @@
+ALTER TABLE public.teams ALTER COLUMN competition_id DROP NOT NULL;

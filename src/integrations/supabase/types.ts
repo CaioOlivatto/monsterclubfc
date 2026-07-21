@@ -668,7 +668,7 @@ export type Database = {
       }
       teams: {
         Row: {
-          competition_id: string
+          competition_id: string | null
           cpu_strength: number | null
           created_at: string
           id: string
@@ -677,7 +677,7 @@ export type Database = {
           trainer_id: string | null
         }
         Insert: {
-          competition_id: string
+          competition_id?: string | null
           cpu_strength?: number | null
           created_at?: string
           id?: string
@@ -686,7 +686,7 @@ export type Database = {
           trainer_id?: string | null
         }
         Update: {
-          competition_id?: string
+          competition_id?: string | null
           cpu_strength?: number | null
           created_at?: string
           id?: string
