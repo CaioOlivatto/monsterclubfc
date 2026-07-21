@@ -115,12 +115,24 @@ export const getDashboard = createServerFn({ method: "GET" })
       .sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0))
       .slice(0, 3);
 
-    // Time do jogador (se a liga já foi gerada)
-    const { data: playerTeam } = await supabase
-      .from("teams")
-      .select("id, name, competition_id")
+    // Time do jogador apenas na liga ativa. Times de amistoso/copa não devem afetar o painel.
+    const { data: activeLeague } = await supabase
+      .from("competitions")
+      .select("id")
       .eq("trainer_id", trainer.id)
+      .eq("type", "league")
+      .eq("status", "active")
       .maybeSingle();
+
+    const { data: playerTeam } = activeLeague
+      ? await supabase
+          .from("teams")
+          .select("id, name, competition_id")
+          .eq("competition_id", activeLeague.id)
+          .eq("trainer_id", trainer.id)
+          .eq("is_player", true)
+          .maybeSingle()
+      : { data: null };
 
     let standing = null as null | {
       points: number;
@@ -208,7 +220,7 @@ export const getDashboard = createServerFn({ method: "GET" })
       roster: { count: rosterCount, avgEnergy, avgOverall, top: topCreatures },
       standing,
       nextMatch,
-      hasLeague: !!playerTeam,
+      hasLeague: !!activeLeague,
     };
   });
 
