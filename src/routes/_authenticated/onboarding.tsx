@@ -82,8 +82,10 @@ function Onboarding() {
   const [submitting, setSubmitting] = useState(false);
 
   // Inputs de nome — aparecem no diálogo se o treinador ainda não existe
+  // Nome do treinador — aparece no diálogo se ele ainda não existe.
+  // O nome da "academia" passa a ser o nome do time escolhido.
   const [trainerName, setTrainerName] = useState("");
-  const [academyName, setAcademyName] = useState("");
+
 
   useEffect(() => {
     if (trainer?.has_roster) nav({ to: "/dashboard", replace: true });
