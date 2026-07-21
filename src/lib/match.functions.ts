@@ -58,7 +58,9 @@ export const payMatchSpeed = createServerFn({ method: "POST" })
       .eq("id", data.match_id)
       .maybeSingle();
     if (!match) throw new Error("Partida não encontrada.");
-    const paid: string[] = Array.isArray(match.speed_paid) ? [...match.speed_paid] : [];
+    const paid: string[] = Array.isArray(match.speed_paid)
+      ? (match.speed_paid as any[]).map((x) => String(x))
+      : [];
     if (paid.includes(data.mode)) return { ok: true, alreadyPaid: true };
 
     const { data: academy } = await supabase
