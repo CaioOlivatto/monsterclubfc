@@ -90,7 +90,7 @@ function LineupPage() {
         return { slot: s.index, role: s.role, creature_id: found?.creature_id ?? null };
       }),
     );
-    setBench(Array.isArray(data.lineup.bench) ? (data.lineup.bench as string[]) : []);
+    setBench(Array.isArray(data.lineup.bench) ? (data.lineup.bench as unknown as string[]) : []);
   }, [data]);
 
   // Se o usuário mudar a formação depois, refaz os slots preservando IDs por índice quando possível
