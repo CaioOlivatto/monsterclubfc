@@ -1,10 +1,12 @@
-// Catálogo da Loja de Gemas e Itens (GDD §8 e §11).
+// Catálogo da Loja de Gemas e Itens — Tabela de Balanceamento §3.3.
 
 export type ItemKey =
   | "potion_individual"
   | "potion_collective"
   | "vital_crystal"
-  | "xp_burst";
+  | "xp_burst_5"
+  | "xp_burst_10"
+  | "xp_burst_15";
 
 export interface ItemSpec {
   key: ItemKey;
@@ -36,12 +38,26 @@ export const ITEMS: Record<ItemKey, ItemSpec> = {
     moneyPrice: 80_000,
     gemPrice: 20,
   },
-  xp_burst: {
-    key: "xp_burst",
-    name: "Impulso de XP (24h)",
-    description: "Dobra o XP ganho em partidas e treinos por 24 horas.",
+  xp_burst_5: {
+    key: "xp_burst_5",
+    name: "Impulso de XP +5% (1 temporada)",
+    description: "Aumenta o XP ganho em +5% pelas próximas 14 partidas de liga.",
     moneyPrice: null,
-    gemPrice: 25,
+    gemPrice: 80,
+  },
+  xp_burst_10: {
+    key: "xp_burst_10",
+    name: "Impulso de XP +10% (1 temporada)",
+    description: "Aumenta o XP ganho em +10% pelas próximas 14 partidas de liga.",
+    moneyPrice: null,
+    gemPrice: 150,
+  },
+  xp_burst_15: {
+    key: "xp_burst_15",
+    name: "Impulso de XP +15% (1 temporada)",
+    description: "Aumenta o XP ganho em +15% pelas próximas 14 partidas de liga.",
+    moneyPrice: null,
+    gemPrice: 220,
   },
 };
 
@@ -49,31 +65,52 @@ export const ITEM_KEYS: ItemKey[] = [
   "potion_individual",
   "potion_collective",
   "vital_crystal",
-  "xp_burst",
+  "xp_burst_5",
+  "xp_burst_10",
+  "xp_burst_15",
 ];
 
+export const XP_BURST_MATCHES = 14;
+export const XP_BURST_MULTIPLIER: Record<string, number> = {
+  xp_burst_5: 1.05,
+  xp_burst_10: 1.10,
+  xp_burst_15: 1.15,
+};
 
 export interface GemPackage {
   id: string;
   name: string;
   gems: number;
-  bonus: number; // gemas extras
-  price: string; // exibição — MVP sem gateway real
+  bonus: number;
+  price: string;
 }
 
+// Pacotes conforme Tabela de Balanceamento §3.2.
 export const GEM_PACKAGES: GemPackage[] = [
-  { id: "starter",  name: "Pacote Inicial",  gems: 50,   bonus: 0,   price: "R$ 4,90" },
-  { id: "bronze",   name: "Pacote Bronze",   gems: 120,  bonus: 10,  price: "R$ 9,90" },
-  { id: "prata",    name: "Pacote Prata",    gems: 300,  bonus: 40,  price: "R$ 19,90" },
-  { id: "ouro",     name: "Pacote Ouro",     gems: 700,  bonus: 120, price: "R$ 39,90" },
-  { id: "diamante", name: "Pacote Diamante", gems: 1600, bonus: 400, price: "R$ 79,90" },
+  { id: "punhado",  name: "Punhado",  gems: 100,  bonus: 0,    price: "R$ 9,90" },
+  { id: "saco",     name: "Saco",     gems: 500,  bonus: 50,   price: "R$ 44,90" },
+  { id: "bau",      name: "Baú",      gems: 1000, bonus: 200,  price: "R$ 89,90" },
+  { id: "cofre",    name: "Cofre",    gems: 2000, bonus: 600,  price: "R$ 179,90" },
+  { id: "tesouro",  name: "Tesouro",  gems: 6000, bonus: 0,    price: "R$ 349,90" },
 ];
 
-// Upgrades pagos em gemas
-export const EXTRA_BUILDER_COST = 80; // gemas por construtor extra (máx 3 total)
-export const MAX_BUILDERS = 3;
+// Construtor extra (2º / 3º / 4º) e teto absoluto.
+export const EXTRA_BUILDER_COSTS: number[] = [250, 600, 1200];
+export const MAX_BUILDERS = 4;
 
+export function extraBuilderCostFor(current: number): number | null {
+  const idx = current - 1; // current=1 → próximo é o 2º (índice 0)
+  return EXTRA_BUILDER_COSTS[idx] ?? null;
+}
+
+// Expansões de elenco em gemas.
 export const ROSTER_EXPANSIONS: Array<{ from: number; to: number; gems: number }> = [
-  { from: 24, to: 30, gems: 60 },
-  { from: 30, to: 36, gems: 120 },
+  { from: 24, to: 30, gems: 400 },
+  { from: 30, to: 36, gems: 900 },
 ];
+
+// Desbloqueio permanente de velocidade de partida.
+export const SPEED_UNLOCK_COSTS: Record<"4x" | "instant", number> = {
+  "4x": 300,
+  instant: 800,
+};

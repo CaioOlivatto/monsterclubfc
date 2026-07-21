@@ -1,5 +1,6 @@
-// Gerador de listagens de mercado (server-only)
-// Rotaciona uma vez por dia por treinador via seed determinística.
+// Gerador de listagens de mercado (server-only) — Tabela de Balanceamento §6.
+// Rotaciona uma vez por temporada; 24 criaturas por lista.
+// Preço base por estrelas (raridade cresce forte).
 
 const ELEMENTS = ["fogo", "agua", "terra", "ar", "gelo"] as const;
 export type MarketElement = (typeof ELEMENTS)[number];
@@ -18,7 +19,20 @@ const SUFFIXES = [
   "kur", "phyx", "tan", "vor", "sol", "nix", "mel", "gar",
 ];
 
-// PRNG determinística (mulberry32)
+// Preço base por meia-estrela (índice 1..10 → 0,5★..5★)
+const STAR_VALUE = [
+  15_000,   //  0,5★
+  35_000,   //  1,0★
+  70_000,   //  1,5★
+  130_000,  //  2,0★
+  240_000,  //  2,5★
+  430_000,  //  3,0★
+  780_000,  //  3,5★
+  1_400_000,// 4,0★
+  2_500_000,// 4,5★
+  4_500_000,// 5,0★
+];
+
 function mulberry32(seed: number) {
   let a = seed >>> 0;
   return () => {
@@ -43,15 +57,31 @@ function pick<T>(rng: () => number, arr: readonly T[]): T {
   return arr[Math.floor(rng() * arr.length)];
 }
 
-// Escala 0-100 em passos de 10 (meia-estrela)
-function starAttr(rng: () => number, minTier: number, maxTier: number): number {
-  // tier: 1 = 0.5★ ... 10 = 5★  → valor = tier*10
-  const tier = Math.floor(rng() * (maxTier - minTier + 1)) + minTier;
-  return tier * 10;
+// Sorteia a "faixa" de meia-estrela do jogador (1..10) com distribuição:
+// 60% 0,5–1,5★ (1..3) · 30% 2–2,5★ (4..5) · 8% 3–3,5★ (6..7) · 2% 4★+ (8..10)
+function rollHalfStarBand(rng: () => number): number {
+  const r = rng();
+  if (r < 0.60) return 1 + Math.floor(rng() * 3);       // 1..3
+  if (r < 0.90) return 4 + Math.floor(rng() * 2);       // 4..5
+  if (r < 0.98) return 6 + Math.floor(rng() * 2);       // 6..7
+  return 8 + Math.floor(rng() * 3);                     // 8..10
 }
 
+// Atributo em pontos (0..100), alinhado à faixa de estrelas do jogador.
+function attrFromBand(rng: () => number, band: number): number {
+  const center = band * 10;                             // 10..100
+  const jitter = Math.round((rng() - 0.5) * 20);        // ±10
+  return Math.max(10, Math.min(100, center + jitter));
+}
+
+const SELLERS = [
+  "Academia Aurora", "Casa dos Elementais", "Cavernas de Ignis",
+  "Ilha Nébula", "Guilda do Vento", "Torre Cristalina",
+  "Oráculo de Fenris", "Colina dos Golems",
+];
+
 export interface MarketListing {
-  id: string; // determinístico
+  id: string;
   name: string;
   element: MarketElement;
   suggested_position: string;
@@ -70,38 +100,39 @@ export interface MarketListing {
   market_value: number;
   price: number;
   seller: string;
+  half_star_band: number; // 1..10 (raridade dominante)
 }
 
-const SELLERS = [
-  "Academia Aurora", "Casa dos Elementais", "Cavernas de Ignis",
-  "Ilha Nébula", "Guilda do Vento", "Torre Cristalina",
-  "Oráculo de Fenris", "Colina dos Golems",
-];
-
-function generateOne(rng: () => number, tier: "low" | "mid" | "high"): MarketListing {
-  const range = tier === "low" ? [1, 3] : tier === "mid" ? [3, 6] : [5, 9];
-  const [mn, mx] = range;
-
+function generateOne(rng: () => number): MarketListing {
+  const band = rollHalfStarBand(rng);
   const element = pick(rng, ELEMENTS);
   const position = pick(rng, POSITIONS);
   const name = pick(rng, PREFIXES) + pick(rng, SUFFIXES);
 
-  const attack = starAttr(rng, mn, mx);
-  const defense = starAttr(rng, mn, mx);
-  const goalkeeper = position === "Goleiro" ? Math.max(starAttr(rng, mn, mx), 40) : starAttr(rng, mn, mx);
-  const physical = starAttr(rng, mn, mx);
-  const strength = starAttr(rng, mn, mx);
-  const overall = Math.round((attack + defense + goalkeeper + physical + strength) / 5);
+  const attack = attrFromBand(rng, band);
+  const defense = attrFromBand(rng, band);
+  const goalkeeper =
+    position === "Goleiro"
+      ? Math.max(attrFromBand(rng, band), band * 10)
+      : attrFromBand(rng, band);
+  const physical = attrFromBand(rng, band);
+  const strength = attrFromBand(rng, band);
+  const overall = Math.round(
+    (attack + defense + goalkeeper + physical + strength) / 5,
+  );
 
-  // Afinidade elemental treinada — algumas criaturas do mercado já vêm com afinidade
   const affinities = { aff_fogo: 0, aff_agua: 0, aff_terra: 0, aff_ar: 0, aff_gelo: 0 };
   const affKey = `aff_${element}` as keyof typeof affinities;
-  affinities[affKey] = starAttr(rng, 1, Math.max(2, mx - 2));
+  affinities[affKey] = Math.min(15, Math.max(1, Math.round(band * 1.2 + rng() * 3)));
 
-  const market_value = overall * 900;
-  // Preço 90%-140% do valor de mercado
-  const priceMultiplier = 0.9 + rng() * 0.5;
-  const price = Math.round(market_value * priceMultiplier / 100) * 100;
+  // mod_elemento = 1.0 no MVP
+  const market_value = STAR_VALUE[band - 1];
+  // Preço listado: 90%–130% do valor de mercado
+  const priceMultiplier = 0.9 + rng() * 0.4;
+  const price = Math.max(
+    1_000,
+    Math.round((market_value * priceMultiplier) / 1_000) * 1_000,
+  );
 
   const idSeed = Math.floor(rng() * 1e9).toString(16);
 
@@ -121,35 +152,33 @@ function generateOne(rng: () => number, tier: "low" | "mid" | "high"): MarketLis
     market_value,
     price,
     seller: pick(rng, SELLERS),
+    half_star_band: band,
   };
 }
 
 /**
- * Gera N listagens determinísticas para o treinador na "janela" atual.
- * A janela muda a cada 6 horas (4 rotações por dia).
+ * Gera N listagens determinísticas para o treinador na temporada `seasonNumber`.
+ * A lista inteira troca ao início de cada nova temporada.
  */
-export function generateMarketListings(trainerId: string, count = 12): MarketListing[] {
-  const windowMs = 24 * 60 * 60 * 1000;
-  const windowIndex = Math.floor(Date.now() / windowMs);
-  const seed = hashString(`${trainerId}:${windowIndex}`);
+export function generateMarketListings(
+  trainerId: string,
+  seasonNumber: number,
+  count = 24,
+): MarketListing[] {
+  const seed = hashString(`${trainerId}:season:${seasonNumber}`);
   const rng = mulberry32(seed);
-
   const listings: MarketListing[] = [];
-  // Distribuição: 5 baixo, 5 médio, 2 alto
-  const tiers: Array<"low" | "mid" | "high"> = [];
-  for (let i = 0; i < count; i++) {
-    tiers.push(i < 5 ? "low" : i < 10 ? "mid" : "high");
-  }
-  for (const t of tiers) listings.push(generateOne(rng, t));
-
+  for (let i = 0; i < count; i++) listings.push(generateOne(rng));
   return listings;
 }
 
-export function nextRotationTimestamp(): number {
-  const windowMs = 24 * 60 * 60 * 1000;
-  return (Math.floor(Date.now() / windowMs) + 1) * windowMs;
-}
-
-export function findListing(trainerId: string, listingId: string): MarketListing | null {
-  return generateMarketListings(trainerId).find((l) => l.id === listingId) ?? null;
+export function findListing(
+  trainerId: string,
+  seasonNumber: number,
+  listingId: string,
+): MarketListing | null {
+  return (
+    generateMarketListings(trainerId, seasonNumber).find((l) => l.id === listingId) ??
+    null
+  );
 }

@@ -227,12 +227,16 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
         const outcomeXp: "W" | "D" | "L" =
           playerGf > playerGa ? "W" : playerGf < playerGa ? "L" : "D";
         const starterIds = playerSide.starters.map((s) => s.creature.id);
-        const reserveIds = result.used_bench_ids.filter((id) =>
+        const enteredReserveIds = result.used_bench_ids.filter((id: string) =>
           playerSide.bench.some((b) => b.creature.id === id),
         );
+        const unusedReserveIds = playerSide.bench
+          .map((b) => b.creature.id)
+          .filter((id) => !enteredReserveIds.includes(id));
         await applyPostMatchXp(supabase, trainer.id, {
           starterIds,
-          reserveIds,
+          enteredReserveIds,
+          unusedReserveIds,
           outcome: outcomeXp,
           energy_loss: result.energy_loss,
         });

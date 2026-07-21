@@ -5,16 +5,20 @@ import {
   ITEMS,
   ITEM_KEYS,
   GEM_PACKAGES,
-  EXTRA_BUILDER_COST,
+  EXTRA_BUILDER_COSTS,
+  extraBuilderCostFor,
   MAX_BUILDERS,
   ROSTER_EXPANSIONS,
+  SPEED_UNLOCK_COSTS,
+  XP_BURST_MATCHES,
+  XP_BURST_MULTIPLIER,
   type ItemKey,
 } from "./shop.server";
 
 async function loadCtx(context: { supabase: any; userId: string }) {
   const { data: trainer } = await context.supabase
     .from("trainers")
-    .select("id")
+    .select("id, xp_burst_multiplier, xp_burst_matches_left")
     .eq("user_id", context.userId)
     .maybeSingle();
   if (!trainer) throw new Error("Treinador não encontrado");
@@ -66,6 +70,12 @@ export const getShopState = createServerFn({ method: "GET" })
         gems: academy.gems,
         builders: academy.builders,
         roster_slots: academy.roster_slots,
+        paid_4x: !!academy.paid_4x,
+        paid_instant: !!academy.paid_instant,
+      },
+      trainer: {
+        xp_burst_multiplier: Number(trainer.xp_burst_multiplier ?? 1),
+        xp_burst_matches_left: trainer.xp_burst_matches_left ?? 0,
       },
       creaturesCount: creaturesCount ?? 0,
       inventory,
@@ -73,8 +83,11 @@ export const getShopState = createServerFn({ method: "GET" })
         items: Object.values(ITEMS),
         gemPackages: GEM_PACKAGES,
         rosterExpansions: ROSTER_EXPANSIONS,
-        extraBuilderCost: EXTRA_BUILDER_COST,
+        extraBuilderCosts: EXTRA_BUILDER_COSTS,
+        nextBuilderCost: extraBuilderCostFor(academy.builders ?? 1),
         maxBuilders: MAX_BUILDERS,
+        speedUnlockCosts: SPEED_UNLOCK_COSTS,
+        xpBurstMatches: XP_BURST_MATCHES,
       },
     };
   });
@@ -109,7 +122,6 @@ export const buyItem = createServerFn({ method: "POST" })
         .eq("id", academy.id);
     }
 
-    // upsert quantidade
     const { data: existing } = await context.supabase
       .from("items")
       .select("id, quantity")
@@ -186,21 +198,28 @@ export const useItem = createServerFn({ method: "POST" })
           .eq("id", cr.id);
       }
       msg = "Todo o elenco recuperou +25% de energia.";
-    } else if (data.itemKey === "xp_burst") {
-      const until = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    } else if (
+      data.itemKey === "xp_burst_5" ||
+      data.itemKey === "xp_burst_10" ||
+      data.itemKey === "xp_burst_15"
+    ) {
+      const mult = XP_BURST_MULTIPLIER[data.itemKey];
       await context.supabase
         .from("trainers")
-        .update({ xp_burst_until: until })
+        .update({
+          xp_burst_multiplier: mult,
+          xp_burst_matches_left: XP_BURST_MATCHES,
+        })
         .eq("id", trainer.id);
-      msg = "Impulso de XP ativo por 24h!";
+      const pct = Math.round((mult - 1) * 100);
+      msg = `Impulso de XP +${pct}% ativo pelas próximas ${XP_BURST_MATCHES} partidas!`;
     }
-
 
     await context.supabase.from("items").update({ quantity: inv.quantity - 1 }).eq("id", inv.id);
     return { ok: true, message: msg };
   });
 
-// ---------- Comprar pacote de Gemas (MVP: simulado) ----------
+// ---------- Comprar pacote de Gemas ----------
 export const buyGemPackage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { packageId: string }) => ({
@@ -224,15 +243,17 @@ export const buyExtraBuilder = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const { academy } = await loadCtx(context);
     if (academy.builders >= MAX_BUILDERS) throw new Error("Você já tem o máximo de construtores.");
-    if (academy.gems < EXTRA_BUILDER_COST) throw new Error("Gemas insuficientes.");
+    const cost = extraBuilderCostFor(academy.builders);
+    if (cost == null) throw new Error("Você já tem o máximo de construtores.");
+    if (academy.gems < cost) throw new Error("Gemas insuficientes.");
     await context.supabase
       .from("academies")
       .update({
-        gems: academy.gems - EXTRA_BUILDER_COST,
+        gems: academy.gems - cost,
         builders: academy.builders + 1,
       })
       .eq("id", academy.id);
-    return { ok: true, message: "Novo construtor contratado!" };
+    return { ok: true, message: `Novo construtor contratado por ${cost}💎!` };
   });
 
 // ---------- Expandir elenco ----------
@@ -251,4 +272,25 @@ export const expandRoster = createServerFn({ method: "POST" })
       })
       .eq("id", academy.id);
     return { ok: true, message: `Elenco expandido para ${next.to} vagas.` };
+  });
+
+// ---------- Desbloquear velocidade permanentemente ----------
+export const unlockSpeed = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { mode: "4x" | "instant" }) => ({
+    mode: z.enum(["4x", "instant"]).parse(data.mode),
+  }))
+  .handler(async ({ data, context }) => {
+    const { academy } = await loadCtx(context);
+    const isFourX = data.mode === "4x";
+    if (isFourX ? academy.paid_4x : academy.paid_instant) {
+      return { ok: true, message: "Velocidade já desbloqueada." };
+    }
+    const cost = SPEED_UNLOCK_COSTS[data.mode];
+    if (academy.gems < cost) throw new Error("Gemas insuficientes.");
+    const patch = isFourX
+      ? { gems: academy.gems - cost, paid_4x: true }
+      : { gems: academy.gems - cost, paid_instant: true };
+    await context.supabase.from("academies").update(patch).eq("id", academy.id);
+    return { ok: true, message: `Velocidade ${data.mode} desbloqueada!` };
   });

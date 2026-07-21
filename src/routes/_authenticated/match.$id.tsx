@@ -36,14 +36,19 @@ function MatchPage() {
     queryFn: () => fetchMatch({ data: { id } }),
   });
 
-  const paid: string[] = Array.isArray((data as any)?.speed_paid)
-    ? ((data as any).speed_paid as any[]).map((x) => String(x))
-    : [];
+  const paid4x: boolean = !!(data as any)?.speed?.paid_4x;
+  const paidInstant: boolean = !!(data as any)?.speed?.paid_instant;
+  const cost4x: number = (data as any)?.speed?.cost_4x ?? 300;
+  const costInstant: number = (data as any)?.speed?.cost_instant ?? 800;
 
   const payMut = useMutation({
-    mutationFn: (mode: "4x" | "instant") => payFn({ data: { match_id: id, mode } }),
+    mutationFn: (mode: "4x" | "instant") => payFn({ data: { mode } }),
     onSuccess: (_res, mode) => {
-      toast.success(mode === "4x" ? "Velocidade 4x liberada!" : "Velocidade instantânea liberada!");
+      toast.success(
+        mode === "4x"
+          ? "Velocidade 4x desbloqueada para sempre!"
+          : "Velocidade instantânea desbloqueada para sempre!",
+      );
       qc.invalidateQueries({ queryKey: ["match", id] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha no pagamento"),
@@ -176,16 +181,16 @@ function MatchPage() {
                 size="sm"
                 variant={speed === 4 ? "default" : "outline"}
                 onClick={() => {
-                  if (paid.includes("4x")) setSpeed(4);
+                  if (paid4x) setSpeed(4);
                   else payMut.mutate("4x", { onSuccess: () => setSpeed(4) });
                 }}
                 disabled={payMut.isPending}
-                title="Premium"
+                title="Desbloqueio permanente"
               >
                 <FastForward className="mr-1 h-3 w-3" /> 4x
-                {!paid.includes("4x") && (
+                {!paid4x && (
                   <span className="ml-1 flex items-center text-[10px] text-primary">
-                    <Gem className="h-3 w-3" /> 2
+                    <Gem className="h-3 w-3" /> {cost4x}
                   </span>
                 )}
               </Button>
@@ -197,16 +202,16 @@ function MatchPage() {
                     setSpeed(0);
                     setPlaying(true);
                   };
-                  if (paid.includes("instant")) go();
+                  if (paidInstant) go();
                   else payMut.mutate("instant", { onSuccess: go });
                 }}
                 disabled={payMut.isPending}
-                title="Premium+"
+                title="Desbloqueio permanente"
               >
                 <SkipForward className="mr-1 h-3 w-3" /> Instantâneo
-                {!paid.includes("instant") && (
+                {!paidInstant && (
                   <span className="ml-1 flex items-center text-[10px] text-primary">
-                    <Gem className="h-3 w-3" /> 5
+                    <Gem className="h-3 w-3" /> {costInstant}
                   </span>
                 )}
               </Button>

@@ -230,10 +230,16 @@ function ShopPage() {
                   <p className="text-xs text-muted-foreground">Permite conduzir mais obras em paralelo.</p>
                 </div>
                 <Button
-                  disabled={builderMut.isPending || academy.builders >= catalogs.maxBuilders || academy.gems < catalogs.extraBuilderCost}
+                  disabled={
+                    builderMut.isPending ||
+                    academy.builders >= catalogs.maxBuilders ||
+                    catalogs.nextBuilderCost == null ||
+                    academy.gems < (catalogs.nextBuilderCost ?? Infinity)
+                  }
                   onClick={() => builderMut.mutate()}
                 >
-                  <Gem className="mr-2 h-4 w-4" /> {catalogs.extraBuilderCost}
+                  <Gem className="mr-2 h-4 w-4" />{" "}
+                  {catalogs.nextBuilderCost ?? "—"}
                 </Button>
               </CardContent>
             </Card>
