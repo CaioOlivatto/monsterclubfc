@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { getMarket, buyCreature, sellCreature } from "@/lib/market.functions";
 import { Button } from "@/components/ui/button";
@@ -361,7 +361,7 @@ function MarketPage() {
 
 function RotationTimer({ target }: { target: number }) {
   const [now, setNow] = useState(() => Date.now());
-  useMemo(() => {
+  useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(id);
   }, []);
