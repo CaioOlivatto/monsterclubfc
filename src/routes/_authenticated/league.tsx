@@ -47,6 +47,23 @@ function LeaguePage() {
     onError: (e: any) => toast.error(e?.message ?? "Não foi possível jogar a próxima partida."),
   });
 
+  const finishSeasonFn = useServerFn(finishSeasonAndAdvance);
+  const finishMut = useMutation({
+    mutationFn: () => finishSeasonFn(),
+    onSuccess: (res: any) => {
+      const parts = [
+        `${res.position}º lugar`,
+        res.promoted ? `Promoção → ${res.newDivision}` : res.relegated ? `Rebaixamento → ${res.newDivision}` : `Continua em ${res.newDivision}`,
+        `+$${res.prize.toLocaleString()}`,
+      ];
+      toast.success(`Temporada ${res.newSeasonNumber - 1} encerrada: ${parts.join(" • ")}`);
+      qc.invalidateQueries({ queryKey: ["league"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Não foi possível encerrar a temporada."),
+  });
+
+
   if (isLoading) {
     return (
       <div className="mx-auto max-w-4xl space-y-4 p-4">
