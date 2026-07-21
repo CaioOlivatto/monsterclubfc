@@ -43,8 +43,9 @@ export const spendHalfStar = createServerFn({ method: "POST" })
     const { data: c } = await supabase
       .from("creatures")
       .select(
-        "id, attack, defense, goalkeeper, physical, strength, affinity_fogo, affinity_agua, affinity_terra, affinity_ar, affinity_gelo, pending_half_stars, half_stars_earned, overall",
+        "id, attack, defense, goalkeeper, physical, strength, aff_fogo, aff_agua, aff_terra, aff_ar, aff_gelo, pending_half_stars, half_stars_earned, overall",
       )
+
       .eq("id", data.creatureId)
       .eq("owner_trainer_id", trainer.id)
       .maybeSingle();
