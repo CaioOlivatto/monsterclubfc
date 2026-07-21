@@ -371,7 +371,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       const playerGa = isHome ? result.away_score : result.home_score;
       const outcomeXp: "W" | "D" | "L" =
         playerGf > playerGa ? "W" : playerGf < playerGa ? "L" : "D";
-      const side: EngineSide | null = playerSide;
+      const side: EngineSide | null = playerSideRef.current;
       if (side) {
         const starterIds = side.starters.map((s) => s.creature.id);
         const reserveIds = result.used_bench_ids.filter((id) =>
