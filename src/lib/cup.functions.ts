@@ -175,7 +175,7 @@ export const startCup = createServerFn({ method: "POST" })
       round: 1,
       home_team_id: h,
       away_team_id: a,
-      status: "scheduled",
+      status: "scheduled" as const,
       is_friendly: false,
     }));
     await supabase.from("matches").insert(rows);
@@ -306,7 +306,7 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
           round: currentRound + 1,
           home_team_id: h,
           away_team_id: a,
-          status: "scheduled",
+          status: "scheduled" as const,
           is_friendly: false,
         }));
         if (nextRows.length) await supabase.from("matches").insert(nextRows);
