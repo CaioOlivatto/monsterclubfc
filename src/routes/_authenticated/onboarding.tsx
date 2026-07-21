@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect } from "react";
 import {
   createInitialTrainer,
   getMyTrainer,
@@ -12,13 +12,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -34,10 +27,10 @@ import { Star, Shield, Swords, Scale } from "lucide-react";
 export const Route = createFileRoute("/_authenticated/onboarding")({
   head: () => ({
     meta: [
-      { title: "Criar treinador — Monster Club Manager" },
+      { title: "Escolha seu time — Monster Club Manager" },
       {
         name: "description",
-        content: "Escolha o nome do treinador, da academia e o seu time inicial.",
+        content: "Escolha 1 entre 6 times iniciais e comece sua jornada na 5ª Divisão – Liga Bronze.",
       },
     ],
   }),
@@ -67,106 +60,18 @@ const STYLE_ICON: Record<string, React.ReactNode> = {
 
 function Onboarding() {
   const nav = useNavigate();
-  const createFn = useServerFn(createInitialTrainer);
   const fetchTrainer = useServerFn(getMyTrainer);
+  const fetchTeams = useServerFn(listStarterTeams);
+  const fetchDetail = useServerFn(getStarterTeamDetail);
+  const createFn = useServerFn(createInitialTrainer);
+  const choose = useServerFn(chooseStarterTeam);
 
-  const { data: trainer, isLoading, refetch } = useQuery({
+  const { data: trainer, isLoading: loadingTrainer } = useQuery({
     queryKey: ["myTrainer"],
     queryFn: () => fetchTrainer(),
   });
 
-  const [trainerName, setTrainerName] = useState("");
-  const [academyName, setAcademyName] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (trainer?.has_roster) nav({ to: "/dashboard", replace: true });
-  }, [trainer, nav]);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      await createFn({
-        data: { trainer_name: trainerName, academy_name: academyName },
-      });
-      toast.success("Treinador criado! Agora escolha seu time inicial.");
-      await refetch();
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Erro ao criar treinador",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
-        Carregando...
-      </div>
-    );
-  }
-
-  // Passo 1: criar treinador
-  if (!trainer) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Sua academia</CardTitle>
-            <CardDescription>
-              Passo 1 de 2. Escolha um nome para você e para a academia. No
-              próximo passo você escolhe o time inicial (6 opções).
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={submit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="trainer">Nome do treinador</Label>
-                <Input
-                  id="trainer"
-                  required
-                  minLength={2}
-                  maxLength={40}
-                  value={trainerName}
-                  onChange={(e) => setTrainerName(e.target.value)}
-                  placeholder="Ex.: Iris"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="academy">Nome da academia</Label>
-                <Input
-                  id="academy"
-                  required
-                  minLength={2}
-                  maxLength={40}
-                  value={academyName}
-                  onChange={(e) => setAcademyName(e.target.value)}
-                  placeholder="Ex.: Academia Vulcânica"
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Criando..." : "Continuar"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Passo 2: escolher time
-  return <ChooseTeamStep onDone={() => nav({ to: "/dashboard", replace: true })} />;
-}
-
-function ChooseTeamStep({ onDone }: { onDone: () => void }) {
-  const fetchTeams = useServerFn(listStarterTeams);
-  const fetchDetail = useServerFn(getStarterTeamDetail);
-  const choose = useServerFn(chooseStarterTeam);
-
-  const { data: teams, isLoading } = useQuery({
+  const { data: teams, isLoading: loadingTeams } = useQuery({
     queryKey: ["starterTeams"],
     queryFn: () => fetchTeams(),
   });
@@ -176,6 +81,14 @@ function ChooseTeamStep({ onDone }: { onDone: () => void }) {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // Inputs de nome — aparecem no diálogo se o treinador ainda não existe
+  const [trainerName, setTrainerName] = useState("");
+  const [academyName, setAcademyName] = useState("");
+
+  useEffect(() => {
+    if (trainer?.has_roster) nav({ to: "/dashboard", replace: true });
+  }, [trainer, nav]);
+
   async function openTeam(key: string) {
     setOpenKey(key);
     setDetail(null);
@@ -183,24 +96,50 @@ function ChooseTeamStep({ onDone }: { onDone: () => void }) {
     try {
       const d = await fetchDetail({ data: { key } });
       setDetail(d);
-    } catch (e) {
+    } catch {
       toast.error("Erro ao carregar detalhes.");
     } finally {
       setLoadingDetail(false);
     }
   }
 
-  async function confirmChoice(key: string) {
+  async function confirmChoice() {
+    if (!openKey) return;
+
+    // Se ainda não há treinador, cria com os nomes informados
+    if (!trainer) {
+      if (trainerName.trim().length < 2 || academyName.trim().length < 2) {
+        toast.error("Informe nome do treinador e da academia (mín. 2 letras).");
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
-      await choose({ data: { key } });
-      toast.success("Time escolhido! 5ª Divisão – Liga Bronze iniciada.");
-      onDone();
+      if (!trainer) {
+        await createFn({
+          data: {
+            trainer_name: trainerName.trim(),
+            academy_name: academyName.trim(),
+          },
+        });
+      }
+      await choose({ data: { key: openKey } });
+      toast.success("Time escolhido! Liga Bronze iniciada.");
+      nav({ to: "/dashboard", replace: true });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao escolher time.");
+      toast.error(e instanceof Error ? e.message : "Erro ao iniciar.");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (loadingTrainer) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
+        Carregando...
+      </div>
+    );
   }
 
   return (
@@ -208,18 +147,20 @@ function ChooseTeamStep({ onDone }: { onDone: () => void }) {
       <div className="mx-auto max-w-5xl space-y-6">
         <header className="text-center">
           <p className="text-xs uppercase tracking-widest text-muted-foreground">
-            Passo 2 de 2
+            Início de jogo
           </p>
           <h1 className="text-2xl font-bold sm:text-3xl">Escolha seu time</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            6 times pré-montados. Força equivalente, personalidades diferentes.
-            Os 5 não escolhidos viram seus adversários na 5ª Divisão – Liga
-            Bronze.
+            São 6 times pré-montados, força equivalente e personalidades distintas.
+            Você começa na <strong>5ª Divisão – Liga Bronze</strong>, e os outros
+            5 viram seus adversários.
           </p>
         </header>
 
-        {isLoading || !teams ? (
-          <div className="text-center text-muted-foreground">Carregando times...</div>
+        {loadingTeams || !teams ? (
+          <div className="py-12 text-center text-muted-foreground">
+            Carregando times...
+          </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {teams.map((t: any) => (
@@ -227,29 +168,38 @@ function ChooseTeamStep({ onDone }: { onDone: () => void }) {
                 key={t.key}
                 type="button"
                 onClick={() => openTeam(t.key)}
-                className={`group relative overflow-hidden rounded-xl border bg-gradient-to-br p-4 text-left transition-all hover:scale-[1.02] hover:shadow-lg ${t.colorClass}`}
+                className={`group relative overflow-hidden rounded-xl border bg-gradient-to-br p-4 text-left text-white transition-all hover:scale-[1.02] hover:shadow-lg ${t.colorClass}`}
               >
                 <div className="flex items-start justify-between">
                   <div className="text-5xl">{t.emblem}</div>
-                  <Badge variant="outline" className="gap-1 border-white/30 bg-black/30 text-xs">
+                  <Badge
+                    variant="outline"
+                    className="gap-1 border-white/30 bg-black/30 text-xs text-white"
+                  >
                     {STYLE_ICON[t.style]}
                     {STYLE_LABEL[t.style]}
                   </Badge>
                 </div>
                 <h3 className="mt-3 text-lg font-bold">{t.name}</h3>
-                <p className="mt-1 text-xs text-white/70 line-clamp-2">
+                <p className="mt-1 line-clamp-2 text-xs text-white/80">
                   {t.description}
                 </p>
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-                  <Badge variant="secondary">{ELEMENT_LABEL[t.dominant] ?? t.dominant}</Badge>
+                  <Badge variant="secondary">
+                    {ELEMENT_LABEL[t.dominant] ?? t.dominant}
+                  </Badge>
                   <span className="inline-flex items-center gap-1 font-semibold">
                     <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
                     {t.totalStars.toFixed(1)}★
                   </span>
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] uppercase tracking-wider text-white/70">
-                  <span>ATK méd. <strong className="text-white">{t.avgAttack}</strong></span>
-                  <span>DEF méd. <strong className="text-white">{t.avgDefense}</strong></span>
+                  <span>
+                    ATK méd. <strong className="text-white">{t.avgAttack}</strong>
+                  </span>
+                  <span>
+                    DEF méd. <strong className="text-white">{t.avgDefense}</strong>
+                  </span>
                 </div>
               </button>
             ))}
@@ -264,18 +214,19 @@ function ChooseTeamStep({ onDone }: { onDone: () => void }) {
               <span className="text-3xl">{detail?.team?.emblem}</span>
               {detail?.team?.name ?? "..."}
             </DialogTitle>
-            <DialogDescription>
-              {detail?.team?.description}
-            </DialogDescription>
+            <DialogDescription>{detail?.team?.description}</DialogDescription>
           </DialogHeader>
 
           {loadingDetail || !detail ? (
-            <p className="py-8 text-center text-muted-foreground">Carregando elenco...</p>
+            <p className="py-8 text-center text-muted-foreground">
+              Carregando elenco...
+            </p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div className="flex flex-wrap gap-2 text-xs">
                 <Badge variant="secondary">
-                  Elemento: {ELEMENT_LABEL[detail.team.dominant] ?? detail.team.dominant}
+                  Elemento:{" "}
+                  {ELEMENT_LABEL[detail.team.dominant] ?? detail.team.dominant}
                 </Badge>
                 <Badge variant="secondary" className="gap-1">
                   {STYLE_ICON[detail.team.style]}
@@ -308,24 +259,60 @@ function ChooseTeamStep({ onDone }: { onDone: () => void }) {
                         <td className="px-2 py-1.5 text-right">
                           {(c.stars / 2).toFixed(1)}
                         </td>
-                        <td className="px-2 py-1.5 text-right font-semibold">{c.overall}</td>
+                        <td className="px-2 py-1.5 text-right font-semibold">
+                          {c.overall}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+
+              {!trainer && (
+                <div className="space-y-3 rounded-lg border border-border/60 bg-card/40 p-3">
+                  <p className="text-sm font-medium">
+                    Antes de começar, escolha seus nomes:
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="trainer">Treinador</Label>
+                      <Input
+                        id="trainer"
+                        value={trainerName}
+                        onChange={(e) => setTrainerName(e.target.value)}
+                        placeholder="Ex.: Iris"
+                        maxLength={40}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="academy">Academia</Label>
+                      <Input
+                        id="academy"
+                        value={academyName}
+                        onChange={(e) => setAcademyName(e.target.value)}
+                        placeholder="Ex.: Academia Vulcânica"
+                        maxLength={40}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpenKey(null)} disabled={submitting}>
+            <Button
+              variant="ghost"
+              onClick={() => setOpenKey(null)}
+              disabled={submitting}
+            >
               Voltar
             </Button>
             <Button
-              onClick={() => openKey && confirmChoice(openKey)}
+              onClick={confirmChoice}
               disabled={submitting || !detail}
             >
-              {submitting ? "Escolhendo..." : "Escolher este time"}
+              {submitting ? "Iniciando..." : "Escolher este time"}
             </Button>
           </DialogFooter>
         </DialogContent>
