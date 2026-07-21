@@ -1,14 +1,46 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { getMyTrainer } from "@/lib/creatures.functions";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
-  component: Index,
+  component: IndexRedirect,
 });
 
-function Index() {
+function IndexRedirect() {
+  const nav = useNavigate();
+  const fetchTrainer = useServerFn(getMyTrainer);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      if (cancelled) return;
+      if (!data.user) {
+        nav({ to: "/auth", replace: true });
+        return;
+      }
+      try {
+        const trainer = await fetchTrainer();
+        if (cancelled) return;
+        if (trainer) {
+          nav({ to: "/dashboard", replace: true });
+        } else {
+          nav({ to: "/onboarding", replace: true });
+        }
+      } catch {
+        if (!cancelled) nav({ to: "/onboarding", replace: true });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [nav, fetchTrainer]);
+
   return (
-    <div className="min-h-screen bg-background" />
+    <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
+      Carregando...
+    </div>
   );
 }
