@@ -103,6 +103,8 @@ export const startLeague = createServerFn({ method: "POST" })
       .from("competitions")
       .select("id")
       .eq("trainer_id", trainer.id)
+      .eq("type", "league")
+      .eq("status", "active")
       .maybeSingle();
     if (existingComp) throw new Error("Você já tem uma liga em andamento.");
 
@@ -110,10 +112,11 @@ export const startLeague = createServerFn({ method: "POST" })
 
     const { data: competition, error: cErr } = await supabase
       .from("competitions")
-      .insert({ trainer_id: trainer.id, season_id: season.id, division: "bronze" })
+      .insert({ trainer_id: trainer.id, season_id: season.id, division: "bronze", type: "league", status: "active" })
       .select("id")
       .single();
     if (cErr) throw cErr;
+
 
     // Time do jogador (dentro da liga)
     const { data: playerTeam, error: ptErr } = await supabase
