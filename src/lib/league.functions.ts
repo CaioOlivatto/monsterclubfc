@@ -217,11 +217,11 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     const away = teams!.find((t: any) => t.id === next.away_team_id) as any;
 
     // Constrói os dois lados
-    let playerSide: EngineSide | null = null;
+    const playerSideRef: { current: EngineSide | null } = { current: null };
     async function buildSide(team: any): Promise<EngineSide> {
       if (team.is_player) {
         const side = await buildPlayerSideFromDb(supabase, trainer.id, team.id, team.name);
-        playerSide = side;
+        playerSideRef.current = side;
         return side;
       }
       const seed = hashSeed(team.id);
