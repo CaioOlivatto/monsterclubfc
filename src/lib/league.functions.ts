@@ -470,6 +470,183 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     return { match_id: next.id };
   });
 
+const DIVISION_ORDER = ["bronze", "prata", "ouro", "diamante", "lendaria"] as const;
+type Division = typeof DIVISION_ORDER[number];
+const PRIZE_BASE: Record<Division, number> = {
+  bronze: 50000,
+  prata: 90000,
+  ouro: 140000,
+  diamante: 200000,
+  lendaria: 300000,
+};
+
+export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const trainer = await getTrainer(supabase, userId);
+
+    const { data: competition } = await supabase
+      .from("competitions")
+      .select("id, division, season_id")
+      .eq("trainer_id", trainer.id)
+      .eq("type", "league")
+      .eq("status", "active")
+      .maybeSingle();
+    if (!competition) throw new Error("Nenhuma liga ativa.");
+
+    const { count: pending } = await supabase
+      .from("matches")
+      .select("id", { count: "exact", head: true })
+      .eq("competition_id", competition.id)
+      .eq("status", "scheduled");
+    if ((pending ?? 0) > 0) throw new Error("Ainda há partidas por jogar nesta liga.");
+
+    const [{ data: standings }, { data: teamsRow }] = await Promise.all([
+      supabase
+        .from("standings")
+        .select("team_id, points, wins, draws, losses, goals_for, goals_against")
+        .eq("competition_id", competition.id),
+      supabase
+        .from("teams")
+        .select("id, is_player, name")
+        .eq("competition_id", competition.id),
+    ]);
+    const teamsById = new Map<string, any>((teamsRow ?? []).map((t: any) => [t.id, t]));
+    const ranked = [...(standings ?? [])].sort((a: any, b: any) => {
+      if (b.points !== a.points) return b.points - a.points;
+      const gdA = a.goals_for - a.goals_against;
+      const gdB = b.goals_for - b.goals_against;
+      if (gdB !== gdA) return gdB - gdA;
+      return b.goals_for - a.goals_for;
+    });
+    const playerIdx = ranked.findIndex((r: any) => teamsById.get(r.team_id)?.is_player);
+    const position = playerIdx + 1;
+    const championTeamId = ranked[0]?.team_id;
+    const championName = championTeamId ? teamsById.get(championTeamId)?.name : "—";
+
+    const division = competition.division as Division;
+    const divIdx = DIVISION_ORDER.indexOf(division);
+    const factor =
+      position === 1 ? 1 : position === 2 ? 0.7 : position === 3 ? 0.45 : position <= 6 ? 0.2 : 0.1;
+    const prize = Math.round(PRIZE_BASE[division] * factor);
+
+    let newDivIdx = divIdx;
+    if (position <= 2 && divIdx < DIVISION_ORDER.length - 1) newDivIdx = divIdx + 1;
+    else if (position >= 7 && divIdx > 0) newDivIdx = divIdx - 1;
+    const newDivision = DIVISION_ORDER[newDivIdx];
+    const promoted = newDivIdx > divIdx;
+    const relegated = newDivIdx < divIdx;
+
+    await supabase
+      .from("competitions")
+      .update({ status: "finished", champion_team_id: championTeamId ?? null })
+      .eq("id", competition.id);
+
+    const { data: acad } = await supabase
+      .from("academies")
+      .select("money")
+      .eq("trainer_id", trainer.id)
+      .maybeSingle();
+    await supabase
+      .from("academies")
+      .update({ money: (acad?.money ?? 0) + prize })
+      .eq("trainer_id", trainer.id);
+    await supabase.from("financial_transactions").insert({
+      trainer_id: trainer.id,
+      transaction_type: "income",
+      amount: prize,
+      description: `Prêmio de temporada — ${division} • ${position}º lugar`,
+    });
+
+    const { data: currentSeason } = await supabase
+      .from("game_seasons")
+      .select("id, season_number")
+      .eq("id", competition.season_id)
+      .single();
+    await supabase
+      .from("game_seasons")
+      .update({ is_current: false, ended_at: new Date().toISOString() })
+      .eq("id", currentSeason.id);
+    const { data: newSeason, error: sErr } = await supabase
+      .from("game_seasons")
+      .insert({
+        trainer_id: trainer.id,
+        season_number: currentSeason.season_number + 1,
+        is_current: true,
+      })
+      .select("id")
+      .single();
+    if (sErr) throw sErr;
+
+    const { data: newComp, error: cErr } = await supabase
+      .from("competitions")
+      .insert({
+        trainer_id: trainer.id,
+        season_id: newSeason.id,
+        division: newDivision,
+        type: "league",
+        status: "active",
+      })
+      .select("id")
+      .single();
+    if (cErr) throw cErr;
+
+    const { data: playerTeamNew } = await supabase
+      .from("teams")
+      .insert({
+        competition_id: newComp.id,
+        trainer_id: trainer.id,
+        is_player: true,
+        name: trainer.academy_name,
+      })
+      .select("id")
+      .single();
+
+    const divBonus = newDivIdx * 8;
+    const avg = await playerAverage(supabase, trainer.id);
+    const cpuNames = pickCpuTeamNames(7, Date.now() & 0xffffffff);
+    const cpuRows = cpuNames.map((name, i) => ({
+      competition_id: newComp.id,
+      trainer_id: null,
+      is_player: false,
+      name,
+      cpu_strength: Math.max(20, Math.min(95, avg + (i - 3) * 4 + divBonus)),
+    }));
+    const { data: cpuTeams } = await supabase.from("teams").insert(cpuRows).select("id");
+    const teamIds = [playerTeamNew!.id, ...(cpuTeams ?? []).map((t: any) => t.id)];
+    await supabase
+      .from("standings")
+      .insert(teamIds.map((tid) => ({ competition_id: newComp.id, team_id: tid })));
+    const schedule = generateSchedule(8, true);
+    const matchesRows: any[] = [];
+    schedule.forEach((round, rIdx) => {
+      round.forEach(([h, a]) => {
+        matchesRows.push({
+          competition_id: newComp.id,
+          round: rIdx + 1,
+          home_team_id: teamIds[h],
+          away_team_id: teamIds[a],
+          status: "scheduled",
+          is_friendly: false,
+        });
+      });
+    });
+    await supabase.from("matches").insert(matchesRows);
+
+    return {
+      position,
+      prize,
+      previousDivision: division,
+      newDivision,
+      promoted,
+      relegated,
+      newSeasonNumber: currentSeason.season_number + 1,
+      championName,
+    };
+  });
+
+
 function hashSeed(s: string): number {
   let h = 2166136261 >>> 0;
   for (let i = 0; i < s.length; i++) {
