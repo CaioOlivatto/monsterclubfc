@@ -2,6 +2,9 @@
 //   custo(n) = round(800 * 1.25^(n-1))
 // CT de Treinamento: +5% por nível.  Burst de XP: multiplicador variável.
 
+import { awardTrainerXp } from "./trainer-xp.server";
+
+
 const HALF_STAR_COSTS: number[] = Array.from({ length: 10 }, (_, i) =>
   Math.round(800 * Math.pow(1.25, i)),
 );
