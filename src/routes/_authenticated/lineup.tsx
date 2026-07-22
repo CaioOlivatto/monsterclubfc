@@ -275,8 +275,8 @@ function LineupPage() {
                         const match = sug.includes(c.suggested_position ?? "");
                         return (
                           <SelectItem key={c.id} value={c.id}>
-                            {c.name} · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}
-                            {match ? " ★" : ""}
+                            {c.name} · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall} · {(c.overall / 20).toFixed(1)}★
+                            {match ? " (posição ideal)" : ""}
                           </SelectItem>
                         );
                       })}
