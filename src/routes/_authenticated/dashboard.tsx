@@ -31,7 +31,9 @@ import {
   Inbox,
   Wallet,
   Hourglass,
+  Award,
 } from "lucide-react";
+
 
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
