@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Search, BatteryCharging, Star, Clock, Hourglass } from "lucide-react";
 import { ageStatus, seasonsRemaining, type AgeStatus } from "@/lib/age";
+import { fatigueState, FATIGUE_LABEL, FATIGUE_CLASS, effectiveOverall, energyMultiplier } from "@/lib/fatigue";
 
 export const Route = createFileRoute("/_authenticated/roster")({
   head: () => ({
