@@ -15,17 +15,19 @@ export const getWorldRanking = createServerFn({ method: "POST" })
   .inputValidator((v: { sort?: SortKey }) => ({ sort: (v?.sort ?? "level") as SortKey }))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const sort = data.sort;
 
-    await seedWorldAcademiesIfNeeded(supabase);
+    await seedWorldAcademiesIfNeeded(supabaseAdmin);
     const { data: trainer } = await supabase
       .from("trainers")
       .select("id")
       .eq("user_id", userId)
       .maybeSingle();
-    if (trainer?.id) await upsertPlayerAcademy(supabase, trainer.id);
+    if (trainer?.id) await upsertPlayerAcademy(supabaseAdmin, trainer.id);
 
-    await recomputePositionsBy(supabase, sort);
+    await recomputePositionsBy(supabaseAdmin, sort);
+
 
     const { count: total } = await supabase
       .from("world_academies")
@@ -66,14 +68,16 @@ export const recomputeWorldRanking = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    await seedWorldAcademiesIfNeeded(supabase);
-    const updated = await evolveCpuAcademies(supabase);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await seedWorldAcademiesIfNeeded(supabaseAdmin);
+    const updated = await evolveCpuAcademies(supabaseAdmin);
     const { data: trainer } = await supabase
       .from("trainers")
       .select("id")
       .eq("user_id", userId)
       .maybeSingle();
-    if (trainer?.id) await upsertPlayerAcademy(supabase, trainer.id);
-    await recomputePositionsBy(supabase, "level");
+    if (trainer?.id) await upsertPlayerAcademy(supabaseAdmin, trainer.id);
+    await recomputePositionsBy(supabaseAdmin, "level");
     return { updated };
+
   });
