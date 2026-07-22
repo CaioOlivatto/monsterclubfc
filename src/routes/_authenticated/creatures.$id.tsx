@@ -11,7 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, BatteryCharging, Coins, Dumbbell, Sparkles, Star } from "lucide-react";
+import { ArrowLeft, BatteryCharging, Clock, Coins, Dumbbell, Hourglass, Sparkles, Star } from "lucide-react";
+import { ageStatus, seasonsRemaining, rebirthHalfStarsPreview, sellValuePreview } from "@/lib/age";
 
 
 export const Route = createFileRoute("/_authenticated/creatures/$id")({
