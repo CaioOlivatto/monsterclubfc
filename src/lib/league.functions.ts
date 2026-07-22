@@ -4,6 +4,7 @@ import { z } from "zod";
 import { generateSchedule } from "./league.server";
 import {
   simulate,
+  persistableSimulationEvents,
   generateCpuSideFor,
   type EngineSide,
   type EngineBestiary,
@@ -296,7 +297,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       .eq("id", next.id);
     if (uErr) throw uErr;
 
-    const eventsToInsert = result.events.map((e) => ({
+    const eventsToInsert = persistableSimulationEvents(result).map((e) => ({
       match_id: next.id,
       minute: e.minute,
       event_type: e.event_type,
