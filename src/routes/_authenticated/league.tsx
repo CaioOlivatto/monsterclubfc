@@ -65,13 +65,16 @@ function LeaguePage() {
   });
 
   const finishSeasonFn = useServerFn(finishSeasonAndAdvance);
+  const recomputeRankingFn = useServerFn(recomputeWorldRanking);
   const [summary, setSummary] = useState<any | null>(null);
   const finishMut = useMutation({
     mutationFn: () => finishSeasonFn(),
-    onSuccess: (res: any) => {
+    onSuccess: async (res: any) => {
       setSummary(res);
+      try { await recomputeRankingFn(); } catch { /* ignora */ }
       qc.invalidateQueries({ queryKey: ["league"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["world-ranking"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Não foi possível encerrar a temporada."),
   });
