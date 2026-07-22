@@ -11,6 +11,8 @@ import { ArrowLeft, Play, Pause, FastForward, SkipForward, Gem } from "lucide-re
 import { PlayBanner } from "@/components/match/PlayBanner";
 import { EventsPanel, type RevealedEvent } from "@/components/match/EventsPanel";
 import { NarrationSession, type Outcome, type PlayMeta } from "@/lib/narration/session";
+import { TacticsSheet } from "@/components/match/TacticsSheet";
+
 
 export const Route = createFileRoute("/_authenticated/match/$id")({
   head: () => ({
@@ -340,7 +342,9 @@ function MatchPage() {
                   </span>
                 )}
               </Button>
+              <TacticsSheet />
             </div>
+
           </CardContent>
         </Card>
 
