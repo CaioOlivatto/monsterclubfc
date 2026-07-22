@@ -614,8 +614,9 @@ export function simulateFast(home: EngineSide, away: EngineSide, seed: number): 
   const pressureFreq = 1 + Math.max(0, (tH.injuryMul - 1) + (tA.injuryMul - 1)) * 0.2;
 
   let hs = 0, as = 0;
-  const chanceHome = ((H0.attackAvg + HOME_ATK_BONUS) / CHANCE_DIVISOR) * tH.freq * sH.freqMul * pressureFreq;
-  const chanceAway = (A0.attackAvg / CHANCE_DIVISOR) * tA.freq * sA.freqMul * pressureFreq;
+  const chanceHome = CHANCE_RATE * ((H0.attackAvg + HOME_ATK_BONUS) / referenceOvr(home, H0.attackAvg)) * tH.freq * sH.freqMul * pressureFreq;
+  const chanceAway = CHANCE_RATE * (A0.attackAvg / referenceOvr(away, A0.attackAvg)) * tA.freq * sA.freqMul * pressureFreq;
+
 
   for (let m = 1; m <= 90; m++) {
     if (rand() < chanceHome && fastGoal(H0, A0, home, tA, sA, rand, weather, true)) hs++;
