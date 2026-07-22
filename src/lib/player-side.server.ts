@@ -96,12 +96,6 @@ export async function buildPlayerSideFromDb(
     return toEngine(c, s.role);
   });
 
-  const posToRole = (pos: string | null | undefined): SlotRole => {
-    if (pos === "Goleiro") return "GOL";
-    if (pos === "Zagueiro") return "DEF";
-    if (pos === "Atacante") return "ATA";
-    return "MEI";
-  };
 
   const bench: EngineSlot[] = benchIds
     .map((id) => byId.get(id))
