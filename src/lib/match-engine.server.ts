@@ -381,7 +381,7 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
       const fatigueMul = injuryFatigueMult(actor.energy);
       const injuryProbability = Math.min(1, P_LESAO * fatigueMul * tacticsInjuryMul);
       if (rand() >= injuryProbability) continue;
-      console.log("[injury-diagnostic]", {
+      console.log("[injury-diagnostic]", JSON.stringify({
         minute,
         source: "src/lib/match-engine.server.ts:simulate",
         team_id: live.side.team_id,
@@ -391,7 +391,7 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
         fatigue_multiplier: fatigueMul,
         tactics_multiplier: tacticsInjuryMul,
         injuries_this_team: teamInjuries,
-      });
+      }));
       // Sortear gravidade (§Lesões): 45% leve, 40% moderada, 15% grave.
       const rr = rand();
       let severity: InjurySeverity;
