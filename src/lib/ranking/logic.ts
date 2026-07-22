@@ -54,10 +54,13 @@ export async function seedWorldAcademiesIfNeeded(supabase: any) {
     const profile = PRO_PROFILE[div];
     for (const team of WORLD_TEAMS[div]) {
       rows.push({
+      const level = rand(rng, profile.level[0], profile.level[1]);
+      rows.push({
         academy_name: `Academia ${team.name}`,
         trainer_name: syntheticTrainerName(rng),
         division: div,
-        level: rand(rng, profile.level[0], profile.level[1]),
+        level,
+        xp: xpForLevel(level),
         wins: rand(rng, profile.wins[0], profile.wins[1]),
         patrimony: rand(rng, profile.patrimony[0], profile.patrimony[1]),
         primary_color: team.primary,
@@ -67,24 +70,57 @@ export async function seedWorldAcademiesIfNeeded(supabase: any) {
     }
   }
 
+  // Faixas de nível por posição para os ~1130 amadores (posições 71..1200).
+  // 71-150 → 20-27 · 151-300 → 15-19 · 301-600 → 10-14 · 601-900 → 5-9 · 901-1200 → 1-4
+  const AMATEUR_BANDS: Array<{ count: number; min: number; max: number }> = [
+    { count: 80,  min: 20, max: 27 }, // pos 71-150
+    { count: 150, min: 15, max: 19 }, // pos 151-300
+    { count: 300, min: 10, max: 14 }, // pos 301-600
+    { count: 300, min: 5,  max: 9  }, // pos 601-900
+    { count: 300, min: 1,  max: 4  }, // pos 901-1200
+  ];
+
   const amateurs = generateAmateurAcademies(AMATEUR_COUNT, 20260722);
-  amateurs.forEach((a, idx) => {
-    const t = idx / AMATEUR_COUNT;
-    const baseLevel = Math.max(1, Math.round(18 - t * 17 + (rng() * 4 - 2)));
-    const baseWins = Math.max(0, Math.round((1 - t) * 180 + rng() * 40 - 15));
-    const basePat = Math.max(30_000, Math.round((1 - t) * 700_000 + rng() * 120_000 + 40_000));
+  let idx = 0;
+  for (const band of AMATEUR_BANDS) {
+    for (let k = 0; k < band.count && idx < amateurs.length; k++, idx++) {
+      const a = amateurs[idx];
+      const level = rand(rng, band.min, band.max);
+      // patrimônio/vitórias escalam com o nível
+      const wins = Math.max(0, Math.round(level * rand(rng, 4, 9) + rand(rng, 0, 20)));
+      const patrimony = Math.max(30_000, Math.round(level * rand(rng, 25_000, 55_000) + rand(rng, 20_000, 90_000)));
+      rows.push({
+        academy_name: a.academy_name,
+        trainer_name: a.trainer_name,
+        division: "amador",
+        level,
+        xp: xpForLevel(level),
+        wins,
+        patrimony,
+        primary_color: a.primary_color,
+        secondary_color: a.secondary_color,
+        is_player: false,
+      });
+    }
+  }
+  // remanescentes (arredondamento) vão para a faixa mais baixa
+  for (; idx < amateurs.length; idx++) {
+    const a = amateurs[idx];
+    const level = rand(rng, 1, 3);
     rows.push({
       academy_name: a.academy_name,
       trainer_name: a.trainer_name,
       division: "amador",
-      level: baseLevel,
-      wins: baseWins,
-      patrimony: basePat,
+      level,
+      xp: xpForLevel(level),
+      wins: rand(rng, 0, 30),
+      patrimony: rand(rng, 30_000, 100_000),
       primary_color: a.primary_color,
       secondary_color: a.secondary_color,
       is_player: false,
     });
-  });
+  }
+
 
   const CHUNK = 300;
   for (let i = 0; i < rows.length; i += CHUNK) {
