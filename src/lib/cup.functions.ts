@@ -243,8 +243,9 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
         playerSideRef.current = s;
         return s;
       }
-      return generateCpuSideFor(hashSeed(team.id), team.id, team.name, team.cpu_strength ?? 50);
+      return generateCpuSideFor(hashSeed(team.id), team.id, team.name, team.cpu_strength ?? 50, bestiary);
     }
+    const bestiary = await loadEngineBestiary(supabase);
     let result = simulate(await side(home), await side(away), hashSeed(next.id));
     // Sem empate em copa: pênaltis determinísticos
     if (result.home_score === result.away_score) {
