@@ -983,15 +983,76 @@ export type Database = {
           },
         ]
       }
+      trainer_career: {
+        Row: {
+          created_at: string
+          division: Database["public"]["Enums"]["division_type"]
+          event: string
+          final_position: number | null
+          id: string
+          season_end: number | null
+          season_start: number
+          team_id: string | null
+          team_name: string
+          title: string | null
+          trainer_id: string
+        }
+        Insert: {
+          created_at?: string
+          division: Database["public"]["Enums"]["division_type"]
+          event: string
+          final_position?: number | null
+          id?: string
+          season_end?: number | null
+          season_start: number
+          team_id?: string | null
+          team_name: string
+          title?: string | null
+          trainer_id: string
+        }
+        Update: {
+          created_at?: string
+          division?: Database["public"]["Enums"]["division_type"]
+          event?: string
+          final_position?: number | null
+          id?: string
+          season_end?: number | null
+          season_start?: number
+          team_id?: string | null
+          team_name?: string
+          title?: string | null
+          trainer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trainer_career_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trainer_career_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "trainers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trainers: {
         Row: {
           academy_name: string
+          consecutive_bad_seasons: number
           created_at: string
+          current_team_id: string | null
           id: string
+          last_final_position: number | null
           last_weekly_gems_at: string | null
           level: number
           pending_level_ups: number
           season_xp_breakdown: Json
+          seasons_at_current_club: number
           trainer_name: string
           updated_at: string
           user_id: string
@@ -1002,12 +1063,16 @@ export type Database = {
         }
         Insert: {
           academy_name: string
+          consecutive_bad_seasons?: number
           created_at?: string
+          current_team_id?: string | null
           id?: string
+          last_final_position?: number | null
           last_weekly_gems_at?: string | null
           level?: number
           pending_level_ups?: number
           season_xp_breakdown?: Json
+          seasons_at_current_club?: number
           trainer_name: string
           updated_at?: string
           user_id: string
@@ -1018,12 +1083,16 @@ export type Database = {
         }
         Update: {
           academy_name?: string
+          consecutive_bad_seasons?: number
           created_at?: string
+          current_team_id?: string | null
           id?: string
+          last_final_position?: number | null
           last_weekly_gems_at?: string | null
           level?: number
           pending_level_ups?: number
           season_xp_breakdown?: Json
+          seasons_at_current_club?: number
           trainer_name?: string
           updated_at?: string
           user_id?: string
@@ -1032,7 +1101,15 @@ export type Database = {
           xp_burst_multiplier?: number
           xp_burst_until?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "trainers_current_team_id_fkey"
+            columns: ["current_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       transfers: {
         Row: {
