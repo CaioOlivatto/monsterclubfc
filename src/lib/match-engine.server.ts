@@ -493,8 +493,10 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
       const actor = outSlot.creature;
       const tMul = live === liveHome ? tH.injuryMul : tA.injuryMul;
       const fMul = injuryFatigueMult(actor.energy);
-      const p = Math.min(1, P_LESAO * fMul * tMul);
+      const mMul = medicalInjuryMult(live.side.medical_level);
+      const p = Math.min(1, P_LESAO * fMul * tMul * mMul);
       if (rand() >= p) continue;
+
       const rr = rand();
       let severity: InjurySeverity; let matches: number;
       if (rr < 0.45) { severity = "leve"; matches = 1; }
