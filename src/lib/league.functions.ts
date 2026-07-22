@@ -683,15 +683,7 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
     const promoted = DIVISION_ORDER.indexOf(newDivision) > DIVISION_ORDER.indexOf(previousDivision);
     const relegated = DIVISION_ORDER.indexOf(newDivision) < DIVISION_ORDER.indexOf(previousDivision);
 
-    // Salários (elenco do jogador)
-    const { data: roster } = await supabase
-      .from("creatures")
-      .select("id, overall")
-      .eq("owner_trainer_id", trainer.id);
-    const salaries = (roster ?? []).reduce(
-      (acc: number, c: any) => acc + seasonSalary(c.overall ?? 40),
-      0,
-    );
+    // Salários agora são cobrados por partida — nada a descontar aqui.
     const { data: acad } = await supabase
       .from("academies")
       .select("money, gems")
@@ -700,7 +692,7 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
     await supabase
       .from("academies")
       .update({
-        money: (acad?.money ?? 0) + prize - salaries,
+        money: (acad?.money ?? 0) + prize,
         gems: (acad?.gems ?? 0) + championGems,
       })
       .eq("trainer_id", trainer.id);
@@ -715,14 +707,9 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
     if (prize > 0) txs.push({
       trainer_id: trainer.id,
       transaction_type: "income",
+      category: "premio_temporada",
       amount: prize,
       description: `Prêmio de temporada — ${playerDiv} • ${position}º lugar`,
-    });
-    if (salaries > 0) txs.push({
-      trainer_id: trainer.id,
-      transaction_type: "expense",
-      amount: salaries,
-      description: `Salários da temporada (${(roster ?? []).length} criaturas)`,
     });
     if (txs.length) await supabase.from("financial_transactions").insert(txs);
 
