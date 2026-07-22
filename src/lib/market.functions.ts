@@ -7,6 +7,7 @@ import {
   DIVISION_SALARY_CAP,
   refusalChance,
   seasonSalary,
+  matchSalary,
   type Division,
 } from "./economy";
 
