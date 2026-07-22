@@ -71,19 +71,25 @@ function LineupPage() {
     queryFn: () => fetchLineup(),
   });
 
-  const prog = useQuery({
-    queryKey: ["prognostic"],
-    queryFn: () => fetchProg(),
-    retry: false,
-    enabled: !!data,
-  });
-
   const [formation, setFormation] = useState<Formation>("4-4-2");
   const [strategy, setStrategy] = useState<"ofensiva" | "equilibrada" | "defensiva">("equilibrada");
   const [starters, setStarters] = useState<StarterSlot[]>([]);
   const [bench, setBench] = useState<string[]>([]);
 
+  // Draft enviado ao servidor para recalcular odds ao vivo (sem precisar salvar).
+  const draft = useMemo(() => ({
+    formation, strategy, starters, bench,
+  }), [formation, strategy, starters, bench]);
+
+  const prog = useQuery({
+    queryKey: ["prognostic", draft],
+    queryFn: () => fetchProg({ data: { draft } }),
+    retry: false,
+    enabled: !!data && starters.filter((s) => s.creature_id).length === 11,
+  });
+
   const slots = useMemo(() => buildSlots(formation), [formation]);
+
 
   // Sincroniza estado quando dados carregam
   useEffect(() => {
@@ -136,10 +142,15 @@ function LineupPage() {
   const removeFromBench = (id: string) => setBench((b) => b.filter((x) => x !== id));
 
   const autoFill = () => {
-    // ordena criaturas por overall desc, energia desc como desempate
+    // ordena criaturas por OVERALL EFETIVO (já com multiplicador de fadiga) desc,
+    // com energia como desempate para preferir quem está mais fresco.
     const pool = [...creatures].sort(
-      (a, b) => b.overall - a.overall || (b.energy ?? 0) - (a.energy ?? 0),
+      (a, b) =>
+        effectiveOverall(b.overall, b.energy ?? 100) -
+          effectiveOverall(a.overall, a.energy ?? 100) ||
+        (b.energy ?? 0) - (a.energy ?? 0),
     );
+
     const used = new Set<string>();
     const newStarters: StarterSlot[] = slots.map((s) => ({ slot: s.index, role: s.role, creature_id: null }));
 

@@ -112,11 +112,14 @@ function elementalMult(attacker: Element, defender: Element): number {
   return 1.0;
 }
 
-function strategyMod(s: EngineSide["strategy"]): { atk: number; def: number } {
-  if (s === "ofensiva") return { atk: 3, def: -2 };
-  if (s === "defensiva") return { atk: -2, def: 3 };
-  return { atk: 0, def: 0 };
+// Estratégia (Mentalidade) — GDD: multiplica chance de lance (x0.70..x1.30)
+// e altera rating dos defensores adversários (+8 defensiva / -8 ofensiva).
+function strategyMod(s: EngineSide["strategy"]): { atk: number; def: number; freqMul: number } {
+  if (s === "ofensiva") return { atk: 8, def: -8, freqMul: 1.30 };
+  if (s === "defensiva") return { atk: -8, def: 8, freqMul: 0.70 };
+  return { atk: 0, def: 0, freqMul: 1.0 };
 }
+
 
 // Táticas ao vivo:
 //   mentalidade → +atk / +def (defende mais quando ofensiva)  · multiplica chance
@@ -298,6 +301,7 @@ function resolveChance(
   isHome: boolean, minute: number,
   own: SideView, opp: SideView,
   live: LiveSide, oppTact: ReturnType<typeof tacticsMod>,
+  oppMod: ReturnType<typeof strategyMod>,
   rand: () => number, events: EngineEvent[], weather: Weather,
 ) {
   if (!own.attackers.length || !opp.defenders.length) return;
@@ -312,8 +316,9 @@ function resolveChance(
 
   // DUELO 1 — finalizador vs zagueiro
   const finVsDef = ratingVs(finisher, defender) * weatherMul;
-  const defRating = ratingBase(defender) + oppTact.def;
+  const defRating = ratingBase(defender) + oppTact.def + oppMod.def;
   const pPass = logistic(finVsDef - defRating);
+
 
   const elementalAdv = BEATS[finisher.element] === defender.element;
   const longShot = rand() < 0.2;
@@ -419,6 +424,8 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
 
   const tH = tacticsMod(home.tactics);
   const tA = tacticsMod(away.tactics);
+  const sH = strategyMod(home.strategy);
+  const sA = strategyMod(away.strategy);
   // Pressão de ambos os lados eleva o ritmo do jogo dos dois times.
   const pressureFreq = 1 + Math.max(0, (tH.injuryMul - 1) + (tA.injuryMul - 1)) * 0.2;
   const yellowRate = 0.015 * ((tH.yellowMul + tA.yellowMul) / 2);
@@ -428,11 +435,12 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
     const H = computeView(liveHome);
     const A = computeView(liveAway);
 
-    const chanceHome = ((H.attackAvg + HOME_ATK_BONUS) / CHANCE_DIVISOR) * tH.freq * pressureFreq;
-    const chanceAway = (A.attackAvg / CHANCE_DIVISOR) * tA.freq * pressureFreq;
+    const chanceHome = ((H.attackAvg + HOME_ATK_BONUS) / CHANCE_DIVISOR) * tH.freq * sH.freqMul * pressureFreq;
+    const chanceAway = (A.attackAvg / CHANCE_DIVISOR) * tA.freq * sA.freqMul * pressureFreq;
 
-    if (rand() < chanceHome) resolveChance(true, minute, H, A, liveHome, tA, rand, events, weather);
-    if (rand() < chanceAway) resolveChance(false, minute, A, H, liveAway, tH, rand, events, weather);
+    if (rand() < chanceHome) resolveChance(true, minute, H, A, liveHome, tA, sA, rand, events, weather);
+    if (rand() < chanceAway) resolveChance(false, minute, A, H, liveAway, tH, sH, rand, events, weather);
+
 
     // Cartões
     if (rand() < yellowRate) {
@@ -563,15 +571,17 @@ export function simulateFast(home: EngineSide, away: EngineSide, seed: number): 
   const A0 = viewFromSide(away);
   const tH = tacticsMod(home.tactics);
   const tA = tacticsMod(away.tactics);
+  const sH = strategyMod(home.strategy);
+  const sA = strategyMod(away.strategy);
   const pressureFreq = 1 + Math.max(0, (tH.injuryMul - 1) + (tA.injuryMul - 1)) * 0.2;
 
   let hs = 0, as = 0;
-  const chanceHome = ((H0.attackAvg + HOME_ATK_BONUS) / CHANCE_DIVISOR) * tH.freq * pressureFreq;
-  const chanceAway = (A0.attackAvg / CHANCE_DIVISOR) * tA.freq * pressureFreq;
+  const chanceHome = ((H0.attackAvg + HOME_ATK_BONUS) / CHANCE_DIVISOR) * tH.freq * sH.freqMul * pressureFreq;
+  const chanceAway = (A0.attackAvg / CHANCE_DIVISOR) * tA.freq * sA.freqMul * pressureFreq;
 
   for (let m = 1; m <= 90; m++) {
-    if (rand() < chanceHome && fastGoal(H0, A0, home, tA, rand, weather, true)) hs++;
-    if (rand() < chanceAway && fastGoal(A0, H0, away, tH, rand, weather, false)) as++;
+    if (rand() < chanceHome && fastGoal(H0, A0, home, tA, sA, rand, weather, true)) hs++;
+    if (rand() < chanceAway && fastGoal(A0, H0, away, tH, sH, rand, weather, false)) as++;
   }
   return { home_score: hs, away_score: as };
 }
@@ -579,6 +589,7 @@ export function simulateFast(home: EngineSide, away: EngineSide, seed: number): 
 function fastGoal(
   own: SideView, opp: SideView, ownSide: EngineSide,
   oppTact: ReturnType<typeof tacticsMod>,
+  oppMod: ReturnType<typeof strategyMod>,
   rand: () => number, weather: Weather, _isHome: boolean,
 ): boolean {
   if (!own.attackers.length || !opp.defenders.length) return false;
@@ -588,7 +599,7 @@ function fastGoal(
   const wMul = WEATHER_BOOST[weather] === finisher.element ? 1.03 : 1.0;
 
   const finVsDef = ratingVs(finisher, defender) * wMul;
-  const defRating = ratingBase(defender) + oppTact.def;
+  const defRating = ratingBase(defender) + oppTact.def + oppMod.def;
   if (rand() >= logistic(finVsDef - defRating)) return false;
   if (!goalie) return true;
 
@@ -597,6 +608,7 @@ function fastGoal(
   const ownT = tacticsMod(ownSide.tactics);
   return rand() < logistic(finVsGk + ownT.vertical2 - gkRating);
 }
+
 
 function viewFromSide(side: EngineSide): SideView {
   const attackers = side.starters.filter((s) => s.role === "MEI" || s.role === "ATA");

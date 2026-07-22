@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { z } from "zod";
 import {
   analyzeMatchup,
   generateCpuSideFor,
@@ -7,7 +8,7 @@ import {
   type EngineBestiary,
   type PrognosticAnalysis,
 } from "./match-engine.server";
-import { buildPlayerSideFromDb } from "./player-side.server";
+import { buildPlayerSideFromDb, buildPlayerSideFromDraft } from "./player-side.server";
 import { loadBestiary } from "./bestiary.server";
 import { WORLD_TEAMS, type DivisionSlug } from "./world/catalog";
 
@@ -39,19 +40,36 @@ export interface PrognosticResponse {
   opponent: { name: string; is_next_official: boolean; round?: number | null; is_home: boolean };
 }
 
+const DraftSchema = z.object({
+  formation: z.string(),
+  strategy: z.enum(["ofensiva", "equilibrada", "defensiva"]),
+  starters: z.array(z.object({
+    slot: z.number(),
+    role: z.enum(["GOL", "DEF", "MEI", "ATA"]),
+    creature_id: z.string().nullable(),
+  })),
+  bench: z.array(z.string()),
+  tactics: z.object({
+    mentalidade: z.number(), verticalidade: z.number(),
+    pressao: z.number(), cortes: z.number(),
+  }).nullable().optional(),
+}).nullable().optional();
+
+const InputSchema = z.object({ draft: DraftSchema }).optional();
+
 /**
- * Prognóstico da PRÓXIMA partida do jogador (liga ou copa se agendada);
- * caso contrário, contra um oponente de força média da mesma divisão
- * (proxy para amistoso).
+ * Prognóstico da PRÓXIMA partida (liga/copa) ou de um amistoso proxy.
+ * Aceita `draft` para recalcular ao vivo sem salvar (Estratégia/Táticas/Formação).
  */
-export const getLineupPrognostic = createServerFn({ method: "GET" })
+export const getLineupPrognostic = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<PrognosticResponse> => {
+  .inputValidator((raw: unknown) => InputSchema.parse(raw ?? {}))
+  .handler(async ({ data, context }): Promise<PrognosticResponse> => {
     const { supabase, userId } = context;
     const trainer = await getTrainer(supabase, userId);
     const bestiary = await loadEngineBestiary(supabase);
+    const draft = data?.draft ?? null;
 
-    // Time do jogador na liga ativa (para achar próximo jogo).
     const { data: playerLeagueTeam } = await supabase
       .from("teams")
       .select("id, name, division, competition_id")
@@ -90,11 +108,9 @@ export const getLineupPrognostic = createServerFn({ method: "GET" })
       opponentSide = generateCpuSideFor(hashSeed(oppId), oppId, opp?.name ?? "Adversário", strength, bestiary);
       opponentInfo = { name: opp?.name ?? "Adversário", is_next_official: true, round: nextMatch.round, is_home: playerIsHome };
     } else {
-      // Proxy: adversário aleatório da divisão do jogador (para amistoso)
       const division = ((playerLeagueTeam?.division as DivisionSlug | undefined) ?? "bronze");
       const pool = (WORLD_TEAMS[division] ?? WORLD_TEAMS.bronze).filter((t) => t.name !== playerName);
       const opp = pool[Math.floor(Math.random() * pool.length)] ?? pool[0];
-      // força média do elenco do jogador — para amistoso balanceado
       const { data: creatures } = await supabase
         .from("creatures").select("overall").eq("owner_trainer_id", trainer.id);
       const avgOvr = creatures?.length
@@ -104,10 +120,11 @@ export const getLineupPrognostic = createServerFn({ method: "GET" })
       opponentInfo = { name: opp.name, is_next_official: false, is_home: true };
     }
 
-    // Precisa de escalação salva. Se não houver, retorna erro amigável.
     let playerSide: EngineSide;
     try {
-      playerSide = await buildPlayerSideFromDb(supabase, trainer.id, playerTeamId, playerName);
+      playerSide = draft
+        ? await buildPlayerSideFromDraft(supabase, trainer.id, playerTeamId, playerName, draft)
+        : await buildPlayerSideFromDb(supabase, trainer.id, playerTeamId, playerName);
     } catch (e: any) {
       throw new Error(e?.message ?? "Salve a escalação para ver o prognóstico.");
     }
@@ -117,7 +134,6 @@ export const getLineupPrognostic = createServerFn({ method: "GET" })
     const seed = hashSeed(playerTeamId + opponentInfo.name);
     const analysis = analyzeMatchup(home, away, seed, 400);
 
-    // Se o jogador é visitante, "trocamos" o rótulo para que "home_win" seja sempre o jogador na UI.
     if (!playerIsHome) {
       const swapped: PrognosticAnalysis = {
         ...analysis,
@@ -134,3 +150,4 @@ export const getLineupPrognostic = createServerFn({ method: "GET" })
     }
     return { analysis, opponent: opponentInfo };
   });
+
