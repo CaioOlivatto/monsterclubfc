@@ -43,12 +43,26 @@ export type EngineEventType =
   | "fulltime"
   | "weather";
 
+export interface EngineEventMeta {
+  attacker?: string;
+  defender?: string;
+  goalie?: string;
+  team?: string;
+  element?: Element;
+  defender_element?: Element;
+  elemental_advantage?: boolean;
+  long_shot?: boolean;
+  is_danger?: boolean;
+  outcome?: "goal" | "save" | "miss" | "block";
+}
+
 export interface EngineEvent {
   minute: number;
   event_type: EngineEventType;
   description: string;
   actor_creature_id: string | null;
   actor_team_id: string | null;
+  meta?: EngineEventMeta;
 }
 
 const BEATS: Record<Element, Element> = {
@@ -370,6 +384,22 @@ function processTeamChance(
     (own.attack + homeAdv - opp.defense + 40) / 260 + bonusElem + affinityBonus + weatherBonus;
   if (chanceGoal < 0.07) chanceGoal = 0.07;
 
+  const goalieSlot = opp.defenders.find((s) => s.role === "GOL");
+  const goalie = goalieSlot?.creature;
+  const elementalAdv = bonusElem > 0;
+  const longShot = rand() < 0.2;
+  const baseMeta: EngineEventMeta = {
+    attacker: finisher.name,
+    defender: defender.name,
+    goalie: goalie?.name,
+    team: live.side.team_name,
+    element: finisher.element,
+    defender_element: defender.element,
+    elemental_advantage: elementalAdv,
+    long_shot: longShot,
+    is_danger: true,
+  };
+
   if (rand() < chanceGoal) {
     events.push({
       minute,
@@ -377,15 +407,38 @@ function processTeamChance(
       description: `GOL de ${finisher.name}! (${live.side.team_name})`,
       actor_creature_id: finisher.id,
       actor_team_id: live.side.team_id,
+      meta: { ...baseMeta, outcome: "goal" },
     });
   } else {
-    events.push({
-      minute,
-      event_type: "shot_saved",
-      description: `${finisher.name} arrisca, mas ${defender.name} evita o gol.`,
-      actor_creature_id: finisher.id,
-      actor_team_id: live.side.team_id,
-    });
+    const roll = rand();
+    if (roll < 0.5 && goalie) {
+      events.push({
+        minute,
+        event_type: "shot_saved",
+        description: `${finisher.name} arrisca, mas ${goalie.name} defende.`,
+        actor_creature_id: finisher.id,
+        actor_team_id: live.side.team_id,
+        meta: { ...baseMeta, outcome: "save" },
+      });
+    } else if (roll < 0.8) {
+      events.push({
+        minute,
+        event_type: "shot_saved",
+        description: `${finisher.name} chuta para fora.`,
+        actor_creature_id: finisher.id,
+        actor_team_id: live.side.team_id,
+        meta: { ...baseMeta, outcome: "miss" },
+      });
+    } else {
+      events.push({
+        minute,
+        event_type: "shot_saved",
+        description: `${defender.name} corta a jogada de ${finisher.name}.`,
+        actor_creature_id: finisher.id,
+        actor_team_id: live.side.team_id,
+        meta: { ...baseMeta, outcome: "block" },
+      });
+    }
   }
 }
 
