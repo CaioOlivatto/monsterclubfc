@@ -85,8 +85,39 @@ function MarketPage() {
   const buyMut = useMutation({
     mutationFn: (listing_id: string) => buyFn({ data: { listing_id } }),
     onSuccess: (res) => {
-      toast.success(`Contratado: ${res.name}`, {
-        description: `Custo ${formatMoney(res.price)}`,
+      // Remoção otimista imediata da oferta
+      qc.setQueryData(["market"], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          listings: (old.listings ?? []).filter((l: any) => l.name !== res.name || l.price !== res.price),
+          payroll: res.payroll_after,
+          money: (old.money ?? 0) - res.price,
+          roster_count: res.roster_count_after,
+        };
+      });
+      const ELEMENT_LABEL: Record<string, string> = {
+        fogo: "Fogo", agua: "Água", terra: "Terra", ar: "Ar", gelo: "Gelo",
+      };
+      const remainingCap = Math.max(0, res.salary_cap - res.payroll_after);
+      const vagas = Math.max(0, res.roster_slots - res.roster_count_after);
+      toast.success(`🎉 Parabéns! ${res.name} agora faz parte do seu elenco!`, {
+        duration: 8000,
+        description: (
+          <div className="mt-1 space-y-0.5 text-xs">
+            <p>
+              <span className="font-medium">{ELEMENT_LABEL[res.element] ?? res.element}</span>
+              {" · "}{res.position}{" · "}
+              <span className="text-amber-300">{res.stars.toFixed(1)}★</span>
+            </p>
+            <p>Salário: <span className="font-medium">{formatMoney(res.salary)}/temporada</span></p>
+            <p>
+              Folha: {formatMoney(res.payroll_after)} / {formatMoney(res.salary_cap)}
+              {" "}<span className="text-muted-foreground">(resta {formatMoney(remainingCap)})</span>
+            </p>
+            <p>Elenco: {res.roster_count_after}/{res.roster_slots} <span className="text-muted-foreground">({vagas} vagas livres)</span></p>
+          </div>
+        ) as any,
       });
       qc.invalidateQueries({ queryKey: ["market"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
