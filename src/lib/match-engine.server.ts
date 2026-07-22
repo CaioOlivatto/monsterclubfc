@@ -37,6 +37,8 @@ export interface Tactics {
 }
 export const NEUTRAL_TACTICS: Tactics = { mentalidade: 0, verticalidade: 0, pressao: 0, cortes: 0 };
 
+export type Division = "bronze" | "prata" | "ouro" | "diamante" | "lendaria";
+
 export interface EngineSide {
   team_id: string;
   team_name: string;
@@ -46,7 +48,10 @@ export interface EngineSide {
   tactics?: Tactics;
   /** Nível do Centro Médico (1–5). Reduz chance de lesão. Default 1. */
   medical_level?: number;
+  /** Divisão do time. Normaliza a taxa de criação de lances. */
+  division?: Division;
 }
+
 
 /** Multiplicador de CHANCE de lesão pelo Centro Médico. Nível 1 = 1.00 … Nível 5 = 0.50. */
 export function medicalInjuryMult(level: number | undefined | null): number {
@@ -109,10 +114,26 @@ const WEATHER_LABEL: Record<Weather, string> = {
 const K_DUEL = 24;              // sensibilidade do duelo logístico
 const GOALIE_BONUS = 18;        // vantagem do goleiro no duelo 2
 const HOME_ATK_BONUS = 4;       // fator casa somado à força ofensiva
-const CHANCE_DIVISOR = 620;     // divisor da chance de lance por minuto
+const CHANCE_RATE = 0.10;       // taxa-base de criação de lance por minuto (normalizada pela divisão)
+
+/** OVR médio de cada divisão — usado para normalizar a chance de lance por minuto. */
+const DIVISION_OVR: Record<Division, number> = {
+  bronze: 33, prata: 44, ouro: 55, diamante: 64, lendaria: 72,
+};
+
+/** OVR de referência do time. Usa a divisão quando conhecida; senão infere pelo attackAvg. */
+function referenceOvr(side: EngineSide, attackAvg: number): number {
+  if (side.division) return DIVISION_OVR[side.division];
+  // Fallback: aproxima ao balde de divisão mais próximo do attackAvg.
+  const buckets: number[] = [33, 44, 55, 64, 72];
+  let best = buckets[0], d = Infinity;
+  for (const b of buckets) { const dd = Math.abs(b - attackAvg); if (dd < d) { d = dd; best = b; } }
+  return best;
+}
 
 const P_LESAO = 0.004;
 const MAX_INJURIES_PER_TEAM = 2;
+
 
 // Elemental multiplicativo, aplicado DUELO A DUELO (não mais bônus de time).
 function elementalMult(attacker: Element, defender: Element): number {
@@ -449,8 +470,9 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
     const H = computeView(liveHome);
     const A = computeView(liveAway);
 
-    const chanceHome = ((H.attackAvg + HOME_ATK_BONUS) / CHANCE_DIVISOR) * tH.freq * sH.freqMul * pressureFreq;
-    const chanceAway = (A.attackAvg / CHANCE_DIVISOR) * tA.freq * sA.freqMul * pressureFreq;
+    const chanceHome = CHANCE_RATE * ((H.attackAvg + HOME_ATK_BONUS) / referenceOvr(home, H.attackAvg)) * tH.freq * sH.freqMul * pressureFreq;
+    const chanceAway = CHANCE_RATE * (A.attackAvg / referenceOvr(away, A.attackAvg)) * tA.freq * sA.freqMul * pressureFreq;
+
 
     if (rand() < chanceHome) resolveChance(true, minute, H, A, liveHome, tA, sA, rand, events, weather);
     if (rand() < chanceAway) resolveChance(false, minute, A, H, liveAway, tH, sH, rand, events, weather);
@@ -592,8 +614,9 @@ export function simulateFast(home: EngineSide, away: EngineSide, seed: number): 
   const pressureFreq = 1 + Math.max(0, (tH.injuryMul - 1) + (tA.injuryMul - 1)) * 0.2;
 
   let hs = 0, as = 0;
-  const chanceHome = ((H0.attackAvg + HOME_ATK_BONUS) / CHANCE_DIVISOR) * tH.freq * sH.freqMul * pressureFreq;
-  const chanceAway = (A0.attackAvg / CHANCE_DIVISOR) * tA.freq * sA.freqMul * pressureFreq;
+  const chanceHome = CHANCE_RATE * ((H0.attackAvg + HOME_ATK_BONUS) / referenceOvr(home, H0.attackAvg)) * tH.freq * sH.freqMul * pressureFreq;
+  const chanceAway = CHANCE_RATE * (A0.attackAvg / referenceOvr(away, A0.attackAvg)) * tA.freq * sA.freqMul * pressureFreq;
+
 
   for (let m = 1; m <= 90; m++) {
     if (rand() < chanceHome && fastGoal(H0, A0, home, tA, sA, rand, weather, true)) hs++;
@@ -877,5 +900,10 @@ function buildCpuSideCore(
   };
   const starters = roles.map((r, i) => buildSlot(r, i, "s"));
   const bench = benchRoles.map((r, i) => buildSlot(r, i, "b"));
-  return { team_id: teamId, team_name: teamName, starters, bench, strategy: "equilibrada" };
+  // Inferir divisão a partir do OVR alvo (para normalização de chances).
+  const buckets: [number, Division][] = [[33,"bronze"],[44,"prata"],[55,"ouro"],[64,"diamante"],[72,"lendaria"]];
+  let division: Division = "bronze"; let dbest = Infinity;
+  for (const [ovr, d] of buckets) { const dd = Math.abs(ovr - target); if (dd < dbest) { dbest = dd; division = d; } }
+  return { team_id: teamId, team_name: teamName, starters, bench, strategy: "equilibrada", division };
 }
+

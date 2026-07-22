@@ -1,5 +1,5 @@
 import { buildSlots } from "./lineup.server";
-import type { EngineSide, EngineSlot, SlotRole, Element, Tactics } from "./match-engine.server";
+import type { EngineSide, EngineSlot, SlotRole, Element, Tactics, Division } from "./match-engine.server";
 import { NEUTRAL_TACTICS } from "./match-engine.server";
 
 async function fetchMedicalLevel(supabase: any, trainerId: string): Promise<number> {
@@ -11,6 +11,14 @@ async function fetchMedicalLevel(supabase: any, trainerId: string): Promise<numb
     .maybeSingle();
   return Math.max(1, Math.min(5, data?.level ?? 1));
 }
+
+async function fetchTeamDivision(supabase: any, teamId: string): Promise<Division | undefined> {
+  const { data } = await supabase.from("teams").select("division").eq("id", teamId).maybeSingle();
+  const d = data?.division as string | undefined;
+  if (d === "bronze" || d === "prata" || d === "ouro" || d === "diamante" || d === "lendaria") return d;
+  return undefined;
+}
+
 
 
 
@@ -88,8 +96,10 @@ export async function buildPlayerSideFromDb(
     .map((c: any) => toEngine(c, posToRole(c.suggested_position)));
 
   const tactics: Tactics = (lineup.default_tactics as Tactics | null) ?? NEUTRAL_TACTICS;
-  return { team_id: teamId, team_name: teamName, starters, bench, strategy: lineup.strategy, tactics, medical_level: medicalLevel };
+  const division = await fetchTeamDivision(supabase, teamId);
+  return { team_id: teamId, team_name: teamName, starters, bench, strategy: lineup.strategy, tactics, medical_level: medicalLevel, division };
 }
+
 
 /** Constrói o lado do jogador a partir de um DRAFT enviado pela UI (sem salvar). */
 export async function buildPlayerSideFromDraft(
@@ -156,13 +166,15 @@ export async function buildPlayerSideFromDraft(
     .map((c: any) => toEngine(c, posToRole(c.suggested_position)));
 
   const medicalLevel = await fetchMedicalLevel(supabase, trainerId);
+  const division = await fetchTeamDivision(supabase, teamId);
   return {
     team_id: teamId, team_name: teamName, starters, bench,
     strategy: draft.strategy,
     tactics: (draft.tactics as Tactics | null) ?? NEUTRAL_TACTICS,
     medical_level: medicalLevel,
+    division,
   };
-
 }
+
 
 
