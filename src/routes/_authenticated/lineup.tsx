@@ -29,6 +29,7 @@ import {
 import { toast } from "sonner";
 import { ArrowLeft, Save, Shield, Swords, Scale, Wand2, AlertTriangle, HeartPulse, BedDouble } from "lucide-react";
 import { fatigueState, FATIGUE_LABEL, FATIGUE_CLASS, effectiveOverall, energyMultiplier } from "@/lib/fatigue";
+import { moraleState, MORALE_EMOJI, MORALE_LABEL, moraleMultiplier } from "@/lib/morale";
 
 
 export const Route = createFileRoute("/_authenticated/lineup")({
@@ -146,7 +147,8 @@ function LineupPage() {
   const ROLE_LABEL: Record<SlotRole, string> = { GOL: "GOL", DEF: "DEF", MEI: "MEI", ATA: "ATA" };
 
   const sortByEff = (a: any, b: any) =>
-    effectiveOverall(b.overall ?? 0, b.energy ?? 100) - effectiveOverall(a.overall ?? 0, a.energy ?? 100);
+    effectiveOverall(b.overall ?? 0, b.energy ?? 100, b.morale) -
+    effectiveOverall(a.overall ?? 0, a.energy ?? 100, a.morale);
 
   const availableFor = (currentId: string | null) =>
     creatures.filter((c: any) => c.id === currentId || !usedIds.has(c.id));
@@ -172,7 +174,7 @@ function LineupPage() {
       .sort((a: any, b: any) => {
         const ea = a.energy ?? 100, eb = b.energy ?? 100;
         return (
-          effectiveOverall(b.overall, eb) - effectiveOverall(a.overall, ea) ||
+          effectiveOverall(b.overall, eb, b.morale) - effectiveOverall(a.overall, ea, a.morale) ||
           eb - ea
         );
       });
@@ -208,7 +210,7 @@ function LineupPage() {
   // "Poupar titulares": escala o melhor XI EXCLUINDO as 5 criaturas de maior overall efetivo.
   const topFiveIds = useMemo(() => {
     return [...creatures]
-      .sort((a: any, b: any) => effectiveOverall(b.overall, b.energy ?? 100) - effectiveOverall(a.overall, a.energy ?? 100))
+      .sort((a: any, b: any) => effectiveOverall(b.overall, b.energy ?? 100, b.morale) - effectiveOverall(a.overall, a.energy ?? 100, a.morale))
       .slice(0, 5)
       .map((c: any) => c.id);
   }, [creatures]);
@@ -390,7 +392,7 @@ function LineupPage() {
               const currentCreature = current ? creatures.find((x) => x.id === current) : null;
               const currFs = currentCreature ? fatigueState(currentCreature.energy ?? 100) : null;
               const currMult = currentCreature ? energyMultiplier(currentCreature.energy ?? 100) : 1;
-              const currEff = currentCreature ? effectiveOverall(currentCreature.overall ?? 0, currentCreature.energy ?? 100) : 0;
+              const currEff = currentCreature ? effectiveOverall(currentCreature.overall ?? 0, currentCreature.energy ?? 100, currentCreature.morale) : 0;
               const currNaturalRole = currentCreature ? naturalRoleOf(currentCreature.suggested_position) : null;
               const currOOP = currentCreature && currNaturalRole !== s.role;
               const currOopOvr = currentCreature ? Math.round((currentCreature.overall ?? 0) * 0.85) : 0;
@@ -405,7 +407,7 @@ function LineupPage() {
 
               const renderItem = (c: any, oop: boolean) => {
                 const fs = fatigueState(c.energy ?? 100);
-                const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100);
+                const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100, c.morale);
                 const displayOvr = oop ? Math.round((c.overall ?? 0) * 0.85) : c.overall;
                 const tag =
                   fs === "exausto" ? " ⚠️ EXAUSTO" :
@@ -463,9 +465,22 @@ function LineupPage() {
                     <div className={"ml-[4.5rem] inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] " + FATIGUE_CLASS[currFs] + (warn ? " font-semibold" : "")}>
                       {warn && <AlertTriangle className="h-3 w-3" />}
                       <span>{FATIGUE_LABEL[currFs]} · {currentCreature.energy}%</span>
-                      <span className="opacity-80">Ovr {currentCreature.overall}→{currEff} (-{Math.round((1 - currMult) * 100)}%)</span>
+                      <span className="opacity-80">Ovr {currentCreature.overall}→{currEff} (fadiga -{Math.round((1 - currMult) * 100)}%{(() => {
+                        const mm = moraleMultiplier(currentCreature.morale);
+                        const mp = Math.round((mm - 1) * 100);
+                        return mp !== 0 ? `, moral ${mp > 0 ? "+" : ""}${mp}%` : "";
+                      })()})</span>
                     </div>
                   )}
+                  {currentCreature && (() => {
+                    const ms = moraleState(currentCreature.morale);
+                    if (ms === "normal" || ms === "bom") return null;
+                    return (
+                      <div className="ml-[4.5rem] inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <span>{MORALE_EMOJI[ms]} Moral: {MORALE_LABEL[ms]} ({currentCreature.morale ?? 50})</span>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
@@ -484,7 +499,7 @@ function LineupPage() {
                   const c = creatures.find((x) => x.id === id);
                   if (!c) return null;
                   const fs = fatigueState(c.energy ?? 100);
-                  const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100);
+                  const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100, c.morale);
                   return (
                     <div key={id} className="flex items-center justify-between rounded-md border p-2">
                       <div className="text-sm min-w-0">
@@ -515,7 +530,7 @@ function LineupPage() {
                       .filter((c) => !usedIds.has(c.id))
                       .sort(sortByEff)
                       .map((c) => {
-                        const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100);
+                        const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100, c.morale);
                         return (
                           <SelectItem key={c.id} value={c.id}>
                             {c.name} · {ROLE_LABEL[naturalRoleOf(c.suggested_position)]} · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}{eff !== c.overall ? `→${eff}` : ""} · {(c.overall / 20).toFixed(1)}★ · {c.energy ?? 100}%

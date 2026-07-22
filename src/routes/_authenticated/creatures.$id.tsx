@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, BatteryCharging, Clock, Coins, Dumbbell, Gem, HeartPulse, Hourglass, Sparkles, Star } from "lucide-react";
 import { ageStatus, seasonsRemaining, rebirthHalfStarsPreview, sellValuePreview } from "@/lib/age";
+import { moraleState, MORALE_EMOJI, MORALE_LABEL } from "@/lib/morale";
 
 
 export const Route = createFileRoute("/_authenticated/creatures/$id")({
@@ -197,7 +198,7 @@ function CreatureDetail() {
       </header>
 
       <main className="mx-auto max-w-4xl space-y-4 p-4">
-        <div className="grid gap-3 sm:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-4 lg:grid-cols-5">
           <StatChip label="Overall" value={String(c.overall)} icon={<Star className="h-4 w-4" />} />
           <StatChip
             label="Estrelas"
@@ -209,6 +210,16 @@ function CreatureDetail() {
             value={`${c.energy}%`}
             icon={<BatteryCharging className="h-4 w-4" />}
           />
+          {(() => {
+            const s = moraleState((c as any).morale);
+            return (
+              <StatChip
+                label="Moral"
+                value={`${MORALE_EMOJI[s]} ${MORALE_LABEL[s]} (${(c as any).morale ?? 50})`}
+                icon={<span className="text-base leading-none">{MORALE_EMOJI[s]}</span>}
+              />
+            );
+          })()}
           <StatChip
             label="Valor"
             value={"$ " + c.market_value.toLocaleString("pt-BR")}

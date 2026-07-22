@@ -43,6 +43,8 @@ export async function applyPostMatchXp(
     energy_loss: Record<string, number>;
     injuries?: Array<{ creature_id: string; severity: "leve" | "moderada" | "grave"; matches: number }>;
     isOfficial?: boolean;
+    /** Gols por creature_id na partida — usados para bônus de moral. */
+    goalsByCreature?: Record<string, number>;
   },
 ) {
   const base = opts.outcome === "W" ? 100 : opts.outcome === "D" ? 50 : 0;
@@ -88,11 +90,23 @@ export async function applyPostMatchXp(
   // Toda criatura do elenco recupera energia (reservas não convocadas também).
   const { data: fullRoster } = await supabase
     .from("creatures")
-    .select("id")
+    .select("id, overall")
     .eq("owner_trainer_id", trainerId);
   const allTrainerIds = (fullRoster ?? []).map((r: any) => r.id);
   const enteredSet = new Set(opts.enteredReserveIds);
   const starterSet = new Set(opts.starterIds);
+  const unusedBenchSet = new Set(opts.unusedReserveIds);
+
+  // Ranking por overall para categorizar o peso do banco no moral.
+  const ranked = [...(fullRoster ?? [])].sort(
+    (a: any, b: any) => (b.overall ?? 0) - (a.overall ?? 0),
+  );
+  const rankOf = new Map<string, number>(ranked.map((r: any, i: number) => [r.id, i + 1]));
+  const benchPenaltyByRank = (rank: number): number => {
+    if (rank <= 11) return -6;
+    if (rank <= 18) return -3;
+    return -1;
+  };
 
   // Índice de novas lesões (só aplicadas em partidas oficiais).
   const injuryMap = new Map<string, { severity: "leve" | "moderada" | "grave"; matches: number }>();
@@ -110,9 +124,12 @@ export async function applyPostMatchXp(
 
   const { data: creatures } = await supabase
     .from("creatures")
-    .select("id, xp, pending_half_stars, half_stars_earned, energy, injury_matches_remaining, injury_severity")
+    .select("id, xp, pending_half_stars, half_stars_earned, energy, morale, injury_matches_remaining, injury_severity")
     .in("id", allTrainerIds)
     .eq("owner_trainer_id", trainerId);
+
+  const goalsByCreature = opts.goalsByCreature ?? {};
+  const outcomeMorale = opts.outcome === "W" ? +3 : opts.outcome === "D" ? 0 : -4;
 
   for (const c of creatures ?? []) {
     const add = targets.filter((t) => t.id === c.id).reduce((a, t) => a + t.add, 0);
@@ -141,12 +158,47 @@ export async function applyPostMatchXp(
       injSeverity = newInj.severity;
     }
 
+    // ============ MORAL (só em partidas oficiais) ============
+    let newMorale = Math.max(0, Math.min(100, c.morale ?? 50));
+    if (isOfficial) {
+      let gains = 0; // aplicam-se ganhos decrescentes
+      let losses = 0;
+
+      if (starterSet.has(c.id)) gains += 4;
+      else if (enteredSet.has(c.id)) gains += 2;
+
+      const goals = goalsByCreature[c.id] ?? 0;
+      if (goals > 0) gains += 6 * goals;
+
+      // Resultado do time
+      if (outcomeMorale >= 0) gains += outcomeMorale;
+      else losses += -outcomeMorale;
+
+      // Banco sem entrar — castigo escalonado por ranking no elenco
+      if (unusedBenchSet.has(c.id)) {
+        losses += -benchPenaltyByRank(rankOf.get(c.id) ?? 99);
+      }
+
+      // Fora do elenco (nem titular, nem banco, nem entrou)
+      const outOfSquad =
+        !starterSet.has(c.id) && !enteredSet.has(c.id) && !unusedBenchSet.has(c.id);
+      if (outOfSquad) losses += 7;
+
+      // Lesão em curso ou recém-adquirida
+      if (injRemaining > 0) losses += 4;
+
+      // Ganhos decrescentes: quanto mais alto o moral, menor o ganho real.
+      const gainMul = Math.max(0, 1 - newMorale / 120);
+      newMorale = Math.max(0, Math.min(100, Math.round(newMorale + gains * gainMul - losses)));
+    }
+
     await supabase
       .from("creatures")
       .update({
         xp: newXp,
         pending_half_stars: pending,
         energy: newEnergy,
+        morale: newMorale,
         injury_matches_remaining: injRemaining,
         injury_severity: injSeverity,
       })

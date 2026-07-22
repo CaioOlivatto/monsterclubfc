@@ -44,6 +44,9 @@ export const FATIGUE_CLASS: Record<FatigueState, string> = {
   exausto: "bg-red-700/25 text-red-700 border-red-700/50",
 };
 
-export function effectiveOverall(overall: number, energy: number): number {
-  return Math.round(overall * energyMultiplier(energy));
+export function effectiveOverall(overall: number, energy: number, morale?: number | null): number {
+  const mor = typeof morale === "number" && Number.isFinite(morale)
+    ? Math.max(0, Math.min(100, morale)) : 50;
+  const mMul = mor >= 80 ? 1.10 : mor >= 60 ? 1.05 : mor >= 40 ? 1.00 : mor >= 20 ? 0.95 : 0.90;
+  return Math.round(overall * energyMultiplier(energy) * mMul);
 }

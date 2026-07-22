@@ -17,6 +17,8 @@ export interface EngineCreature {
   overall: number;
   physical: number;
   energy: number;
+  /** Moral 0..100 (default 50). Multiplica o rating (±10% no extremo). */
+  morale?: number;
   affinity_fogo: number;
   affinity_agua: number;
   affinity_terra: number;
@@ -207,8 +209,18 @@ function fatMult(c: EngineCreature): number {
   return energyMultiplier(normalizedEnergy(c.energy));
 }
 
+function moraleMult(c: EngineCreature): number {
+  const m = typeof c.morale === "number" && Number.isFinite(c.morale)
+    ? Math.max(0, Math.min(100, c.morale)) : 50;
+  if (m >= 80) return 1.10;
+  if (m >= 60) return 1.05;
+  if (m >= 40) return 1.00;
+  if (m >= 20) return 0.95;
+  return 0.90;
+}
+
 function ratingBase(c: EngineCreature): number {
-  return c.overall * fatMult(c);
+  return c.overall * fatMult(c) * moraleMult(c);
 }
 
 function ratingVs(attacker: EngineCreature, opponent: EngineCreature): number {
@@ -311,6 +323,8 @@ export interface SimulationResult {
   starter_ids: string[];
   used_bench_ids: string[];
   injuries: EngineInjury[];
+  /** Gols por creature_id (para atualização de moral). */
+  goals_by_creature: Record<string, number>;
 }
 
 export function persistableSimulationEvents(result: SimulationResult): EngineEvent[] {
@@ -586,11 +600,19 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
   const used_home_bench = [...usedHome].filter((id) => !initialHomeIds.has(id));
   const used_away_bench = [...usedAway].filter((id) => !initialAwayIds.has(id));
 
+  const goals_by_creature: Record<string, number> = {};
+  for (const e of events) {
+    if (e.event_type === "goal" && e.actor_creature_id) {
+      goals_by_creature[e.actor_creature_id] = (goals_by_creature[e.actor_creature_id] ?? 0) + 1;
+    }
+  }
+
   return {
     home_score: hs, away_score: as, events, weather, energy_loss,
     starter_ids: [...initialHomeIds, ...initialAwayIds],
     used_bench_ids: [...used_home_bench, ...used_away_bench],
     injuries,
+    goals_by_creature,
   };
 }
 
