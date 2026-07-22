@@ -600,11 +600,19 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
   const used_home_bench = [...usedHome].filter((id) => !initialHomeIds.has(id));
   const used_away_bench = [...usedAway].filter((id) => !initialAwayIds.has(id));
 
+  const goals_by_creature: Record<string, number> = {};
+  for (const e of events) {
+    if (e.event_type === "goal" && e.actor_creature_id) {
+      goals_by_creature[e.actor_creature_id] = (goals_by_creature[e.actor_creature_id] ?? 0) + 1;
+    }
+  }
+
   return {
     home_score: hs, away_score: as, events, weather, energy_loss,
     starter_ids: [...initialHomeIds, ...initialAwayIds],
     used_bench_ids: [...used_home_bench, ...used_away_bench],
     injuries,
+    goals_by_creature,
   };
 }
 
