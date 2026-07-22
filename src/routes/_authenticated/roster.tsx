@@ -81,6 +81,12 @@ function RosterPage() {
       if (sort === "age") return ((b as any).age ?? 0) - ((a as any).age ?? 0);
       if (sort === "market_value")
         return (b.market_value ?? 0) - (a.market_value ?? 0);
+      if (sort === "position") {
+        const pa = POSITION_ORDER[a.suggested_position] ?? 99;
+        const pb = POSITION_ORDER[b.suggested_position] ?? 99;
+        if (pa !== pb) return pa - pb;
+        return (b.overall ?? 0) - (a.overall ?? 0);
+      }
       return (b.overall ?? 0) - (a.overall ?? 0);
     });
     return list;
