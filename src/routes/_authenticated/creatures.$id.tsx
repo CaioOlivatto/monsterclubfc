@@ -112,6 +112,17 @@ function CreatureDetail() {
     onError: (e: any) => toast.error(e?.message ?? "Falha ao curar"),
   });
 
+  const reduceFn = useServerFn(reduceInjuryWithGems);
+  const reduceMut = useMutation({
+    mutationFn: () => reduceFn({ data: { id } }),
+    onSuccess: (res) => {
+      toast.success(`-1 partida de lesão (-${res.spent} 💎)`);
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao reduzir"),
+  });
+
 
 
   if (isLoading) {
