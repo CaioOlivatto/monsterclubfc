@@ -10,6 +10,7 @@ export interface RevealedEvent {
   element?: string | null;
   is_goal?: boolean;
   team_color?: string;
+  raw_team_id?: string | null;
 }
 
 const ELEMENT_ICON: Record<string, string> = {

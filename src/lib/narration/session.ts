@@ -25,6 +25,7 @@ export interface PlayMeta {
   elemental_advantage?: boolean;
   long_shot?: boolean;
   is_danger?: boolean;
+  outcome?: Outcome;
 }
 
 export interface NarrationParts {
