@@ -513,12 +513,17 @@ function LineupPage() {
                   <SelectContent>
                     {creatures
                       .filter((c) => !usedIds.has(c.id))
-                      .map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name} · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall} · {(c.overall / 20).toFixed(1)}★
-                        </SelectItem>
-                      ))}
+                      .sort(sortByEff)
+                      .map((c) => {
+                        const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100);
+                        return (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name} · {ROLE_LABEL[naturalRoleOf(c.suggested_position)]} · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}{eff !== c.overall ? `→${eff}` : ""} · {(c.overall / 20).toFixed(1)}★ · {c.energy ?? 100}%
+                          </SelectItem>
+                        );
+                      })}
                   </SelectContent>
+
                 </Select>
               </div>
             )}
