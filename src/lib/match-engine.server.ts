@@ -491,12 +491,12 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
       if (rr < 0.45) { severity = "leve"; matches = 1; }
       else if (rr < 0.85) { severity = "moderada"; matches = 2 + Math.floor(rand() * 2); }
       else { severity = "grave"; matches = 4 + Math.floor(rand() * 2); }
-      const sevLabel = severity === "leve" ? "leve" : severity === "moderada" ? "moderada" : "GRAVE";
+      const sevLabel = severity === "grave" ? "grave" : severity === "moderada" ? "moderada" : "leve";
       injuriesByTeam.set(live.side.team_id, count + 1);
       injuries.push({ creature_id: actor.id, team_id: live.side.team_id, severity, matches });
       events.push({
         minute, event_type: "injury",
-        description: `${actor.name} sofreu lesão ${sevLabel} (${matches} ${matches === 1 ? "partida" : "partidas"}) — ${live.side.team_name}.`,
+        description: `${actor.name} sentiu e precisa sair! Lesão ${sevLabel} — fora por ${matches} ${matches === 1 ? "partida" : "partidas"} (${live.side.team_name}).`,
         actor_creature_id: actor.id, actor_team_id: live.side.team_id,
         meta: { injury_severity: severity, injury_matches: matches },
       });

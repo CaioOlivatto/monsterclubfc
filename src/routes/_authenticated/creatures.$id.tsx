@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { getCreature, healCreatureWithGems, HEAL_GEMS_PER_MATCH } from "@/lib/creatures.functions";
+import { getCreature, healCreatureWithGems, reduceInjuryWithGems, HEAL_GEMS_PER_MATCH } from "@/lib/creatures.functions";
 import { trainCreature, restCreature } from "@/lib/training.functions";
 import { spendHalfStar } from "@/lib/progression.functions";
 
@@ -110,6 +110,17 @@ function CreatureDetail() {
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao curar"),
+  });
+
+  const reduceFn = useServerFn(reduceInjuryWithGems);
+  const reduceMut = useMutation({
+    mutationFn: () => reduceFn({ data: { id } }),
+    onSuccess: (res) => {
+      toast.success(`-1 partida de lesão (-${res.spent} 💎)`);
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao reduzir"),
   });
 
 
@@ -346,15 +357,26 @@ function CreatureDetail() {
                   <p className="text-xs text-muted-foreground">
                     Acelere a recuperação com gemas ({HEAL_GEMS_PER_MATCH}💎/partida).
                   </p>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={healMut.isPending}
-                    onClick={() => healMut.mutate()}
-                  >
-                    <Gem className="mr-1 h-3.5 w-3.5" />
-                    Curar agora ({cost} 💎)
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={reduceMut.isPending || remaining <= 1}
+                      onClick={() => reduceMut.mutate()}
+                    >
+                      <Gem className="mr-1 h-3.5 w-3.5" />
+                      Reduzir 1 partida ({HEAL_GEMS_PER_MATCH} 💎)
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={healMut.isPending}
+                      onClick={() => healMut.mutate()}
+                    >
+                      <Gem className="mr-1 h-3.5 w-3.5" />
+                      Curar agora ({cost} 💎)
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>

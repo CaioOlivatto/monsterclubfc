@@ -526,38 +526,50 @@ export const getCreature = createServerFn({ method: "GET" })
 // Cura acelerada com gemas (§Lesões): 40 gemas por partida restante.
 export const HEAL_GEMS_PER_MATCH = 40;
 
+async function chargeHeal(
+  supabase: any,
+  userId: string,
+  creatureId: string,
+  mode: "one" | "all",
+) {
+  const { data: trainer } = await supabase
+    .from("trainers").select("id").eq("user_id", userId).maybeSingle();
+  if (!trainer) throw new Error("Treinador não encontrado.");
+  const { data: c } = await supabase
+    .from("creatures")
+    .select("id, name, injury_matches_remaining, injury_severity")
+    .eq("id", creatureId).eq("owner_trainer_id", trainer.id).maybeSingle();
+  if (!c) throw new Error("Criatura não encontrada.");
+  const remaining = c.injury_matches_remaining ?? 0;
+  if (remaining <= 0) throw new Error(`${c.name} não está lesionada.`);
+  const matchesToHeal = mode === "all" ? remaining : 1;
+  const cost = matchesToHeal * HEAL_GEMS_PER_MATCH;
+  const { data: academy } = await supabase
+    .from("academies").select("id, gems").eq("trainer_id", trainer.id).maybeSingle();
+  if (!academy) throw new Error("Academia não encontrada.");
+  if ((academy.gems ?? 0) < cost) throw new Error(`Gemas insuficientes (precisa ${cost} 💎).`);
+  await supabase.from("academies").update({ gems: academy.gems - cost }).eq("id", academy.id);
+  const newRemaining = Math.max(0, remaining - matchesToHeal);
+  await supabase
+    .from("creatures")
+    .update({
+      injury_matches_remaining: newRemaining,
+      injury_severity: newRemaining === 0 ? null : c.injury_severity,
+    })
+    .eq("id", c.id);
+  return { ok: true, spent: cost, remaining: newRemaining };
+}
+
 export const healCreatureWithGems = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((raw: unknown) => z.object({ id: z.string().uuid() }).parse(raw))
-  .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
-    const { data: trainer } = await supabase
-      .from("trainers")
-      .select("id")
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (!trainer) throw new Error("Treinador não encontrado.");
-    const { data: c } = await supabase
-      .from("creatures")
-      .select("id, name, injury_matches_remaining")
-      .eq("id", data.id)
-      .eq("owner_trainer_id", trainer.id)
-      .maybeSingle();
-    if (!c) throw new Error("Criatura não encontrada.");
-    const remaining = c.injury_matches_remaining ?? 0;
-    if (remaining <= 0) throw new Error(`${c.name} não está lesionada.`);
-    const cost = remaining * HEAL_GEMS_PER_MATCH;
-    const { data: academy } = await supabase
-      .from("academies")
-      .select("id, gems")
-      .eq("trainer_id", trainer.id)
-      .maybeSingle();
-    if (!academy) throw new Error("Academia não encontrada.");
-    if ((academy.gems ?? 0) < cost) throw new Error(`Gemas insuficientes (precisa ${cost} 💎).`);
-    await supabase.from("academies").update({ gems: academy.gems - cost }).eq("id", academy.id);
-    await supabase
-      .from("creatures")
-      .update({ injury_matches_remaining: 0, injury_severity: null })
-      .eq("id", c.id);
-    return { ok: true, spent: cost };
-  });
+  .handler(async ({ data, context }) =>
+    chargeHeal(context.supabase, context.userId, data.id, "all"),
+  );
+
+export const reduceInjuryWithGems = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((raw: unknown) => z.object({ id: z.string().uuid() }).parse(raw))
+  .handler(async ({ data, context }) =>
+    chargeHeal(context.supabase, context.userId, data.id, "one"),
+  );
