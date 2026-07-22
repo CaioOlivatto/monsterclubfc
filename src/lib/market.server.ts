@@ -198,8 +198,9 @@ export function generateMarketListings(
 ): MarketListing[] {
   const seed = hashString(`${trainerId}:season:${seasonNumber}:${division}`);
   const rng = mulberry32(seed);
+  const deck = buildBandDeck(division, count, rng);
   const listings: MarketListing[] = [];
-  for (let i = 0; i < count; i++) listings.push(generateOne(bestiary, rng, division));
+  for (let i = 0; i < count; i++) listings.push(generateOne(bestiary, rng, division, deck[i]));
   return listings;
 }
 
