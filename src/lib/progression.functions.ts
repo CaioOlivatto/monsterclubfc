@@ -2,6 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { computeLineOverall, computeGkOverall, computeMarketValue } from "./bestiary";
+import { awardTrainerXp } from "./trainer-xp.server";
+
 
 const LINE_ATTR_KEYS = ["defender","passar","atacar","tecnica","forca","pique"] as const;
 const GK_ATTR_KEYS = ["maos","concentracao","elasticidade"] as const;
