@@ -136,10 +136,15 @@ function LineupPage() {
   const removeFromBench = (id: string) => setBench((b) => b.filter((x) => x !== id));
 
   const autoFill = () => {
-    // ordena criaturas por overall desc, energia desc como desempate
+    // ordena criaturas por OVERALL EFETIVO (já com multiplicador de fadiga) desc,
+    // com energia como desempate para preferir quem está mais fresco.
     const pool = [...creatures].sort(
-      (a, b) => b.overall - a.overall || (b.energy ?? 0) - (a.energy ?? 0),
+      (a, b) =>
+        effectiveOverall(b.overall, b.energy ?? 100) -
+          effectiveOverall(a.overall, a.energy ?? 100) ||
+        (b.energy ?? 0) - (a.energy ?? 0),
     );
+
     const used = new Set<string>();
     const newStarters: StarterSlot[] = slots.map((s) => ({ slot: s.index, role: s.role, creature_id: null }));
 
