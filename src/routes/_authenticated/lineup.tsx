@@ -484,6 +484,41 @@ function LineupPage() {
           <Link to="/roster" className="underline">Ver elenco completo</Link>
         </p>
       </main>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Poupar titulares?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm">
+                {confirmData?.currentWin != null && confirmData?.pouparWin != null ? (
+                  <p>
+                    Poupar titulares vai alterar sua chance de vitória de{" "}
+                    <b className="text-foreground">{Math.round(confirmData.currentWin * 100)}%</b> para{" "}
+                    <b className="text-foreground">{Math.round(confirmData.pouparWin * 100)}%</b>.
+                  </p>
+                ) : (
+                  <p>Calculando o impacto…</p>
+                )}
+                <p>
+                  Em compensação, {confirmData?.savedNames.length ?? 5} titulares chegam descansados na próxima rodada
+                  {confirmData?.savedNames.length
+                    ? `: ${confirmData.savedNames.join(", ")}.`
+                    : "."}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Útil quando o adversário é fraco ou antes de um jogo decisivo.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmPoupar}>Poupar mesmo assim</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
+
 }
