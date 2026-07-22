@@ -323,6 +323,8 @@ export interface SimulationResult {
   starter_ids: string[];
   used_bench_ids: string[];
   injuries: EngineInjury[];
+  /** Gols por creature_id (para atualização de moral). */
+  goals_by_creature: Record<string, number>;
 }
 
 export function persistableSimulationEvents(result: SimulationResult): EngineEvent[] {
