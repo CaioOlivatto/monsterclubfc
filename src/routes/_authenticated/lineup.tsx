@@ -71,12 +71,18 @@ function LineupPage() {
     queryFn: () => fetchLineup(),
   });
 
+  // Draft enviado ao servidor para recalcular odds ao vivo (sem precisar salvar).
+  const draft = useMemo(() => ({
+    formation, strategy, starters, bench,
+  }), [formation, strategy, starters, bench]);
+
   const prog = useQuery({
-    queryKey: ["prognostic"],
-    queryFn: () => fetchProg(),
+    queryKey: ["prognostic", draft],
+    queryFn: () => fetchProg({ data: { draft } }),
     retry: false,
-    enabled: !!data,
+    enabled: !!data && starters.filter((s) => s.creature_id).length === 11,
   });
+
 
   const [formation, setFormation] = useState<Formation>("4-4-2");
   const [strategy, setStrategy] = useState<"ofensiva" | "equilibrada" | "defensiva">("equilibrada");
