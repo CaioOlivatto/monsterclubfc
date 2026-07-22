@@ -290,18 +290,34 @@ function renderCard(c: any) {
 
           {(() => {
             const fs = fatigueState(c.energy ?? 100);
-            const mult = energyMultiplier(c.energy ?? 100);
-            const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100);
-            const penalty = Math.round((1 - mult) * 100);
+            const eMul = energyMultiplier(c.energy ?? 100);
+            const mMul = moraleMultiplier(c.morale);
+            const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100, c.morale);
+            const ePen = Math.round((1 - eMul) * 100);
+            const mPen = Math.round((mMul - 1) * 100);
+            const ms = moraleState(c.morale);
             return (
-              <div className={"mt-2 flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] " + FATIGUE_CLASS[fs]}>
-                <BatteryCharging className="h-3 w-3" />
-                <span className="font-medium">{FATIGUE_LABEL[fs]}</span>
-                <span className="opacity-80">· {c.energy}%</span>
-                {penalty > 0 && (
-                  <span className="ml-auto font-semibold">Ovr {c.overall}→{eff} (-{penalty}%)</span>
-                )}
-              </div>
+              <>
+                <div className={"mt-2 flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] " + FATIGUE_CLASS[fs]}>
+                  <BatteryCharging className="h-3 w-3" />
+                  <span className="font-medium">{FATIGUE_LABEL[fs]}</span>
+                  <span className="opacity-80">· {c.energy}%</span>
+                  {ePen > 0 && (
+                    <span className="ml-auto font-semibold">Ovr {c.overall}→{eff} (fadiga -{ePen}%{mPen !== 0 ? `, moral ${mPen > 0 ? "+" : ""}${mPen}%` : ""})</span>
+                  )}
+                </div>
+                <div
+                  className={"mt-1 flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] " + MORALE_CLASS[ms]}
+                  title={moraleReason(c)}
+                >
+                  <span className="text-sm leading-none">{MORALE_EMOJI[ms]}</span>
+                  <span className="font-medium">Moral: {MORALE_LABEL[ms]}</span>
+                  <span className="opacity-80">· {c.morale ?? 50}</span>
+                  {mPen !== 0 && ePen === 0 && (
+                    <span className="ml-auto font-semibold">Ovr {c.overall}→{eff} ({mPen > 0 ? "+" : ""}{mPen}%)</span>
+                  )}
+                </div>
+              </>
             );
           })()}
 
