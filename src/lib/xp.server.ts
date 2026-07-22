@@ -51,7 +51,14 @@ export async function applyPostMatchXp(
     .eq("trainer_id", trainerId);
   const ctLevel =
     (buildings ?? []).find((b: any) => b.building_type === "ct_treino")?.level ?? 0;
+  const medLevel =
+    (buildings ?? []).find((b: any) => b.building_type === "centro_medico")?.level ?? 1;
   const ctBonus = 1 + ctLevel * 0.05;
+
+  // Recuperação de energia entre partidas por nível do Centro Médico (§Fadiga).
+  // Nv1:+18, Nv2:+22, Nv3:+26, Nv4:+29, Nv5:+32. Reservas não usadas: 2×.
+  const MED_RECOVERY = [0, 18, 22, 26, 29, 32];
+  const recovery = MED_RECOVERY[Math.min(medLevel, 5)] ?? 18;
 
   const { data: trainer } = await supabase
     .from("trainers")
@@ -70,8 +77,16 @@ export async function applyPostMatchXp(
   for (const id of opts.enteredReserveIds) targets.push({ id, add: enteredXp });
   for (const id of opts.unusedReserveIds) targets.push({ id, add: benchXp });
 
-  const allIds = Array.from(new Set(targets.map((t) => t.id).concat(Object.keys(opts.energy_loss))));
-  if (!allIds.length) {
+  // Toda criatura do elenco recupera energia (reservas não convocadas também).
+  const { data: fullRoster } = await supabase
+    .from("creatures")
+    .select("id")
+    .eq("owner_trainer_id", trainerId);
+  const allTrainerIds = (fullRoster ?? []).map((r: any) => r.id);
+  const enteredSet = new Set(opts.enteredReserveIds);
+  const starterSet = new Set(opts.starterIds);
+
+  if (!allTrainerIds.length) {
     await tickBurst(supabase, trainerId, burstLeft);
     return;
   }
@@ -79,7 +94,7 @@ export async function applyPostMatchXp(
   const { data: creatures } = await supabase
     .from("creatures")
     .select("id, xp, pending_half_stars, half_stars_earned, energy")
-    .in("id", allIds)
+    .in("id", allTrainerIds)
     .eq("owner_trainer_id", trainerId);
 
   for (const c of creatures ?? []) {
@@ -89,7 +104,10 @@ export async function applyPostMatchXp(
     const applied = c.half_stars_earned ?? 0;
     const pending = Math.max(0, Math.min(10 - applied, totalHalfStars - applied));
     const loss = opts.energy_loss[c.id] ?? 0;
-    const newEnergy = Math.max(0, (c.energy ?? 100) - loss);
+    // Reservas não convocadas recuperam o DOBRO; quem jogou (titular ou entrou) recebe recovery simples.
+    const played = starterSet.has(c.id) || enteredSet.has(c.id);
+    const rec = played ? recovery : recovery * 2;
+    const newEnergy = Math.max(0, Math.min(100, (c.energy ?? 100) - loss + rec));
     await supabase
       .from("creatures")
       .update({ xp: newXp, pending_half_stars: pending, energy: newEnergy })
