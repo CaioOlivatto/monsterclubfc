@@ -32,8 +32,10 @@ async function finalizeCompletedUpgrades(supabase: any, trainerId: string) {
       .from("buildings")
       .update({ level: (b.level ?? 0) + 1, upgrade_completes_at: null })
       .eq("id", b.id);
+    await awardTrainerXp(supabase, trainerId, "building", 1);
   }
 }
+
 
 export const getBuildings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
