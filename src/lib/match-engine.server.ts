@@ -37,6 +37,8 @@ export interface Tactics {
 }
 export const NEUTRAL_TACTICS: Tactics = { mentalidade: 0, verticalidade: 0, pressao: 0, cortes: 0 };
 
+export type Division = "bronze" | "prata" | "ouro" | "diamante" | "lendaria";
+
 export interface EngineSide {
   team_id: string;
   team_name: string;
@@ -46,7 +48,10 @@ export interface EngineSide {
   tactics?: Tactics;
   /** Nível do Centro Médico (1–5). Reduz chance de lesão. Default 1. */
   medical_level?: number;
+  /** Divisão do time. Normaliza a taxa de criação de lances. */
+  division?: Division;
 }
+
 
 /** Multiplicador de CHANCE de lesão pelo Centro Médico. Nível 1 = 1.00 … Nível 5 = 0.50. */
 export function medicalInjuryMult(level: number | undefined | null): number {
