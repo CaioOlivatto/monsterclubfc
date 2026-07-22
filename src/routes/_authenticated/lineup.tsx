@@ -141,32 +141,34 @@ function LineupPage() {
   };
   const removeFromBench = (id: string) => setBench((b) => b.filter((x) => x !== id));
 
-  const autoFill = () => {
-    // ordena criaturas por OVERALL EFETIVO (já com multiplicador de fadiga) desc,
-    // com energia como desempate para preferir quem está mais fresco.
-    const pool = [...creatures].sort(
-      (a, b) =>
-        effectiveOverall(b.overall, b.energy ?? 100) -
-          effectiveOverall(a.overall, a.energy ?? 100) ||
-        (b.energy ?? 0) - (a.energy ?? 0),
-    );
+  const buildAuto = (mode: "best" | "rested") => {
+    // best: prioriza OVERALL EFETIVO (fadiga aplicada) — bom p/ desempenho médio.
+    // rested: prioriza ENERGIA (>=70) e usa efetivo como desempate — bom p/ preservar elenco.
+    const pool = [...creatures].sort((a, b) => {
+      const ea = a.energy ?? 100, eb = b.energy ?? 100;
+      if (mode === "rested") {
+        if (eb !== ea) return eb - ea;
+        return effectiveOverall(b.overall, eb) - effectiveOverall(a.overall, ea);
+      }
+      return (
+        effectiveOverall(b.overall, eb) - effectiveOverall(a.overall, ea) ||
+        eb - ea
+      );
+    });
 
     const used = new Set<string>();
     const newStarters: StarterSlot[] = slots.map((s) => ({ slot: s.index, role: s.role, creature_id: null }));
 
-    // 1ª passada: preencher com posição sugerida compatível
     for (const s of newStarters) {
       const hint = ROLE_HINT[s.role];
       const pick = pool.find((c) => !used.has(c.id) && hint.includes(c.suggested_position ?? ""));
       if (pick) { s.creature_id = pick.id; used.add(pick.id); }
     }
-    // 2ª passada: preencher slots vazios com melhores restantes
     for (const s of newStarters) {
       if (s.creature_id) continue;
       const pick = pool.find((c) => !used.has(c.id));
       if (pick) { s.creature_id = pick.id; used.add(pick.id); }
     }
-    // reservas: próximos melhores até MAX_BENCH
     const newBench: string[] = [];
     for (const c of pool) {
       if (newBench.length >= MAX_BENCH) break;
@@ -175,8 +177,11 @@ function LineupPage() {
 
     setStarters(newStarters);
     setBench(newBench);
-    toast.success("Escalação automática aplicada — lembre de salvar!");
+    toast.success(mode === "rested" ? "Time descansado escalado — lembre de salvar!" : "Escalação automática aplicada — lembre de salvar!");
   };
+  const autoFill = () => buildAuto("best");
+  const autoRested = () => buildAuto("rested");
+
 
   const mut = useMutation({
     mutationFn: async () => {
@@ -223,6 +228,16 @@ function LineupPage() {
               <Wand2 className="mr-2 h-4 w-4" />
               Auto definir
             </Button>
+            <Button
+              onClick={autoRested}
+              disabled={creatures.length === 0}
+              size="sm"
+              variant="outline"
+              title="Prioriza criaturas com energia alta"
+            >
+              Escalar time descansado
+            </Button>
+
             <Button
               onClick={() => mut.mutate()}
               disabled={mut.isPending || filledStarters !== 11}
@@ -300,7 +315,7 @@ function LineupPage() {
               const currFs = currentCreature ? fatigueState(currentCreature.energy ?? 100) : null;
               const currMult = currentCreature ? energyMultiplier(currentCreature.energy ?? 100) : 1;
               const currEff = currentCreature ? effectiveOverall(currentCreature.overall ?? 0, currentCreature.energy ?? 100) : 0;
-              const warn = currFs === "exausto" || currFs === "esgotado";
+              const warn = currFs === "muito_cansado" || currFs === "exausto";
               return (
                 <div key={s.index} className="flex flex-col gap-1">
                   <div className="flex items-center gap-2">
@@ -319,9 +334,11 @@ function LineupPage() {
                           const fs = fatigueState(c.energy ?? 100);
                           const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100);
                           const tag =
-                            fs === "esgotado" ? " ⚠️ ESGOTADO" :
-                            fs === "exausto" ? " ⚠️ Exausto" :
-                            fs === "cansado" ? " · cansado" : "";
+                            fs === "exausto" ? " ⚠️ EXAUSTO" :
+                            fs === "muito_cansado" ? " ⚠️ Muito cansado" :
+                            fs === "cansado" ? " · cansado" :
+                            fs === "leve" ? " · leve cansaço" : "";
+
                           return (
                             <SelectItem key={c.id} value={c.id}>
                               {c.name} · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}{eff !== c.overall ? `→${eff}` : ""} · {(c.overall / 20).toFixed(1)}★

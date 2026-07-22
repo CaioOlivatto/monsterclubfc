@@ -58,13 +58,15 @@ export async function applyPostMatchXp(
     (buildings ?? []).find((b: any) => b.building_type === "centro_medico")?.level ?? 1;
   const ctBonus = 1 + ctLevel * 0.05;
 
-  // Recuperação de energia entre partidas por nível do Centro Médico (§Fadiga).
-  // Nv1:+18, Nv2:+22, Nv3:+26, Nv4:+29, Nv5:+32. Reservas não usadas: 2×.
-  const MED_RECOVERY = [0, 18, 22, 26, 29, 32];
-  const recovery = MED_RECOVERY[Math.min(medLevel, 5)] ?? 18;
+  // Recuperação de energia (v2): valores FIXOS, iguais para todos. Centro Médico
+  // não afeta mais a energia — cuida exclusivamente de lesões. O revezamento é a
+  // única resposta ao cansaço.
+  const RECOVERY_PLAYED = 12;
+  const RECOVERY_RESTED = 42;
   // Redução de duração de lesão por Centro Médico (§Lesões): -15% a -50%.
   const MED_INJURY_REDUCE = [0, 0.15, 0.25, 0.35, 0.45, 0.5];
   const injReduce = MED_INJURY_REDUCE[Math.min(medLevel, 5)] ?? 0;
+
 
   const { data: trainer } = await supabase
     .from("trainers")
@@ -119,10 +121,11 @@ export async function applyPostMatchXp(
     const applied = c.half_stars_earned ?? 0;
     const pending = Math.max(0, Math.min(10 - applied, totalHalfStars - applied));
     const loss = opts.energy_loss[c.id] ?? 0;
-    // Reservas não convocadas recuperam o DOBRO; quem jogou (titular ou entrou) recebe recovery simples.
+    // v2: quem jogou (titular ou entrou) +12; quem não entrou +42. Piso 30, teto 100.
     const played = starterSet.has(c.id) || enteredSet.has(c.id);
-    const rec = played ? recovery : recovery * 2;
-    const newEnergy = Math.max(0, Math.min(100, (c.energy ?? 100) - loss + rec));
+    const rec = played ? RECOVERY_PLAYED : RECOVERY_RESTED;
+    const newEnergy = Math.max(30, Math.min(100, (c.energy ?? 100) - loss + rec));
+
 
     // Duração de lesão (§Lesões): decrementa em partidas oficiais; se recebeu nova lesão nesta partida
     // aplica a maior/nova duração.
