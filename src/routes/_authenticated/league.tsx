@@ -110,7 +110,7 @@ function LeaguePage() {
               <div>
                 <p className="text-lg font-bold">Nenhuma liga em andamento</p>
                 <p className="text-sm text-muted-foreground">
-                  Inscreva sua academia numa liga de 8 times. Serão 14 rodadas em turno e returno.
+                  Inscreva sua academia numa liga de 14 times. Serão 26 rodadas em turno e returno.
                 </p>
               </div>
               <Button onClick={() => startMut.mutate()} disabled={startMut.isPending}>
