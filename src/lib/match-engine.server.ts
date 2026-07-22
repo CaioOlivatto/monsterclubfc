@@ -571,15 +571,17 @@ export function simulateFast(home: EngineSide, away: EngineSide, seed: number): 
   const A0 = viewFromSide(away);
   const tH = tacticsMod(home.tactics);
   const tA = tacticsMod(away.tactics);
+  const sH = strategyMod(home.strategy);
+  const sA = strategyMod(away.strategy);
   const pressureFreq = 1 + Math.max(0, (tH.injuryMul - 1) + (tA.injuryMul - 1)) * 0.2;
 
   let hs = 0, as = 0;
-  const chanceHome = ((H0.attackAvg + HOME_ATK_BONUS) / CHANCE_DIVISOR) * tH.freq * pressureFreq;
-  const chanceAway = (A0.attackAvg / CHANCE_DIVISOR) * tA.freq * pressureFreq;
+  const chanceHome = ((H0.attackAvg + HOME_ATK_BONUS) / CHANCE_DIVISOR) * tH.freq * sH.freqMul * pressureFreq;
+  const chanceAway = (A0.attackAvg / CHANCE_DIVISOR) * tA.freq * sA.freqMul * pressureFreq;
 
   for (let m = 1; m <= 90; m++) {
-    if (rand() < chanceHome && fastGoal(H0, A0, home, tA, rand, weather, true)) hs++;
-    if (rand() < chanceAway && fastGoal(A0, H0, away, tH, rand, weather, false)) as++;
+    if (rand() < chanceHome && fastGoal(H0, A0, home, tA, sA, rand, weather, true)) hs++;
+    if (rand() < chanceAway && fastGoal(A0, H0, away, tH, sH, rand, weather, false)) as++;
   }
   return { home_score: hs, away_score: as };
 }
@@ -587,6 +589,7 @@ export function simulateFast(home: EngineSide, away: EngineSide, seed: number): 
 function fastGoal(
   own: SideView, opp: SideView, ownSide: EngineSide,
   oppTact: ReturnType<typeof tacticsMod>,
+  oppMod: ReturnType<typeof strategyMod>,
   rand: () => number, weather: Weather, _isHome: boolean,
 ): boolean {
   if (!own.attackers.length || !opp.defenders.length) return false;
@@ -596,7 +599,7 @@ function fastGoal(
   const wMul = WEATHER_BOOST[weather] === finisher.element ? 1.03 : 1.0;
 
   const finVsDef = ratingVs(finisher, defender) * wMul;
-  const defRating = ratingBase(defender) + oppTact.def;
+  const defRating = ratingBase(defender) + oppTact.def + oppMod.def;
   if (rand() >= logistic(finVsDef - defRating)) return false;
   if (!goalie) return true;
 
@@ -605,6 +608,7 @@ function fastGoal(
   const ownT = tacticsMod(ownSide.tactics);
   return rand() < logistic(finVsGk + ownT.vertical2 - gkRating);
 }
+
 
 function viewFromSide(side: EngineSide): SideView {
   const attackers = side.starters.filter((s) => s.role === "MEI" || s.role === "ATA");
