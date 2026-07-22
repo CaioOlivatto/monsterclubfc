@@ -88,7 +88,9 @@ export const getMarket = createServerFn({ method: "GET" })
       .eq("owner_trainer_id", trainer.id)
       .order("overall", { ascending: false });
 
-    const listings = generateMarketListings(trainer.id, seasonNumber, division);
+    const { loadBestiary } = await import("./bestiary.server");
+    const bestiary = await loadBestiary(supabase);
+    const listings = generateMarketListings(bestiary, trainer.id, seasonNumber, division);
     const rosterCount = creatures?.length ?? 0;
     const payroll = await currentPayroll(supabase, trainer.id);
 
