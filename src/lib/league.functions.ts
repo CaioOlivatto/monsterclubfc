@@ -57,8 +57,16 @@ const MATCH_PRIZE: Record<Division, [number, number, number]> = {
   lendaria:[160_000, 64_000, 24_000],
 };
 
+// Liga de 14 times, 26 rodadas (turno e returno) — Balanceamento §1.2 e §8.
+const LEAGUE_SIZE = 14;
+const CPU_COUNT = LEAGUE_SIZE - 1;
+
 // Multiplicador aplicado sobre o prêmio de vitória da divisão (fim de temporada)
-const SEASON_POSITION_MULT: number[] = [10, 6, 3, 3, 1.5, 1.5, 0.5, 0.5];
+// §2.3: 1º ×10 · 2º ×6 · 3º–4º ×3 · 5º–6º ×1,5 · 7º–8º ×0,5 · demais 0
+const SEASON_POSITION_MULT: number[] = [
+  10, 6, 3, 3, 1.5, 1.5, 0.5, 0.5,
+  0, 0, 0, 0, 0, 0,
+];
 
 // Salário por temporada baseado no overall (aprox. tier de estrelas)
 function seasonSalary(overall: number): number {
@@ -106,13 +114,13 @@ export const startLeague = createServerFn({ method: "POST" })
     if (ptErr) throw ptErr;
 
     const avg = await playerAverage(supabase, trainer.id);
-    const cpuNames = pickCpuTeamNames(7, Date.now() & 0xffffffff);
+    const cpuNames = pickCpuTeamNames(CPU_COUNT, Date.now() & 0xffffffff);
     const cpuRows = cpuNames.map((name, i) => ({
       competition_id: competition.id,
       trainer_id: null,
       is_player: false,
       name,
-      cpu_strength: Math.max(20, Math.min(90, avg + (i - 3) * 4)),
+      cpu_strength: Math.max(20, Math.min(90, avg + (i - Math.floor(CPU_COUNT / 2)) * 3)),
     }));
     const { data: cpuTeams, error: ctErr } = await supabase.from("teams").insert(cpuRows).select("id");
     if (ctErr) throw ctErr;
@@ -127,7 +135,7 @@ export const startLeague = createServerFn({ method: "POST" })
     const { error: sErr } = await supabase.from("standings").insert(standingsRows);
     if (sErr) throw sErr;
 
-    const schedule = generateSchedule(8, true);
+    const schedule = generateSchedule(LEAGUE_SIZE, true);
     const matchesRows: any[] = [];
     schedule.forEach((round, rIdx) => {
       round.forEach(([h, a]) => {
@@ -327,8 +335,8 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
           return b.goals_for - a.goals_for;
         });
         const posIdx = rankedCur.findIndex((r: any) => r.team_id === playerTeam.id);
-        const pos = posIdx >= 0 ? posIdx + 1 : 8;
-        const posInvertida = 9 - pos; // 1º → 8; 8º → 1
+        const pos = posIdx >= 0 ? posIdx + 1 : LEAGUE_SIZE;
+        const posInvertida = LEAGUE_SIZE + 1 - pos; // 1º → 14 ; último → 1
         const fillRate = Math.min(1, 0.70 + 0.03 * posInvertida);
         gate = Math.round(capacity * fillRate * 25);
       }
@@ -509,13 +517,17 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
     const division = competition.division as Division;
     const divIdx = DIVISION_ORDER.indexOf(division);
     const winPrize = MATCH_PRIZE[division][0];
-    const posMult = position >= 1 && position <= 8 ? SEASON_POSITION_MULT[position - 1] : 0;
+    const posMult =
+      position >= 1 && position <= SEASON_POSITION_MULT.length
+        ? SEASON_POSITION_MULT[position - 1]
+        : 0;
     const prize = Math.round(winPrize * posMult);
     const championGems = playerIsChampion ? 50 : 0;
 
+    // Promoção: 1º, 2º e 3º sobem. Rebaixamento: 12º, 13º e 14º caem. (§8)
     let newDivIdx = divIdx;
-    if (position <= 2 && divIdx < DIVISION_ORDER.length - 1) newDivIdx = divIdx + 1;
-    else if (position >= 7 && divIdx > 0) newDivIdx = divIdx - 1;
+    if (position <= 3 && divIdx < DIVISION_ORDER.length - 1) newDivIdx = divIdx + 1;
+    else if (position >= LEAGUE_SIZE - 2 && divIdx > 0) newDivIdx = divIdx - 1;
     const newDivision = DIVISION_ORDER[newDivIdx];
     const promoted = newDivIdx > divIdx;
     const relegated = newDivIdx < divIdx;
@@ -623,20 +635,20 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
 
     const divBonus = newDivIdx * 8;
     const avg = await playerAverage(supabase, trainer.id);
-    const cpuNames = pickCpuTeamNames(7, Date.now() & 0xffffffff);
+    const cpuNames = pickCpuTeamNames(CPU_COUNT, Date.now() & 0xffffffff);
     const cpuRows = cpuNames.map((name, i) => ({
       competition_id: newComp.id,
       trainer_id: null,
       is_player: false,
       name,
-      cpu_strength: Math.max(20, Math.min(95, avg + (i - 3) * 4 + divBonus)),
+      cpu_strength: Math.max(20, Math.min(95, avg + (i - Math.floor(CPU_COUNT / 2)) * 3 + divBonus)),
     }));
     const { data: cpuTeams } = await supabase.from("teams").insert(cpuRows).select("id");
     const teamIds = [playerTeamNew!.id, ...(cpuTeams ?? []).map((t: any) => t.id)];
     await supabase
       .from("standings")
       .insert(teamIds.map((tid) => ({ competition_id: newComp.id, team_id: tid })));
-    const schedule = generateSchedule(8, true);
+    const schedule = generateSchedule(LEAGUE_SIZE, true);
     const matchesRows: any[] = [];
     schedule.forEach((round, rIdx) => {
       round.forEach(([h, a]) => {

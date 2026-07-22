@@ -13,7 +13,16 @@ const TEAM_NAMES = [
   "Rajada Sporting",
   "Aurora Atlético",
   "Miragem FC",
+  "Cavaleiros do Alvorecer",
+  "Grifos Reais",
+  "Serpente Abissal",
+  "Guardiões do Vale",
+  "Trovão Azul",
+  "Ondas Negras",
+  "Chama Eterna",
+  "Legião Ancestral",
 ];
+
 
 export function pickCpuTeamNames(count: number, seed: number): string[] {
   const pool = [...TEAM_NAMES];

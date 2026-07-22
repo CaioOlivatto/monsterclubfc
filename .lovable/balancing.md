@@ -1,39 +1,45 @@
-# Tabela de Balanceamento — MVP v1
+# Tabela de Balanceamento — MVP v1 (recalibrada p/ liga 14/26 + ciclo de vida)
 
-Complemento numérico do GDD. Todos os valores abaixo já estão aplicados no código, salvo notas de FASE 2.
+Complemento numérico do GDD e do Bestiário. Valores já aplicados no código, salvo pendências no fim.
 
 ## 1. XP e Evolução
 
-### XP por partida
+### 1.1 XP por partida
 - Vitória (titular jogado): **100 XP**
 - Empate: **50 XP**
 - Derrota: **0 XP**
-- Reserva que entrou: **proporcional ao tempo jogado** (metade, arredondado)
-- Reserva que não entrou: **25 XP** só em vitória; 0 nos demais
+- Reserva que entrou: **metade do valor** (arredondado)
+- Reserva que não entrou: **25 XP** só em vitória
 
-### Curva de custo por meia-estrela
-`custo(n) = round(850 × 1,35^(n−1), 10)` — 10 degraus (0 → 5★)
+### 1.2 Referência de temporada (14 times, 26 rodadas)
+- Time mediano (13V 5E 8D): **1.550 XP**
+- Time forte (18V 4E 4D): **2.000 XP**
 
-| Degrau | Estrela | Custo (XP) | Acum. |
-|---|---|---|---|
-| 1 | 0,5★ | 850 | 850 |
-| 2 | 1,0★ | 1.150 | 2.000 |
-| 3 | 1,5★ | 1.550 | 3.550 |
-| 4 | 2,0★ | 2.090 | 5.640 |
-| 5 | 2,5★ | 2.820 | 8.460 |
-| 6 | 3,0★ | 3.810 | 12.270 |
-| 7 | 3,5★ | 5.150 | 17.420 |
-| 8 | 4,0★ | 6.950 | 24.370 |
-| 9 | 4,5★ | 9.380 | 33.750 |
-| 10 | 5,0★ | 12.660 | 46.410 |
+### 1.3 Curva de custo por meia-estrela
+`custo(n) = round(800 × 1,25^(n−1))` — recalibrada para carreiras de 5 temporadas.
 
-### Aceleradores
+| Degrau | Estrela | Custo (XP) | Acum. | ≈ Temporadas |
+|---|---|---|---|---|
+| 1 | 0,5★ | 800 | 800 | 0,5 |
+| 2 | 1,0★ | 1.000 | 1.800 | 0,6 |
+| 3 | 1,5★ | 1.250 | 3.050 | 0,8 |
+| 4 | 2,0★ | 1.560 | 4.610 | 1,0 |
+| 5 | 2,5★ | 1.950 | 6.560 | 1,3 |
+| 6 | 3,0★ | 2.440 | 9.000 | 1,6 |
+| 7 | 3,5★ | 3.050 | 12.050 | 2,0 |
+| 8 | 4,0★ | 3.810 | 15.860 | 2,5 |
+| 9 | 4,5★ | 4.770 | 20.630 | 3,1 |
+| 10 | 5,0★ | 5.960 | 26.590 | 3,8 |
+
+Uma carreira inteira (~7.750 XP) sobe ~2 estrelas. 5★ exige nascimento excepcional, mercado ou auge de uma carreira privilegiada.
+
+### 1.4 Aceleradores
 - **CT de Treinamento**: `XP_efetivo = XP_base × (1 + 0,05 × nível_CT + bônus_burst)`
-- **Burst de XP** (Gemas): +5%, +10% ou +15% durante **14 partidas de liga**
+- **Burst de XP** (Gemas): +5%, +10% ou +15% por um período.
 
 ## 2. Economia — Dinheiro
 
-### Premiação por rodada
+### 2.1 Premiação por rodada
 | Divisão | V | E | D |
 |---|---|---|---|
 | Bronze | $15.000 | $6.000 | $2.000 |
@@ -42,11 +48,12 @@ Complemento numérico do GDD. Todos os valores abaixo já estão aplicados no c�
 | Diamante | $90.000 | $36.000 | $13.000 |
 | Lendária | $160.000 | $64.000 | $24.000 |
 
-### Bilheteria (só em casa)
+### 2.2 Bilheteria (só em casa)
 - `Bilheteria = capacidade × ocupação × $25`
-- Ocupação = `0,70 + 0,03 × (9 − posição_atual)` (líder ≈ 94%)
+- Ocupação = `min(100%, 70% + 3% × posição_invertida)` — líder lota (100%), lanterna ≈ 70%
+- 13 jogos em casa por temporada (turno/returno em liga de 14).
 
-### Bônus de fim de temporada (× prêmio de vitória da divisão)
+### 2.3 Bônus de fim de temporada (× prêmio de vitória da divisão)
 | Posição | Multiplicador |
 |---|---|
 | 1º | ×10 (+50💎 campeão) |
@@ -54,8 +61,9 @@ Complemento numérico do GDD. Todos os valores abaixo já estão aplicados no c�
 | 3º–4º | ×3 |
 | 5º–6º | ×1,5 |
 | 7º–8º | ×0,5 |
+| 9º–14º | 0 |
 
-### Salários (por temporada)
+### 2.4 Salários (por temporada)
 | Estrelas | Salário |
 |---|---|
 | 0–1★ | $4.000 |
@@ -66,11 +74,11 @@ Complemento numérico do GDD. Todos os valores abaixo já estão aplicados no c�
 
 ## 3. Gemas
 
-### Ganho gratuito
+### 3.1 Ganho gratuito
 - Recompensa semanal: **30💎 / 7 dias**
 - Bônus campeão de temporada: **+50💎**
 
-### Pacotes pagos (referência BR)
+### 3.2 Pacotes pagos (referência BR)
 | Pacote | Gemas | Bônus | Preço |
 |---|---|---|---|
 | Punhado | 100 | — | R$ 9,90 |
@@ -79,7 +87,7 @@ Complemento numérico do GDD. Todos os valores abaixo já estão aplicados no c�
 | Cofre | 2.600 | +30% | R$ 179,90 |
 | Tesouro | 6.000 | melhor | R$ 349,90 |
 
-### Usos
+### 3.3 Usos
 | Uso | Custo |
 |---|---|
 | Acelerar obra | 1💎 / 10 min restantes |
@@ -156,16 +164,39 @@ Complemento numérico do GDD. Todos os valores abaixo já estão aplicados no c�
 - Divisão inicial: **5ª Divisão – Liga Bronze**
 - Itens: 3 Poção Individual + 1 Poção Coletiva
 
-## 7. Promoção / Rebaixamento
+## 7. Liga e Promoção / Rebaixamento
 
-- 8 times, 14 rodadas.
-- Sobem 2 (1º e 2º); caem 2 (7º e 8º).
+- **14 times, 26 rodadas** (turno e returno).
+- Sobem **3** (1º–3º); caem **3** (12º–14º).
 - **Bronze não rebaixa**, **Lendária não promove**.
 
-## FASE 2 (fora deste balanceamento)
+## 8. Calibre e Teto Salarial (PENDÊNCIAS)
+
+Regras aprovadas mas ainda **não implementadas em código**:
+
+### 8.1 Calibre por divisão (limite de contratação)
+| Sua divisão | Contrata até | Observação |
+|---|---|---|
+| 5ª – Bronze | 3★ | melhores recusam |
+| 4ª – Prata | 4★ | — |
+| 3ª – Ouro | 5★ | chance alta de recusa |
+| 2ª – Diamante | 5★ | — |
+| 1ª – Lendária | 5★ | sem restrição |
+
+### 8.2 Teto de folha salarial (~35% da receita típica)
+| Divisão | Receita típica | Teto de folha |
+|---|---|---|
+| Bronze | $2.190.000 | $770.000 |
+| Prata | $4.105.000 | $1.440.000 |
+| Ouro | $6.895.000 | $2.410.000 |
+| Diamante | $11.193.000 | $3.920.000 |
+| Lendária | $17.191.000 | $6.020.000 |
+
+## FASE 2 / Pendências
 
 - `mod_elemento` variável no mercado.
 - Ocupação de público refinada por fama.
 - Penalidade de overall por energia baixa.
 - Preço de ingresso ajustável pelo jogador.
+- **Enforce §8.1 e §8.2** no `buyCreature`.
 - Playtest de 5 temporadas para calibragem final.
