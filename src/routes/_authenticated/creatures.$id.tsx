@@ -117,13 +117,31 @@ function CreatureDetail() {
     );
   }
 
-  const attrs: [string, number][] = [
-    ["Ataque", c.attack],
-    ["Defesa", c.defense],
-    ["Goleiro", c.goalkeeper],
-    ["Físico", c.physical],
-    ["Força", c.strength],
+  const isGk = (c as any).is_goalkeeper ?? c.suggested_position === "Goleiro";
+  const LINE_ATTRS: [string, string][] = [
+    ["Defender", "attr_defender"],
+    ["Passar", "attr_passar"],
+    ["Atacar", "attr_atacar"],
+    ["Técnica", "attr_tecnica"],
+    ["Força", "attr_forca"],
+    ["Pique", "attr_pique"],
   ];
+  const GK_ATTRS: [string, string][] = [
+    ["Mãos", "attr_maos"],
+    ["Concentração", "attr_concentracao"],
+    ["Elasticidade", "attr_elasticidade"],
+  ];
+  const attrs: [string, number][] = (isGk ? GK_ATTRS : LINE_ATTRS).map(
+    ([label, col]) => [label, ((c as any)[col] as number) ?? 0],
+  );
+  const ATTR_KEYS = isGk
+    ? (["maos", "concentracao", "elasticidade"] as const)
+    : (["defender", "passar", "atacar", "tecnica", "forca", "pique"] as const);
+  const ATTR_LABELS: Record<string, string> = {
+    defender: "Defender", passar: "Passar", atacar: "Atacar",
+    tecnica: "Técnica", forca: "Força", pique: "Pique",
+    maos: "Mãos", concentracao: "Concentração", elasticidade: "Elasticidade",
+  };
 
   const affinities: [string, number, string][] = [
     ["Fogo", c.aff_fogo, "fogo"],
