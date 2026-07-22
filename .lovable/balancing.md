@@ -170,18 +170,18 @@ Uma carreira inteira (~7.750 XP) sobe ~2 estrelas. 5★ exige nascimento excepci
 - Sobem **3** (1º–3º); caem **3** (12º–14º).
 - **Bronze não rebaixa**, **Lendária não promove**.
 
-## 8. Calibre e Teto Salarial (PENDÊNCIAS)
+## 8. Calibre e Teto Salarial (aplicado)
 
-Regras aprovadas mas ainda **não implementadas em código**:
+Enforced em `src/lib/economy.ts` + `buyCreature`:
 
 ### 8.1 Calibre por divisão (limite de contratação)
-| Sua divisão | Contrata até | Observação |
+| Sua divisão | Contrata até | Recusa |
 |---|---|---|
-| 5ª – Bronze | 3★ | melhores recusam |
-| 4ª – Prata | 4★ | — |
-| 3ª – Ouro | 5★ | chance alta de recusa |
+| 5ª – Bronze | 3★ | 50% ao tentar 3★ |
+| 4ª – Prata | 4★ | 40% ao tentar 4★ |
+| 3ª – Ouro | 5★ | 60% ao tentar 4,5★+ |
 | 2ª – Diamante | 5★ | — |
-| 1ª – Lendária | 5★ | sem restrição |
+| 1ª – Lendária | 5★ | — |
 
 ### 8.2 Teto de folha salarial (~35% da receita típica)
 | Divisão | Receita típica | Teto de folha |
@@ -192,11 +192,14 @@ Regras aprovadas mas ainda **não implementadas em código**:
 | Diamante | $11.193.000 | $3.920.000 |
 | Lendária | $17.191.000 | $6.020.000 |
 
+### 8.3 Perfil de estrelas no mercado (§7.1)
+O gerador de mercado sorteia a banda de meia-estrela segundo o perfil da divisão do treinador (`DIVISION_STAR_PROFILE`). Bronze produz majoritariamente 1★–2★; Lendária concentra 3,5★–5★, com 5★ na casa de 5%.
+
 ## FASE 2 / Pendências
 
 - `mod_elemento` variável no mercado.
 - Ocupação de público refinada por fama.
 - Penalidade de overall por energia baixa.
 - Preço de ingresso ajustável pelo jogador.
-- **Enforce §8.1 e §8.2** no `buyCreature`.
 - Playtest de 5 temporadas para calibragem final.
+
