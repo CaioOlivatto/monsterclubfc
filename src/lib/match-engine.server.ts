@@ -658,15 +658,23 @@ export function computeOdds(home: EngineSide, away: EngineSide, seed: number, sa
     else if (r.home_score < r.away_score) aw++;
     else dr++;
   }
+  // Piso 3% / teto 85% em cada resultado (incerteza real do futebol),
+  // depois normaliza para somar 100%.
+  const MIN = 0.03, MAX = 0.85;
+  const raw = [hw / samples, dr / samples, aw / samples];
+  const clamped = raw.map((p) => Math.max(MIN, Math.min(MAX, p)));
+  const sum = clamped[0] + clamped[1] + clamped[2];
+  const [home_win, draw, away_win] = clamped.map((p) => p / sum);
   return {
-    home_win: hw / samples,
-    draw: dr / samples,
-    away_win: aw / samples,
+    home_win,
+    draw,
+    away_win,
     samples,
     avg_home_goals: gh / samples,
     avg_away_goals: ga / samples,
   };
 }
+
 
 // ---------- análise pré-partida ----------
 
