@@ -3,6 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { getMyLineup, saveLineup } from "@/lib/lineup.functions";
+import { getLineupPrognostic } from "@/lib/odds.functions";
+import { PrognosticCard } from "@/components/PrognosticCard";
 import { buildSlots, FORMATIONS, MAX_BENCH, type Formation, type SlotRole } from "@/lib/lineup.server";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,10 +64,18 @@ function LineupPage() {
   const qc = useQueryClient();
   const fetchLineup = useServerFn(getMyLineup);
   const save = useServerFn(saveLineup);
+  const fetchProg = useServerFn(getLineupPrognostic);
 
   const { data, isLoading } = useQuery({
     queryKey: ["lineup"],
     queryFn: () => fetchLineup(),
+  });
+
+  const prog = useQuery({
+    queryKey: ["prognostic"],
+    queryFn: () => fetchProg(),
+    retry: false,
+    enabled: !!data,
   });
 
   const [formation, setFormation] = useState<Formation>("4-4-2");
@@ -171,6 +181,7 @@ function LineupPage() {
     onSuccess: () => {
       toast.success("Escalação salva!");
       qc.invalidateQueries({ queryKey: ["lineup"] });
+      qc.invalidateQueries({ queryKey: ["prognostic"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Erro ao salvar."),
   });
@@ -260,6 +271,10 @@ function LineupPage() {
             )}
           </CardContent>
         </Card>
+
+        <PrognosticCard state={prog} />
+
+
 
         <Card>
           <CardHeader className="pb-3">

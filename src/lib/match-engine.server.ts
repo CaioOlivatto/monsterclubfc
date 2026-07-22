@@ -1,4 +1,10 @@
-// Motor de partida — regras do GDD §4-5.
+// Motor de partida — GDD §4-5 + CADEIA DE DUELOS.
+//
+// Cada lance perigoso é uma sequência de dois duelos individuais:
+//   1) criar o lance   → chance por minuto vem da força ofensiva média
+//   2) finalizador vs zagueiro (logística com k=24)
+//   3) finalizador vs goleiro (goleiro +18 no rating)
+// Rating efetivo = Overall × mult_fadiga × mult_elemental (por duelo).
 
 export type Element = "fogo" | "agua" | "terra" | "ar" | "gelo";
 export type SlotRole = "GOL" | "DEF" | "MEI" | "ATA";
@@ -10,7 +16,7 @@ export interface EngineCreature {
   element: Element;
   overall: number;
   physical: number;
-  energy: number; // 0..100
+  energy: number;
   affinity_fogo: number;
   affinity_agua: number;
   affinity_terra: number;
@@ -23,12 +29,11 @@ export interface EngineSlot {
   creature: EngineCreature;
 }
 
-// GDD — Táticas ao vivo (§4.7). Cada eixo é um inteiro de -2 a +2.
 export interface Tactics {
-  mentalidade: number;   // -2 defensivo … +2 ofensivo
-  verticalidade: number; // -2 posse …    +2 direto
-  pressao: number;       // -2 baixa …    +2 alta
-  cortes: number;        // -2 leve …     +2 duro
+  mentalidade: number;
+  verticalidade: number;
+  pressao: number;
+  cortes: number;
 }
 export const NEUTRAL_TACTICS: Tactics = { mentalidade: 0, verticalidade: 0, pressao: 0, cortes: 0 };
 
@@ -36,22 +41,14 @@ export interface EngineSide {
   team_id: string;
   team_name: string;
   starters: EngineSlot[];
-  bench: EngineSlot[]; // reservas por ordem
+  bench: EngineSlot[];
   strategy: "ofensiva" | "equilibrada" | "defensiva";
   tactics?: Tactics;
 }
 
 export type EngineEventType =
-  | "kickoff"
-  | "goal"
-  | "shot_saved"
-  | "yellow_card"
-  | "red_card"
-  | "injury"
-  | "substitution"
-  | "halftime"
-  | "fulltime"
-  | "weather";
+  | "kickoff" | "goal" | "shot_saved" | "yellow_card" | "red_card"
+  | "injury" | "substitution" | "halftime" | "fulltime" | "weather";
 
 export type InjurySeverity = "leve" | "moderada" | "grave";
 
@@ -86,45 +83,33 @@ export interface EngineInjury {
   matches: number;
 }
 
-const BEATS: Record<Element, Element> = {
-  fogo: "gelo",
-  gelo: "ar",
-  ar: "terra",
-  terra: "agua",
-  agua: "fogo",
-};
+// ---------- constantes do motor ----------
 
-const AFFINITY_KEY: Record<Element, keyof EngineCreature> = {
-  fogo: "affinity_fogo",
-  agua: "affinity_agua",
-  terra: "affinity_terra",
-  ar: "affinity_ar",
-  gelo: "affinity_gelo",
+const BEATS: Record<Element, Element> = {
+  fogo: "gelo", gelo: "ar", ar: "terra", terra: "agua", agua: "fogo",
 };
 
 const WEATHER_BOOST: Record<Weather, Element | null> = {
-  sol: "fogo",
-  chuva: "agua",
-  vento: "ar",
-  neve: "gelo",
-  nublado: null,
+  sol: "fogo", chuva: "agua", vento: "ar", neve: "gelo", nublado: null,
 };
 
 const WEATHER_LABEL: Record<Weather, string> = {
-  sol: "Sol forte",
-  chuva: "Chuva",
-  vento: "Vento",
-  neve: "Neve",
-  nublado: "Nublado",
+  sol: "Sol forte", chuva: "Chuva", vento: "Vento", neve: "Neve", nublado: "Nublado",
 };
 
-const P_LESAO = 0.004; // 0,4% por minuto por time; sorteio base antes da vítima/fadiga.
+const K_DUEL = 24;              // sensibilidade do duelo logístico
+const GOALIE_BONUS = 18;        // vantagem do goleiro no duelo 2
+const HOME_ATK_BONUS = 4;       // fator casa somado à força ofensiva
+const CHANCE_DIVISOR = 620;     // divisor da chance de lance por minuto
+
+const P_LESAO = 0.004;
 const MAX_INJURIES_PER_TEAM = 2;
 
-function elementalBonus(attacker: Element, defender: Element): number {
-  if (BEATS[attacker] === defender) return 0.06;
-  if (BEATS[defender] === attacker) return -0.05;
-  return 0;
+// Elemental multiplicativo, aplicado DUELO A DUELO (não mais bônus de time).
+function elementalMult(attacker: Element, defender: Element): number {
+  if (BEATS[attacker] === defender) return 1.06;
+  if (BEATS[defender] === attacker) return 0.95;
+  return 1.0;
 }
 
 function strategyMod(s: EngineSide["strategy"]): { atk: number; def: number } {
@@ -133,13 +118,15 @@ function strategyMod(s: EngineSide["strategy"]): { atk: number; def: number } {
   return { atk: 0, def: 0 };
 }
 
-// Táticas ao vivo: efeito matemático sobre ataque/defesa/frequência de chances.
-// mentalidade: +atk/-def   ·   verticalidade: mais chances, menor precisão
-// pressao: +atk/+lesão/+cartão · cortes: +def/+cartão
+// Táticas ao vivo:
+//   mentalidade → +atk / +def (defende mais quando ofensiva)  · multiplica chance
+//   verticalidade → mais chances, menor precisão · soma no duelo 2
+//   pressao → +atk / +cartão / +lesão / +chance frequência
+//   cortes → +def / +cartão
 function tacticsMod(t: Tactics | undefined) {
   const raw = t ?? NEUTRAL_TACTICS;
-  const axis = (value: unknown): number => {
-    const n = typeof value === "number" && Number.isFinite(value) ? value : 0;
+  const axis = (v: unknown): number => {
+    const n = typeof v === "number" && Number.isFinite(v) ? v : 0;
     return Math.max(-2, Math.min(2, n));
   };
   const T: Tactics = {
@@ -150,24 +137,14 @@ function tacticsMod(t: Tactics | undefined) {
   };
   return {
     atk: T.mentalidade * 2 + T.pressao * 1,
-    def: -T.mentalidade * 1 + T.cortes * 2,
-    freq: 1 + T.verticalidade * 0.05,      // mult. na frequência de chances
-    quality: 1 - T.verticalidade * 0.02,   // qualidade média (chute mais afoito)
+    def: T.mentalidade * 1 + T.cortes * 2,
+    freq: 1 + T.verticalidade * 0.05 + T.mentalidade * 0.03 + Math.max(0, T.pressao) * 0.03,
+    vertical2: T.verticalidade * 1.5,   // soma no duelo 2 (chute mais direto)
     yellowMul: 1 + T.pressao * 0.3 + T.cortes * 0.5,
     injuryMul: 1 + Math.max(0, T.pressao) * 0.4,
   };
 }
 
-/**
- * GDD §4.6 — Fadiga aplicada como multiplicador sobre o overall efetivo.
- * A energia registrada NO INÍCIO da partida define a faixa; o motor não
- * degrada essa faixa durante os 90min (fadiga acumula entre partidas).
- *   70-100 → x1,00 (Pleno)
- *   50-69  → x0,95 (Levemente cansado)
- *   30-49  → x0,85 (Cansado)
- *   15-29  → x0,70 (Exausto)
- *    0-14  → x0,50 (Esgotado)
- */
 export function energyMultiplier(energy: number): number {
   if (energy >= 70) return 1.0;
   if (energy >= 50) return 0.95;
@@ -185,16 +162,27 @@ export function fatigueState(energy: number): FatigueState {
   return "esgotado";
 }
 
-function normalizedEnergy(energy: number | null | undefined): number {
-  if (typeof energy !== "number" || !Number.isFinite(energy)) return 100;
-  return Math.max(0, Math.min(100, energy));
+function normalizedEnergy(e: number | null | undefined): number {
+  if (typeof e !== "number" || !Number.isFinite(e)) return 100;
+  return Math.max(0, Math.min(100, e));
 }
 
-function energyAdjusted(c: EngineCreature): number {
-  return Math.max(10, Math.round(c.overall * energyMultiplier(normalizedEnergy(c.energy))));
+function fatMult(c: EngineCreature): number {
+  return energyMultiplier(normalizedEnergy(c.energy));
 }
 
-// Multiplicador de risco de lesão por fadiga (GDD §Fadiga).
+function ratingBase(c: EngineCreature): number {
+  return c.overall * fatMult(c);
+}
+
+function ratingVs(attacker: EngineCreature, opponent: EngineCreature): number {
+  return ratingBase(attacker) * elementalMult(attacker.element, opponent.element);
+}
+
+function logistic(diff: number): number {
+  return 1 / (1 + Math.exp(-diff / K_DUEL));
+}
+
 function injuryFatigueMult(energy: number | null | undefined): number {
   energy = normalizedEnergy(energy);
   if (energy >= 30) return 1.0;
@@ -222,60 +210,51 @@ function pick<T>(arr: T[], rand: () => number): T {
   return arr[Math.floor(rand() * arr.length)];
 }
 
+// ---------- estado vivo ----------
+
 interface LiveSide {
   side: EngineSide;
-  starters: EngineSlot[]; // mutável — remove por vermelho, troca por sub
+  starters: EngineSlot[];
   bench: EngineSlot[];
   subsUsed: number;
 }
 
-interface SideStrength {
-  attack: number;
-  defense: number;
-  attackers: EngineSlot[];
-  defenders: EngineSlot[];
+interface SideView {
+  attackers: EngineSlot[]; // MEI + ATA
+  defenders: EngineSlot[]; // DEF
+  goalie: EngineSlot | undefined;
+  attackAvg: number;       // média de rating base (fadiga aplicada) + strat + tática
 }
 
-function computeStrength(live: LiveSide): SideStrength {
+function computeView(live: LiveSide): SideView {
   const attackers = live.starters.filter((s) => s.role === "MEI" || s.role === "ATA");
-  const defenders = live.starters.filter((s) => s.role === "GOL" || s.role === "DEF");
+  const defenders = live.starters.filter((s) => s.role === "DEF");
+  const goalie = live.starters.find((s) => s.role === "GOL");
   const mod = strategyMod(live.side.strategy);
   const t = tacticsMod(live.side.tactics);
-  return {
-    attack: avg(attackers.map((s) => energyAdjusted(s.creature))) + mod.atk + t.atk,
-    defense: avg(defenders.map((s) => energyAdjusted(s.creature))) + mod.def + t.def,
-    attackers,
-    defenders,
-  };
+  const attackAvg = avg(attackers.map((s) => ratingBase(s.creature))) + mod.atk + t.atk;
+  return { attackers, defenders, goalie, attackAvg };
 }
 
 function trySubstitute(
-  live: LiveSide,
-  outSlot: EngineSlot,
-  minute: number,
-  events: EngineEvent[],
+  live: LiveSide, outSlot: EngineSlot, minute: number, events: EngineEvent[],
 ): boolean {
-  if (live.subsUsed >= 5) return false;
-  if (!live.bench.length) return false;
-  // Reserva com maior energia, preferindo mesmo role
+  if (live.subsUsed >= 5 || !live.bench.length) return false;
   const candidates = [...live.bench].sort((a, b) => {
-    const rolePrefA = a.role === outSlot.role ? 0 : 1;
-    const rolePrefB = b.role === outSlot.role ? 0 : 1;
-    if (rolePrefA !== rolePrefB) return rolePrefA - rolePrefB;
+    const pA = a.role === outSlot.role ? 0 : 1;
+    const pB = b.role === outSlot.role ? 0 : 1;
+    if (pA !== pB) return pA - pB;
     return b.creature.energy - a.creature.energy;
   });
   const inSlot = candidates[0];
   const idxBench = live.bench.indexOf(inSlot);
-  if (idxBench < 0) return false;
   const idxStart = live.starters.indexOf(outSlot);
-  if (idxStart < 0) return false;
-  // Substituição mantém a role da posição
+  if (idxBench < 0 || idxStart < 0) return false;
   live.starters[idxStart] = { role: outSlot.role, creature: inSlot.creature };
   live.bench.splice(idxBench, 1);
   live.subsUsed += 1;
   events.push({
-    minute,
-    event_type: "substitution",
+    minute, event_type: "substitution",
     description: `Substituição em ${live.side.team_name}: entra ${inSlot.creature.name}, sai ${outSlot.creature.name}.`,
     actor_creature_id: inSlot.creature.id,
     actor_team_id: live.side.team_id,
@@ -283,37 +262,29 @@ function trySubstitute(
   return true;
 }
 
+// ---------- resultado ----------
+
 export interface SimulationResult {
   home_score: number;
   away_score: number;
   events: EngineEvent[];
   weather: Weather;
-  // Diminuição de energia final por criatura (id -> perda)
   energy_loss: Record<string, number>;
-  // Criaturas que participaram como titular
   starter_ids: string[];
-  // Criaturas do banco que foram utilizadas (subs)
   used_bench_ids: string[];
-  // Lesões ocorridas nesta partida
   injuries: EngineInjury[];
 }
 
-/**
- * Persist only injury events that correspond to NEW injuries produced by this
- * simulation result. Existing roster injuries must never be re-announced as
- * match events; they are handled by lineup blocking/recovery state instead.
- */
 export function persistableSimulationEvents(result: SimulationResult): EngineEvent[] {
   const newInjuries = new Map<string, number>();
   for (const injury of result.injuries) {
     const key = `${injury.team_id}:${injury.creature_id}`;
     newInjuries.set(key, (newInjuries.get(key) ?? 0) + 1);
   }
-
-  return result.events.filter((event) => {
-    if (event.event_type !== "injury") return true;
-    if (!event.actor_team_id || !event.actor_creature_id) return false;
-    const key = `${event.actor_team_id}:${event.actor_creature_id}`;
+  return result.events.filter((e) => {
+    if (e.event_type !== "injury") return true;
+    if (!e.actor_team_id || !e.actor_creature_id) return false;
+    const key = `${e.actor_team_id}:${e.actor_creature_id}`;
     const remaining = newInjuries.get(key) ?? 0;
     if (remaining <= 0) return false;
     newInjuries.set(key, remaining - 1);
@@ -321,11 +292,109 @@ export function persistableSimulationEvents(result: SimulationResult): EngineEve
   });
 }
 
+// ---------- resolução de lance (cadeia de duelos) ----------
+
+function resolveChance(
+  isHome: boolean, minute: number,
+  own: SideView, opp: SideView,
+  live: LiveSide, oppTact: ReturnType<typeof tacticsMod>,
+  rand: () => number, events: EngineEvent[], weather: Weather,
+) {
+  if (!own.attackers.length || !opp.defenders.length) return;
+
+  const finisher = pick(own.attackers, rand).creature;
+  const defender = pick(opp.defenders, rand).creature;
+  const goalieSlot = opp.goalie;
+  const goalie = goalieSlot?.creature;
+
+  const weatherBoostEl = WEATHER_BOOST[weather];
+  const weatherMul = weatherBoostEl === finisher.element ? 1.03 : 1.0;
+
+  // DUELO 1 — finalizador vs zagueiro
+  const finVsDef = ratingVs(finisher, defender) * weatherMul;
+  const defRating = ratingBase(defender) + oppTact.def;
+  const pPass = logistic(finVsDef - defRating);
+
+  const elementalAdv = BEATS[finisher.element] === defender.element;
+  const longShot = rand() < 0.2;
+  const baseMeta: EngineEventMeta = {
+    attacker: finisher.name,
+    defender: defender.name,
+    goalie: goalie?.name,
+    team: live.side.team_name,
+    element: finisher.element,
+    defender_element: defender.element,
+    elemental_advantage: elementalAdv,
+    long_shot: longShot,
+    is_danger: true,
+  };
+
+  if (rand() >= pPass) {
+    // Cortado pelo zagueiro
+    events.push({
+      minute, event_type: "shot_saved",
+      description: `${defender.name} corta a jogada de ${finisher.name}.`,
+      actor_creature_id: finisher.id,
+      actor_team_id: live.side.team_id,
+      meta: { ...baseMeta, outcome: "block" },
+    });
+    return;
+  }
+
+  if (!goalie) {
+    // Sem goleiro (evento raro pós-vermelho) — passa direto
+    events.push({
+      minute, event_type: "goal",
+      description: `GOL de ${finisher.name}! (${live.side.team_name})`,
+      actor_creature_id: finisher.id,
+      actor_team_id: live.side.team_id,
+      meta: { ...baseMeta, outcome: "goal" },
+    });
+    return;
+  }
+
+  // DUELO 2 — finalizador vs goleiro
+  const finVsGk = ratingVs(finisher, goalie) * weatherMul;
+  const gkRating = ratingBase(goalie) + GOALIE_BONUS;
+  const ownTact = tacticsMod(live.side.tactics);
+  const pGoal = logistic(finVsGk + ownTact.vertical2 - gkRating);
+
+  if (rand() < pGoal) {
+    events.push({
+      minute, event_type: "goal",
+      description: `GOL de ${finisher.name}! (${live.side.team_name})`,
+      actor_creature_id: finisher.id,
+      actor_team_id: live.side.team_id,
+      meta: { ...baseMeta, outcome: "goal" },
+    });
+  } else {
+    const roll = rand();
+    if (roll < 0.6) {
+      events.push({
+        minute, event_type: "shot_saved",
+        description: `${finisher.name} arrisca, mas ${goalie.name} defende.`,
+        actor_creature_id: finisher.id,
+        actor_team_id: live.side.team_id,
+        meta: { ...baseMeta, outcome: "save" },
+      });
+    } else {
+      events.push({
+        minute, event_type: "shot_saved",
+        description: `${finisher.name} chuta para fora.`,
+        actor_creature_id: finisher.id,
+        actor_team_id: live.side.team_id,
+        meta: { ...baseMeta, outcome: "miss" },
+      });
+    }
+  }
+}
+
+// ---------- simulate ----------
+
 export function simulate(home: EngineSide, away: EngineSide, seed: number): SimulationResult {
   const rand = mulberry32(seed);
   const events: EngineEvent[] = [];
   const injuries: EngineInjury[] = [];
-
 
   const weathers: Weather[] = ["sol", "chuva", "vento", "neve", "nublado"];
   const weather = weathers[Math.floor(rand() * weathers.length)];
@@ -334,57 +403,49 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
   const liveAway: LiveSide = { side: away, starters: [...away.starters], bench: [...away.bench], subsUsed: 0 };
 
   events.push({
-    minute: 0,
-    event_type: "kickoff",
+    minute: 0, event_type: "kickoff",
     description: `Começa a partida: ${home.team_name} x ${away.team_name}`,
-    actor_creature_id: null,
-    actor_team_id: null,
+    actor_creature_id: null, actor_team_id: null,
   });
   events.push({
-    minute: 0,
-    event_type: "weather",
+    minute: 0, event_type: "weather",
     description: `Clima: ${WEATHER_LABEL[weather]}.`,
-    actor_creature_id: null,
-    actor_team_id: null,
+    actor_creature_id: null, actor_team_id: null,
   });
 
   const initialHomeIds = new Set(home.starters.map((s) => s.creature.id));
   const initialAwayIds = new Set(away.starters.map((s) => s.creature.id));
-  const injuriesByTeam = new Map<string, number>([
-    [home.team_id, 0],
-    [away.team_id, 0],
-  ]);
+  const injuriesByTeam = new Map<string, number>([[home.team_id, 0], [away.team_id, 0]]);
 
   const tH = tacticsMod(home.tactics);
   const tA = tacticsMod(away.tactics);
+  // Pressão de ambos os lados eleva o ritmo do jogo dos dois times.
+  const pressureFreq = 1 + Math.max(0, (tH.injuryMul - 1) + (tA.injuryMul - 1)) * 0.2;
   const yellowRate = 0.015 * ((tH.yellowMul + tA.yellowMul) / 2);
   const redRate = 0.0025 * ((tH.yellowMul + tA.yellowMul) / 2);
 
   for (let minute = 1; minute <= 90; minute++) {
-    const H = computeStrength(liveHome);
-    const A = computeStrength(liveAway);
-    const chanceHome = ((H.attack + 4) / 600) * tH.freq;
-    const chanceAway = (A.attack / 670) * tA.freq;
+    const H = computeView(liveHome);
+    const A = computeView(liveAway);
 
-    processTeamChance(true, minute, liveHome, H, A, chanceHome, rand, events, weather, tH.quality);
-    processTeamChance(false, minute, liveAway, A, H, chanceAway, rand, events, weather, tA.quality);
+    const chanceHome = ((H.attackAvg + HOME_ATK_BONUS) / CHANCE_DIVISOR) * tH.freq * pressureFreq;
+    const chanceAway = (A.attackAvg / CHANCE_DIVISOR) * tA.freq * pressureFreq;
 
-    // Cartão amarelo — modulado por pressão/cortes de ambos os lados
+    if (rand() < chanceHome) resolveChance(true, minute, H, A, liveHome, tA, rand, events, weather);
+    if (rand() < chanceAway) resolveChance(false, minute, A, H, liveAway, tH, rand, events, weather);
+
+    // Cartões
     if (rand() < yellowRate) {
       const live = rand() < 0.5 ? liveHome : liveAway;
       if (live.starters.length) {
-        const actorSlot = pick(live.starters, rand);
-        const actor = actorSlot.creature;
+        const actor = pick(live.starters, rand).creature;
         events.push({
-          minute,
-          event_type: "yellow_card",
+          minute, event_type: "yellow_card",
           description: `Cartão amarelo para ${actor.name} (${live.side.team_name}).`,
-          actor_creature_id: actor.id,
-          actor_team_id: live.side.team_id,
+          actor_creature_id: actor.id, actor_team_id: live.side.team_id,
         });
       }
     }
-    // Cartão vermelho ~0,25%/min (§4.5)
     if (rand() < redRate) {
       const live = rand() < 0.5 ? liveHome : liveAway;
       if (live.starters.length > 7) {
@@ -393,43 +454,37 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
         const actor = outSlot.creature;
         live.starters.splice(idx, 1);
         events.push({
-          minute,
-          event_type: "red_card",
+          minute, event_type: "red_card",
           description: `CARTÃO VERMELHO! ${actor.name} está expulso (${live.side.team_name}).`,
-          actor_creature_id: actor.id,
-          actor_team_id: live.side.team_id,
+          actor_creature_id: actor.id, actor_team_id: live.side.team_id,
         });
       }
     }
-    // Lesão: UM sorteio base por minuto POR TIME (não por criatura).
-    // Se acertar, escolhemos a vítima e só então aplicamos o multiplicador de fadiga dela.
+
+    // Lesões — UM sorteio por time por minuto
     for (const live of [liveHome, liveAway] as const) {
-      const teamInjuries = injuriesByTeam.get(live.side.team_id) ?? 0;
-      if (teamInjuries >= MAX_INJURIES_PER_TEAM) continue;
-      const candidates = live.starters;
-      if (!candidates.length) continue;
-      const outSlot = pick(candidates, rand);
+      const count = injuriesByTeam.get(live.side.team_id) ?? 0;
+      if (count >= MAX_INJURIES_PER_TEAM) continue;
+      const cands = live.starters;
+      if (!cands.length) continue;
+      const outSlot = pick(cands, rand);
       const actor = outSlot.creature;
-      const tacticsInjuryMul = live === liveHome ? tH.injuryMul : tA.injuryMul;
-      const fatigueMul = injuryFatigueMult(actor.energy);
-      const injuryProbability = Math.min(1, P_LESAO * fatigueMul * tacticsInjuryMul);
-      if (rand() >= injuryProbability) continue;
-      // Sortear gravidade (§Lesões): 45% leve, 40% moderada, 15% grave.
+      const tMul = live === liveHome ? tH.injuryMul : tA.injuryMul;
+      const fMul = injuryFatigueMult(actor.energy);
+      const p = Math.min(1, P_LESAO * fMul * tMul);
+      if (rand() >= p) continue;
       const rr = rand();
-      let severity: InjurySeverity;
-      let matches: number;
+      let severity: InjurySeverity; let matches: number;
       if (rr < 0.45) { severity = "leve"; matches = 1; }
       else if (rr < 0.85) { severity = "moderada"; matches = 2 + Math.floor(rand() * 2); }
       else { severity = "grave"; matches = 4 + Math.floor(rand() * 2); }
       const sevLabel = severity === "leve" ? "leve" : severity === "moderada" ? "moderada" : "GRAVE";
-      injuriesByTeam.set(live.side.team_id, teamInjuries + 1);
+      injuriesByTeam.set(live.side.team_id, count + 1);
       injuries.push({ creature_id: actor.id, team_id: live.side.team_id, severity, matches });
       events.push({
-        minute,
-        event_type: "injury",
+        minute, event_type: "injury",
         description: `${actor.name} sofreu lesão ${sevLabel} (${matches} ${matches === 1 ? "partida" : "partidas"}) — ${live.side.team_name}.`,
-        actor_creature_id: actor.id,
-        actor_team_id: live.side.team_id,
+        actor_creature_id: actor.id, actor_team_id: live.side.team_id,
         meta: { injury_severity: severity, injury_matches: matches },
       });
       const i = live.starters.indexOf(outSlot);
@@ -437,18 +492,14 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
       trySubstitute(live, outSlot, minute, events);
     }
 
-
     if (minute === 45) {
       const hs = events.filter((e) => e.event_type === "goal" && e.actor_team_id === home.team_id).length;
       const as = events.filter((e) => e.event_type === "goal" && e.actor_team_id === away.team_id).length;
       events.push({
-        minute: 45,
-        event_type: "halftime",
+        minute: 45, event_type: "halftime",
         description: `Fim do primeiro tempo — ${home.team_name} ${hs} x ${as} ${away.team_name}`,
-        actor_creature_id: null,
-        actor_team_id: null,
+        actor_creature_id: null, actor_team_id: null,
       });
-      // Substituição estratégica: titular com energia baixa é sacado (por lado)
       for (const live of [liveHome, liveAway]) {
         const tired = live.starters
           .filter((s) => s.creature.energy < 40)
@@ -467,23 +518,16 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
   const hs = events.filter((e) => e.event_type === "goal" && e.actor_team_id === home.team_id).length;
   const as = events.filter((e) => e.event_type === "goal" && e.actor_team_id === away.team_id).length;
   events.push({
-    minute: 90,
-    event_type: "fulltime",
+    minute: 90, event_type: "fulltime",
     description: `Fim de jogo — ${home.team_name} ${hs} x ${as} ${away.team_name}`,
-    actor_creature_id: null,
-    actor_team_id: null,
+    actor_creature_id: null, actor_team_id: null,
   });
 
-  // Perda de energia por criatura utilizada. GDD/Fadiga: base 36 titular, 18 reserva
-  // que entrou. Cada ponto de FÍSICO (0..100) reduz o desgaste em ~0,15% —
-  // criatura 5★ (100) tem -15%. Fórmula: loss = base * (1 - physical/100 * 0.15).
   const energy_loss: Record<string, number> = {};
   const usedHome = new Set([...initialHomeIds, ...liveHome.starters.map((s) => s.creature.id)]);
   const usedAway = new Set([...initialAwayIds, ...liveAway.starters.map((s) => s.creature.id)]);
-  const wearFactor = (physical: number) => Math.max(0.5, 1 - (physical / 100) * 0.15);
-  const allSlots: EngineSlot[] = [
-    ...home.starters, ...home.bench, ...away.starters, ...away.bench,
-  ];
+  const wearFactor = (p: number) => Math.max(0.5, 1 - (p / 100) * 0.15);
+  const allSlots: EngineSlot[] = [...home.starters, ...home.bench, ...away.starters, ...away.bench];
   const physById = new Map<string, number>(allSlots.map((s) => [s.creature.id, s.creature.physical ?? 40]));
   for (const id of initialHomeIds) energy_loss[id] = Math.round(36 * wearFactor(physById.get(id) ?? 40));
   for (const id of initialAwayIds) energy_loss[id] = Math.round(36 * wearFactor(physById.get(id) ?? 40));
@@ -493,130 +537,257 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
   for (const s of liveAway.starters)
     if (!initialAwayIds.has(s.creature.id))
       energy_loss[s.creature.id] = Math.round(18 * wearFactor(s.creature.physical ?? 40));
-
   const used_home_bench = [...usedHome].filter((id) => !initialHomeIds.has(id));
   const used_away_bench = [...usedAway].filter((id) => !initialAwayIds.has(id));
 
   return {
-    home_score: hs,
-    away_score: as,
-    events,
-    weather,
-    energy_loss,
+    home_score: hs, away_score: as, events, weather, energy_loss,
     starter_ids: [...initialHomeIds, ...initialAwayIds],
     used_bench_ids: [...used_home_bench, ...used_away_bench],
     injuries,
   };
 }
 
-function processTeamChance(
-  isHome: boolean,
-  minute: number,
-  live: LiveSide,
-  own: SideStrength,
-  opp: SideStrength,
-  chance: number,
-  rand: () => number,
-  events: EngineEvent[],
-  weather: Weather,
-  qualityMul: number = 1,
-) {
-  if (rand() >= chance) return;
-  if (!own.attackers.length || !opp.defenders.length) return;
+// ---------- simulação rápida (só placar) + odds ----------
 
+/**
+ * Simulação rápida: mesma lógica de duelos, sem gerar eventos, narração,
+ * cartões, lesões nem substituições. Usada para cálculo de odds.
+ */
+export function simulateFast(home: EngineSide, away: EngineSide, seed: number): { home_score: number; away_score: number } {
+  const rand = mulberry32(seed);
+  const weathers: Weather[] = ["sol", "chuva", "vento", "neve", "nublado"];
+  const weather = weathers[Math.floor(rand() * weathers.length)];
+
+  const H0 = viewFromSide(home);
+  const A0 = viewFromSide(away);
+  const tH = tacticsMod(home.tactics);
+  const tA = tacticsMod(away.tactics);
+  const pressureFreq = 1 + Math.max(0, (tH.injuryMul - 1) + (tA.injuryMul - 1)) * 0.2;
+
+  let hs = 0, as = 0;
+  const chanceHome = ((H0.attackAvg + HOME_ATK_BONUS) / CHANCE_DIVISOR) * tH.freq * pressureFreq;
+  const chanceAway = (A0.attackAvg / CHANCE_DIVISOR) * tA.freq * pressureFreq;
+
+  for (let m = 1; m <= 90; m++) {
+    if (rand() < chanceHome && fastGoal(H0, A0, home, tA, rand, weather, true)) hs++;
+    if (rand() < chanceAway && fastGoal(A0, H0, away, tH, rand, weather, false)) as++;
+  }
+  return { home_score: hs, away_score: as };
+}
+
+function fastGoal(
+  own: SideView, opp: SideView, ownSide: EngineSide,
+  oppTact: ReturnType<typeof tacticsMod>,
+  rand: () => number, weather: Weather, _isHome: boolean,
+): boolean {
+  if (!own.attackers.length || !opp.defenders.length) return false;
   const finisher = pick(own.attackers, rand).creature;
   const defender = pick(opp.defenders, rand).creature;
+  const goalie = opp.goalie?.creature;
+  const wMul = WEATHER_BOOST[weather] === finisher.element ? 1.03 : 1.0;
 
-  const bonusElem = elementalBonus(finisher.element, defender.element);
-  const affinityRaw = finisher[AFFINITY_KEY[finisher.element]] as number;
-  const affinityBonus = (affinityRaw || 0) / 100;
-  const weatherBonus = WEATHER_BOOST[weather] === finisher.element ? 0.04 : 0;
+  const finVsDef = ratingVs(finisher, defender) * wMul;
+  const defRating = ratingBase(defender) + oppTact.def;
+  if (rand() >= logistic(finVsDef - defRating)) return false;
+  if (!goalie) return true;
 
-  const homeAdv = isHome ? 4 : 0;
-  let chanceGoal =
-    ((own.attack + homeAdv - opp.defense + 40) / 260 + bonusElem + affinityBonus + weatherBonus) * qualityMul;
-  if (chanceGoal < 0.07) chanceGoal = 0.07;
+  const finVsGk = ratingVs(finisher, goalie) * wMul;
+  const gkRating = ratingBase(goalie) + GOALIE_BONUS;
+  const ownT = tacticsMod(ownSide.tactics);
+  return rand() < logistic(finVsGk + ownT.vertical2 - gkRating);
+}
 
-  const goalieSlot = opp.defenders.find((s) => s.role === "GOL");
-  const goalie = goalieSlot?.creature;
-  const elementalAdv = bonusElem > 0;
-  const longShot = rand() < 0.2;
-  const baseMeta: EngineEventMeta = {
-    attacker: finisher.name,
-    defender: defender.name,
-    goalie: goalie?.name,
-    team: live.side.team_name,
-    element: finisher.element,
-    defender_element: defender.element,
-    elemental_advantage: elementalAdv,
-    long_shot: longShot,
-    is_danger: true,
+function viewFromSide(side: EngineSide): SideView {
+  const attackers = side.starters.filter((s) => s.role === "MEI" || s.role === "ATA");
+  const defenders = side.starters.filter((s) => s.role === "DEF");
+  const goalie = side.starters.find((s) => s.role === "GOL");
+  const mod = strategyMod(side.strategy);
+  const t = tacticsMod(side.tactics);
+  const attackAvg = avg(attackers.map((s) => ratingBase(s.creature))) + mod.atk + t.atk;
+  return { attackers, defenders, goalie, attackAvg };
+}
+
+export interface OddsResult {
+  home_win: number;
+  draw: number;
+  away_win: number;
+  samples: number;
+  avg_home_goals: number;
+  avg_away_goals: number;
+}
+
+/**
+ * Roda `samples` simulações rápidas e devolve % de vitória do mandante,
+ * empate e vitória do visitante. Não gera eventos nem narração.
+ */
+export function computeOdds(home: EngineSide, away: EngineSide, seed: number, samples = 500): OddsResult {
+  let hw = 0, dr = 0, aw = 0, gh = 0, ga = 0;
+  for (let i = 0; i < samples; i++) {
+    const r = simulateFast(home, away, seed + i * 2654435761);
+    gh += r.home_score; ga += r.away_score;
+    if (r.home_score > r.away_score) hw++;
+    else if (r.home_score < r.away_score) aw++;
+    else dr++;
+  }
+  return {
+    home_win: hw / samples,
+    draw: dr / samples,
+    away_win: aw / samples,
+    samples,
+    avg_home_goals: gh / samples,
+    avg_away_goals: ga / samples,
   };
+}
 
-  if (rand() < chanceGoal) {
-    events.push({
-      minute,
-      event_type: "goal",
-      description: `GOL de ${finisher.name}! (${live.side.team_name})`,
-      actor_creature_id: finisher.id,
-      actor_team_id: live.side.team_id,
-      meta: { ...baseMeta, outcome: "goal" },
-    });
-  } else {
-    const roll = rand();
-    if (roll < 0.5 && goalie) {
-      events.push({
-        minute,
-        event_type: "shot_saved",
-        description: `${finisher.name} arrisca, mas ${goalie.name} defende.`,
-        actor_creature_id: finisher.id,
-        actor_team_id: live.side.team_id,
-        meta: { ...baseMeta, outcome: "save" },
-      });
-    } else if (roll < 0.8) {
-      events.push({
-        minute,
-        event_type: "shot_saved",
-        description: `${finisher.name} chuta para fora.`,
-        actor_creature_id: finisher.id,
-        actor_team_id: live.side.team_id,
-        meta: { ...baseMeta, outcome: "miss" },
-      });
-    } else {
-      events.push({
-        minute,
-        event_type: "shot_saved",
-        description: `${defender.name} corta a jogada de ${finisher.name}.`,
-        actor_creature_id: finisher.id,
-        actor_team_id: live.side.team_id,
-        meta: { ...baseMeta, outcome: "block" },
+// ---------- análise pré-partida ----------
+
+export interface PrognosticAlert {
+  kind: "sector_tired" | "exhausted_starter" | "elemental_edge" | "quality_gap" | "elemental_weak";
+  side: "home" | "away";
+  message: string;
+  positive: boolean;
+}
+
+export interface KeyDuel {
+  attacker: { id: string; name: string; overall: number; energy: number; element: Element };
+  defender: { id: string; name: string; overall: number; energy: number; element: Element };
+  side: "home" | "away";
+  role_defender: SlotRole;
+  favor: "attacker" | "defender" | "even";
+  p_attacker: number;
+}
+
+export interface PrognosticAnalysis {
+  odds: OddsResult;
+  alerts: PrognosticAlert[];
+  key_duels: KeyDuel[];
+  sector_summary: {
+    home: { def: number; mei: number; ata: number; def_energy: number; mei_energy: number; ata_energy: number };
+    away: { def: number; mei: number; ata: number; def_energy: number; mei_energy: number; ata_energy: number };
+  };
+}
+
+function sectorAvgs(side: EngineSide) {
+  const def = side.starters.filter((s) => s.role === "DEF" || s.role === "GOL");
+  const mei = side.starters.filter((s) => s.role === "MEI");
+  const ata = side.starters.filter((s) => s.role === "ATA");
+  const oa = (arr: EngineSlot[], k: keyof EngineCreature) =>
+    arr.length ? avg(arr.map((s) => (s.creature[k] as number) ?? 0)) : 0;
+  return {
+    def: oa(def, "overall"),
+    mei: oa(mei, "overall"),
+    ata: oa(ata, "overall"),
+    def_energy: oa(def, "energy"),
+    mei_energy: oa(mei, "energy"),
+    ata_energy: oa(ata, "energy"),
+  };
+}
+
+export function analyzeMatchup(home: EngineSide, away: EngineSide, seed: number, samples = 500): PrognosticAnalysis {
+  const odds = computeOdds(home, away, seed, samples);
+  const alerts: PrognosticAlert[] = [];
+  const secH = sectorAvgs(home);
+  const secA = sectorAvgs(away);
+
+  const pushSectorTired = (side: "home" | "away", label: string, energy: number, own: boolean) => {
+    if (energy < 50 && energy > 0) {
+      alerts.push({
+        kind: "sector_tired", side,
+        message: own
+          ? `Sua ${label} está cansada (média ${Math.round(energy)}%)`
+          : `${label} do adversário está cansada (${Math.round(energy)}%)`,
+        positive: !own,
       });
     }
+  };
+  pushSectorTired("home", "defesa", secH.def_energy, true);
+  pushSectorTired("home", "meia", secH.mei_energy, true);
+  pushSectorTired("home", "linha ofensiva", secH.ata_energy, true);
+  pushSectorTired("away", "defesa", secA.def_energy, false);
+  pushSectorTired("away", "meia", secA.mei_energy, false);
+  pushSectorTired("away", "linha ofensiva", secA.ata_energy, false);
+
+  const exhaustedHome = home.starters.filter((s) => (s.creature.energy ?? 100) < 30);
+  if (exhaustedHome.length) {
+    alerts.push({
+      kind: "exhausted_starter", side: "home",
+      message: `${exhaustedHome.length} titular${exhaustedHome.length > 1 ? "es" : ""} exaust${exhaustedHome.length > 1 ? "os" : "o"} escalad${exhaustedHome.length > 1 ? "os" : "o"} (${exhaustedHome.map((s) => s.creature.name).join(", ")})`,
+      positive: false,
+    });
   }
+
+  // Vantagem elemental do ataque (MEI+ATA) contra defesa adversária (DEF+GOL)
+  const oppDef = away.starters.filter((s) => s.role === "DEF" || s.role === "GOL");
+  const oppAtk = away.starters.filter((s) => s.role === "MEI" || s.role === "ATA");
+  const myAtk = home.starters.filter((s) => s.role === "MEI" || s.role === "ATA");
+  const myDef = home.starters.filter((s) => s.role === "DEF" || s.role === "GOL");
+  const countAdv = (atk: EngineSlot[], def: EngineSlot[]) =>
+    atk.filter((a) => def.some((d) => BEATS[a.creature.element] === d.creature.element)).length;
+  const advOwn = countAdv(myAtk, oppDef);
+  const advOpp = countAdv(oppAtk, myDef);
+  if (advOwn >= 3) alerts.push({ kind: "elemental_edge", side: "home", positive: true, message: `Seu ataque tem vantagem elemental (${advOwn} atacantes)` });
+  if (advOpp >= 3) alerts.push({ kind: "elemental_weak", side: "away", positive: false, message: `Ataque adversário tem vantagem elemental sobre sua defesa (${advOpp})` });
+
+  // Gap de qualidade
+  const gap = (a: number, b: number) => Math.abs(a - b) >= 10;
+  if (gap(secH.def, secA.ata)) alerts.push({
+    kind: "quality_gap", side: secH.def > secA.ata ? "home" : "away", positive: secH.def > secA.ata,
+    message: secH.def > secA.ata
+      ? `Sua defesa é bem superior ao ataque deles (${Math.round(secH.def)} vs ${Math.round(secA.ata)})`
+      : `Ataque adversário é bem superior à sua defesa (${Math.round(secA.ata)} vs ${Math.round(secH.def)})`,
+  });
+  if (gap(secH.ata, secA.def)) alerts.push({
+    kind: "quality_gap", side: secH.ata > secA.def ? "home" : "away", positive: secH.ata > secA.def,
+    message: secH.ata > secA.def
+      ? `Seu ataque supera a defesa deles (${Math.round(secH.ata)} vs ${Math.round(secA.def)})`
+      : `Defesa adversária supera seu ataque (${Math.round(secA.def)} vs ${Math.round(secH.ata)})`,
+  });
+
+  // Confrontos-chave: seu melhor atacante vs melhor zagueiro deles + goleiro deles
+  const bestOwnAtk = [...myAtk].sort((a, b) => ratingBase(b.creature) - ratingBase(a.creature))[0];
+  const bestOppDef = [...away.starters.filter((s) => s.role === "DEF")]
+    .sort((a, b) => ratingBase(b.creature) - ratingBase(a.creature))[0];
+  const oppGoalie = away.starters.find((s) => s.role === "GOL");
+  const bestOppAtk = [...oppAtk].sort((a, b) => ratingBase(b.creature) - ratingBase(a.creature))[0];
+  const bestOwnDef = [...home.starters.filter((s) => s.role === "DEF")]
+    .sort((a, b) => ratingBase(b.creature) - ratingBase(a.creature))[0];
+
+  const key_duels: KeyDuel[] = [];
+  const makeDuel = (atk: EngineSlot | undefined, def: EngineSlot | undefined, side: "home" | "away", role: SlotRole, gkBonus = 0): KeyDuel | null => {
+    if (!atk || !def) return null;
+    const a = ratingVs(atk.creature, def.creature);
+    const d = ratingBase(def.creature) + gkBonus;
+    const p = logistic(a - d);
+    return {
+      attacker: { id: atk.creature.id, name: atk.creature.name, overall: atk.creature.overall, energy: atk.creature.energy, element: atk.creature.element },
+      defender: { id: def.creature.id, name: def.creature.name, overall: def.creature.overall, energy: def.creature.energy, element: def.creature.element },
+      side, role_defender: role, favor: p > 0.55 ? "attacker" : p < 0.45 ? "defender" : "even",
+      p_attacker: p,
+    };
+  };
+  const d1 = makeDuel(bestOwnAtk, bestOppDef, "home", "DEF");
+  const d2 = makeDuel(bestOwnAtk, oppGoalie, "home", "GOL", GOALIE_BONUS);
+  const d3 = makeDuel(bestOppAtk, bestOwnDef, "away", "DEF");
+  for (const d of [d1, d2, d3]) if (d) key_duels.push(d);
+
+  return {
+    odds, alerts, key_duels,
+    sector_summary: { home: secH, away: secA },
+  };
 }
 
 // ---------- gerador CPU ----------
 
 const ELS: Element[] = ["fogo", "agua", "terra", "ar", "gelo"];
 
-// Bestiário mínimo necessário para nomes (species + epithets por elemento).
-// `is_goalkeeper` permite restringir espécies de goleiro ao slot GOL e mantê-las
-// fora de posições de linha (DEF/MEI/ATA) — evita "Alicanto atacante".
 export interface EngineBestiary {
   species: { species: string; element: Element; is_goalkeeper: boolean }[];
   epithets: Record<Element, string[]>;
 }
 
-/**
- * Gera um lado da CPU com um NOME DE TIME EXPLÍCITO. Não há mais fallback de
- * nomes aleatórios ("Sombra United" etc.) — o chamador deve escolher um time
- * real do catálogo (WORLD_TEAMS) para amistoso/liga/copa.
- */
 export function generateCpuSide(
-  seed: number,
-  playerOverall: number,
-  teamName: string,
-  bestiary?: EngineBestiary,
+  seed: number, playerOverall: number, teamName: string, bestiary?: EngineBestiary,
 ): EngineSide {
   const rand = mulberry32(seed ^ 0x5f3759df);
   const target = Math.max(15, Math.min(95, playerOverall + Math.floor((rand() - 0.5) * 20)));
@@ -629,14 +800,8 @@ export function generateCpuSideFor(
   return buildCpuSideCore(seed, strength, teamName, teamId, bestiary);
 }
 
-function creatureName(
-  el: Element,
-  role: SlotRole,
-  rand: () => number,
-  bestiary?: EngineBestiary,
-): string {
+function creatureName(el: Element, role: SlotRole, rand: () => number, bestiary?: EngineBestiary): string {
   if (bestiary && bestiary.species.length) {
-    // GOL usa apenas espécies de goleiro; linha exclui goleiros.
     const isGk = role === "GOL";
     const roleFiltered = bestiary.species.filter((s) => s.is_goalkeeper === isGk);
     const roleList = roleFiltered.length ? roleFiltered : bestiary.species;
@@ -647,7 +812,6 @@ function creatureName(
     const ep = eps.length ? eps[Math.floor(rand() * eps.length)] : "";
     return ep ? `${sp.species} ${ep}` : sp.species;
   }
-  // Sem bestiário: nome neutro por role (nunca inventa "clube").
   const tag = role === "GOL" ? "Goleiro" : role === "DEF" ? "Zagueiro" : role === "MEI" ? "Meia" : "Atacante";
   return `${tag} ${Math.floor(rand() * 900 + 100)}`;
 }
@@ -666,10 +830,7 @@ function buildCpuSideCore(
       creature: {
         id: `cpu-${teamId}-${tag}-${i}`,
         name: creatureName(element, role, rand, bestiary),
-        element,
-        overall,
-        physical: overall,
-        energy: 100,
+        element, overall, physical: overall, energy: 100,
         affinity_fogo: element === "fogo" ? 7 : 1,
         affinity_agua: element === "agua" ? 7 : 1,
         affinity_terra: element === "terra" ? 7 : 1,
@@ -682,5 +843,3 @@ function buildCpuSideCore(
   const bench = benchRoles.map((r, i) => buildSlot(r, i, "b"));
   return { team_id: teamId, team_name: teamName, starters, bench, strategy: "equilibrada" };
 }
-
-
