@@ -515,8 +515,8 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         .in("id", [m.home_team_id, m.away_team_id]);
       const h = pair!.find((t: any) => t.id === m.home_team_id) as any;
       const a = pair!.find((t: any) => t.id === m.away_team_id) as any;
-      const hs = generateCpuSideFor(hashSeed(h.id), h.id, h.name, (h.cpu_strength ?? 45) + 4);
-      const as = generateCpuSideFor(hashSeed(a.id), a.id, a.name, a.cpu_strength ?? 45);
+      const hs = generateCpuSideFor(hashSeed(h.id), h.id, h.name, (h.cpu_strength ?? 45) + 4, bestiary);
+      const as = generateCpuSideFor(hashSeed(a.id), a.id, a.name, a.cpu_strength ?? 45, bestiary);
       const r = simulate(hs, as, hashSeed(m.id));
       await supabase
         .from("matches")
