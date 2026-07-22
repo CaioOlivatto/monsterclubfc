@@ -10,6 +10,8 @@ import {
 import { stadiumCapacity } from "./buildings.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
+import { awardTrainerXp, resetSeasonBreakdown } from "./trainer-xp.server";
+
 
 async function getTrainer(supabase: any, userId: string) {
   const { data: trainer } = await supabase
