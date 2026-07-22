@@ -225,7 +225,7 @@ export interface SeedInput {
   trainerId: string;
   seasonId: string;
   playerStarterKey: string;    // ex: "titas_pedra"
-  playerTeamName: string;      // nome customizado do time do jogador (usa o do time escolhido)
+  playerTeamName?: string;     // opcional (override do nome do time)
   playerRoster: GeneratedCreature[]; // criaturas já criadas do jogador (owner_trainer_id definido)
 }
 
