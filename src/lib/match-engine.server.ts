@@ -118,6 +118,9 @@ const WEATHER_LABEL: Record<Weather, string> = {
   nublado: "Nublado",
 };
 
+const P_LESAO = 0.004; // 0,4% por minuto por time
+const MAX_INJURIES_PER_TEAM = 2;
+
 function elementalBonus(attacker: Element, defender: Element): number {
   if (BEATS[attacker] === defender) return 0.06;
   if (BEATS[defender] === attacker) return -0.05;
@@ -308,6 +311,10 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
 
   const initialHomeIds = new Set(home.starters.map((s) => s.creature.id));
   const initialAwayIds = new Set(away.starters.map((s) => s.creature.id));
+  const injuriesByTeam = new Map<string, number>([
+    [home.team_id, 0],
+    [away.team_id, 0],
+  ]);
 
   const tH = tacticsMod(home.tactics);
   const tA = tacticsMod(away.tactics);
@@ -355,21 +362,17 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
         });
       }
     }
-    // Lesão: UM sorteio por minuto POR TIME (não por criatura). Se o sorteio
-    // acertar, escolhemos aleatoriamente a criatura lesionada e só então
-    // aplicamos o multiplicador de fadiga (dela) e um re-roll de fadiga.
-    // Base ~0,17%/min/time → ~0,3 lesão/partida (alvo do GDD).
+    // Lesão: UM sorteio por minuto POR TIME (não por criatura).
+    // Se acertar, escolhemos aleatoriamente uma criatura em campo.
     for (const live of [liveHome, liveAway] as const) {
       if (!live.starters.length) continue;
+      const teamInjuries = injuriesByTeam.get(live.side.team_id) ?? 0;
+      if (teamInjuries >= MAX_INJURIES_PER_TEAM) continue;
       const mul = live === liveHome ? tH.injuryMul : tA.injuryMul;
-      const baseRate = 0.0017 * mul;
-      if (rand() >= baseRate) continue;
-      // Escolhe a vítima e re-testa fadiga (criatura cansada tem risco maior)
+      const fatigueMul = avg(live.starters.map((s) => injuryFatigueMult(s.creature.energy)));
+      if (rand() >= P_LESAO * mul * fatigueMul) continue;
+
       const outSlot = pick(live.starters, rand);
-      const fatigueMul = injuryFatigueMult(outSlot.creature.energy);
-      if (fatigueMul < 1 || (fatigueMul > 1 && rand() >= 1 - 1 / fatigueMul)) {
-        // reduz probabilidade de descartar quando cansada; equivalente a boost
-      }
       const actor = outSlot.creature;
       // Sortear gravidade (§Lesões): 45% leve, 40% moderada, 15% grave.
       const rr = rand();
@@ -379,6 +382,7 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
       else if (rr < 0.85) { severity = "moderada"; matches = 2 + Math.floor(rand() * 2); }
       else { severity = "grave"; matches = 4 + Math.floor(rand() * 2); }
       const sevLabel = severity === "leve" ? "leve" : severity === "moderada" ? "moderada" : "GRAVE";
+      injuriesByTeam.set(live.side.team_id, teamInjuries + 1);
       injuries.push({ creature_id: actor.id, team_id: live.side.team_id, severity, matches });
       events.push({
         minute,
