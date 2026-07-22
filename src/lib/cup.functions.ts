@@ -90,7 +90,8 @@ export const startCup = createServerFn({ method: "POST" })
       .eq("is_player", true)
       .maybeSingle();
     if (!playerLeagueTeam) throw new Error("Você precisa ter uma liga ativa antes de disputar a copa.");
-    const division = (playerLeagueTeam.division as string) ?? "bronze";
+    const division = ((playerLeagueTeam.division as string) ?? "bronze") as
+      "bronze" | "prata" | "ouro" | "diamante" | "lendaria";
 
     // 7 adversários sorteados entre os times reais da MESMA divisão do jogador
     const { data: divTeams } = await supabase
