@@ -300,7 +300,7 @@ function LineupPage() {
               const currFs = currentCreature ? fatigueState(currentCreature.energy ?? 100) : null;
               const currMult = currentCreature ? energyMultiplier(currentCreature.energy ?? 100) : 1;
               const currEff = currentCreature ? effectiveOverall(currentCreature.overall ?? 0, currentCreature.energy ?? 100) : 0;
-              const warn = currFs === "exausto" || currFs === "esgotado";
+              const warn = currFs === "muito_cansado" || currFs === "exausto";
               return (
                 <div key={s.index} className="flex flex-col gap-1">
                   <div className="flex items-center gap-2">
@@ -319,9 +319,11 @@ function LineupPage() {
                           const fs = fatigueState(c.energy ?? 100);
                           const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100);
                           const tag =
-                            fs === "esgotado" ? " ⚠️ ESGOTADO" :
-                            fs === "exausto" ? " ⚠️ Exausto" :
-                            fs === "cansado" ? " · cansado" : "";
+                            fs === "exausto" ? " ⚠️ EXAUSTO" :
+                            fs === "muito_cansado" ? " ⚠️ Muito cansado" :
+                            fs === "cansado" ? " · cansado" :
+                            fs === "leve" ? " · leve cansaço" : "";
+
                           return (
                             <SelectItem key={c.id} value={c.id}>
                               {c.name} · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}{eff !== c.overall ? `→${eff}` : ""} · {(c.overall / 20).toFixed(1)}★
