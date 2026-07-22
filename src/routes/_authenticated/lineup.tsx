@@ -15,7 +15,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Save, Shield, Swords, Scale, Wand2 } from "lucide-react";
+import { ArrowLeft, Save, Shield, Swords, Scale, Wand2, AlertTriangle } from "lucide-react";
+import { fatigueState, FATIGUE_LABEL, FATIGUE_CLASS, effectiveOverall, energyMultiplier } from "@/lib/fatigue";
 
 export const Route = createFileRoute("/_authenticated/lineup")({
   head: () => ({
@@ -259,29 +260,49 @@ function LineupPage() {
               const current = starters.find((x) => x.slot === s.index)?.creature_id ?? null;
               const options = availableFor(current);
               const sug = ROLE_HINT[s.role];
+              const currentCreature = current ? creatures.find((x) => x.id === current) : null;
+              const currFs = currentCreature ? fatigueState(currentCreature.energy ?? 100) : null;
+              const currMult = currentCreature ? energyMultiplier(currentCreature.energy ?? 100) : 1;
+              const currEff = currentCreature ? effectiveOverall(currentCreature.overall ?? 0, currentCreature.energy ?? 100) : 0;
+              const warn = currFs === "exausto" || currFs === "esgotado";
               return (
-                <div key={s.index} className="flex items-center gap-2">
-                  <Badge variant="outline" className="w-16 shrink-0 justify-center">
-                    {s.label}
-                  </Badge>
-                  <Select
-                    value={current ?? "__none"}
-                    onValueChange={(v) => setSlotCreature(s.index, v === "__none" ? null : v)}
-                  >
-                    <SelectTrigger className="flex-1"><SelectValue placeholder="Vazio" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none">— Vazio —</SelectItem>
-                      {options.map((c) => {
-                        const match = sug.includes(c.suggested_position ?? "");
-                        return (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.name} · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall} · {(c.overall / 20).toFixed(1)}★
-                            {match ? " (posição ideal)" : ""}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
+                <div key={s.index} className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="w-16 shrink-0 justify-center">
+                      {s.label}
+                    </Badge>
+                    <Select
+                      value={current ?? "__none"}
+                      onValueChange={(v) => setSlotCreature(s.index, v === "__none" ? null : v)}
+                    >
+                      <SelectTrigger className="flex-1"><SelectValue placeholder="Vazio" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none">— Vazio —</SelectItem>
+                        {options.map((c) => {
+                          const match = sug.includes(c.suggested_position ?? "");
+                          const fs = fatigueState(c.energy ?? 100);
+                          const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100);
+                          const tag =
+                            fs === "esgotado" ? " ⚠️ ESGOTADO" :
+                            fs === "exausto" ? " ⚠️ Exausto" :
+                            fs === "cansado" ? " · cansado" : "";
+                          return (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.name} · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}{eff !== c.overall ? `→${eff}` : ""} · {(c.overall / 20).toFixed(1)}★
+                              {match ? " (posição ideal)" : ""}{tag}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {currentCreature && currFs && currFs !== "pleno" && (
+                    <div className={"ml-[4.5rem] inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] " + FATIGUE_CLASS[currFs] + (warn ? " font-semibold" : "")}>
+                      {warn && <AlertTriangle className="h-3 w-3" />}
+                      <span>{FATIGUE_LABEL[currFs]} · {currentCreature.energy}%</span>
+                      <span className="opacity-80">Ovr {currentCreature.overall}→{currEff} (-{Math.round((1 - currMult) * 100)}%)</span>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -298,13 +319,18 @@ function LineupPage() {
                 {bench.map((id) => {
                   const c = creatures.find((x) => x.id === id);
                   if (!c) return null;
+                  const fs = fatigueState(c.energy ?? 100);
+                  const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100);
                   return (
                     <div key={id} className="flex items-center justify-between rounded-md border p-2">
-                      <div className="text-sm">
+                      <div className="text-sm min-w-0">
                         <span className="font-medium">{c.name}</span>{" "}
                         <span className="text-muted-foreground">
-                          · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall} · {(c.overall / 20).toFixed(1)}★ · Energia {c.energy}
+                          · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}{eff !== c.overall ? `→${eff}` : ""} · {(c.overall / 20).toFixed(1)}★
                         </span>
+                        <div className={"mt-1 inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] " + FATIGUE_CLASS[fs]}>
+                          {FATIGUE_LABEL[fs]} · {c.energy}%
+                        </div>
                       </div>
                       <Button size="sm" variant="ghost" onClick={() => removeFromBench(id)}>
                         Remover

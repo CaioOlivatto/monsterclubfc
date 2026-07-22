@@ -282,18 +282,21 @@ export type Database = {
           element: Database["public"]["Enums"]["element_type"]
           epithet: string
           id: string
+          is_prepositional: boolean
         }
         Insert: {
           created_at?: string
           element: Database["public"]["Enums"]["element_type"]
           epithet: string
           id?: string
+          is_prepositional?: boolean
         }
         Update: {
           created_at?: string
           element?: Database["public"]["Enums"]["element_type"]
           epithet?: string
           id?: string
+          is_prepositional?: boolean
         }
         Relationships: []
       }

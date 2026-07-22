@@ -23,12 +23,22 @@ export interface EngineSlot {
   creature: EngineCreature;
 }
 
+// GDD — Táticas ao vivo (§4.7). Cada eixo é um inteiro de -2 a +2.
+export interface Tactics {
+  mentalidade: number;   // -2 defensivo … +2 ofensivo
+  verticalidade: number; // -2 posse …    +2 direto
+  pressao: number;       // -2 baixa …    +2 alta
+  cortes: number;        // -2 leve …     +2 duro
+}
+export const NEUTRAL_TACTICS: Tactics = { mentalidade: 0, verticalidade: 0, pressao: 0, cortes: 0 };
+
 export interface EngineSide {
   team_id: string;
   team_name: string;
   starters: EngineSlot[];
   bench: EngineSlot[]; // reservas por ordem
   strategy: "ofensiva" | "equilibrada" | "defensiva";
+  tactics?: Tactics;
 }
 
 export type EngineEventType =
@@ -109,10 +119,57 @@ function strategyMod(s: EngineSide["strategy"]): { atk: number; def: number } {
   return { atk: 0, def: 0 };
 }
 
+// Táticas ao vivo: efeito matemático sobre ataque/defesa/frequência de chances.
+// mentalidade: +atk/-def   ·   verticalidade: mais chances, menor precisão
+// pressao: +atk/+lesão/+cartão · cortes: +def/+cartão
+function tacticsMod(t: Tactics | undefined) {
+  const T = t ?? NEUTRAL_TACTICS;
+  return {
+    atk: T.mentalidade * 2 + T.pressao * 1,
+    def: -T.mentalidade * 1 + T.cortes * 2,
+    freq: 1 + T.verticalidade * 0.05,      // mult. na frequência de chances
+    quality: 1 - T.verticalidade * 0.02,   // qualidade média (chute mais afoito)
+    yellowMul: 1 + T.pressao * 0.3 + T.cortes * 0.5,
+    injuryMul: 1 + Math.max(0, T.pressao) * 0.4,
+  };
+}
+
+/**
+ * GDD §4.6 — Fadiga aplicada como multiplicador sobre o overall efetivo.
+ * A energia registrada NO INÍCIO da partida define a faixa; o motor não
+ * degrada essa faixa durante os 90min (fadiga acumula entre partidas).
+ *   70-100 → x1,00 (Pleno)
+ *   50-69  → x0,95 (Levemente cansado)
+ *   30-49  → x0,85 (Cansado)
+ *   15-29  → x0,70 (Exausto)
+ *    0-14  → x0,50 (Esgotado)
+ */
+export function energyMultiplier(energy: number): number {
+  if (energy >= 70) return 1.0;
+  if (energy >= 50) return 0.95;
+  if (energy >= 30) return 0.85;
+  if (energy >= 15) return 0.7;
+  return 0.5;
+}
+
+export type FatigueState = "pleno" | "leve" | "cansado" | "exausto" | "esgotado";
+export function fatigueState(energy: number): FatigueState {
+  if (energy >= 70) return "pleno";
+  if (energy >= 50) return "leve";
+  if (energy >= 30) return "cansado";
+  if (energy >= 15) return "exausto";
+  return "esgotado";
+}
+
 function energyAdjusted(c: EngineCreature): number {
-  // GDD §4.6: energia baixa penaliza overall efetivo
-  const penalty = Math.max(0, (60 - c.energy)) * 0.25;
-  return Math.max(10, c.overall - penalty);
+  return Math.max(10, Math.round(c.overall * energyMultiplier(c.energy)));
+}
+
+// Multiplicador de risco de lesão por fadiga (GDD §Fadiga).
+function injuryFatigueMult(energy: number): number {
+  if (energy >= 30) return 1.0;
+  if (energy >= 15) return 2.0;
+  return 3.0;
 }
 
 function avg(nums: number[]): number {
@@ -153,9 +210,10 @@ function computeStrength(live: LiveSide): SideStrength {
   const attackers = live.starters.filter((s) => s.role === "MEI" || s.role === "ATA");
   const defenders = live.starters.filter((s) => s.role === "GOL" || s.role === "DEF");
   const mod = strategyMod(live.side.strategy);
+  const t = tacticsMod(live.side.tactics);
   return {
-    attack: avg(attackers.map((s) => energyAdjusted(s.creature))) + mod.atk,
-    defense: avg(defenders.map((s) => energyAdjusted(s.creature))) + mod.def,
+    attack: avg(attackers.map((s) => energyAdjusted(s.creature))) + mod.atk + t.atk,
+    defense: avg(defenders.map((s) => energyAdjusted(s.creature))) + mod.def + t.def,
     attackers,
     defenders,
   };
@@ -236,17 +294,22 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
   const initialHomeIds = new Set(home.starters.map((s) => s.creature.id));
   const initialAwayIds = new Set(away.starters.map((s) => s.creature.id));
 
+  const tH = tacticsMod(home.tactics);
+  const tA = tacticsMod(away.tactics);
+  const yellowRate = 0.015 * ((tH.yellowMul + tA.yellowMul) / 2);
+  const redRate = 0.0025 * ((tH.yellowMul + tA.yellowMul) / 2);
+
   for (let minute = 1; minute <= 90; minute++) {
     const H = computeStrength(liveHome);
     const A = computeStrength(liveAway);
-    const chanceHome = (H.attack + 4) / 600;
-    const chanceAway = A.attack / 670;
+    const chanceHome = ((H.attack + 4) / 600) * tH.freq;
+    const chanceAway = (A.attack / 670) * tA.freq;
 
-    processTeamChance(true, minute, liveHome, H, A, chanceHome, rand, events, weather);
-    processTeamChance(false, minute, liveAway, A, H, chanceAway, rand, events, weather);
+    processTeamChance(true, minute, liveHome, H, A, chanceHome, rand, events, weather, tH.quality);
+    processTeamChance(false, minute, liveAway, A, H, chanceAway, rand, events, weather, tA.quality);
 
-    // Cartão amarelo ~1,5%/min
-    if (rand() < 0.015) {
+    // Cartão amarelo — modulado por pressão/cortes de ambos os lados
+    if (rand() < yellowRate) {
       const live = rand() < 0.5 ? liveHome : liveAway;
       if (live.starters.length) {
         const actorSlot = pick(live.starters, rand);
@@ -261,7 +324,7 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
       }
     }
     // Cartão vermelho ~0,25%/min (§4.5)
-    if (rand() < 0.0025) {
+    if (rand() < redRate) {
       const live = rand() < 0.5 ? liveHome : liveAway;
       if (live.starters.length > 7) {
         const idx = Math.floor(rand() * live.starters.length);
@@ -277,25 +340,26 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
         });
       }
     }
-    // Lesão ~0,4%/min — tenta substituir automaticamente (§5.5)
-    if (rand() < 0.004) {
-      const live = rand() < 0.5 ? liveHome : liveAway;
-      if (live.starters.length) {
-        const outSlot = pick(live.starters, rand);
-        const actor = outSlot.creature;
-        events.push({
-          minute,
-          event_type: "injury",
-          description: `${actor.name} sente uma lesão (${live.side.team_name}).`,
-          actor_creature_id: actor.id,
-          actor_team_id: live.side.team_id,
-        });
-        // Remove titular lesionado
-        const i = live.starters.indexOf(outSlot);
-        if (i >= 0) live.starters.splice(i, 1);
-        trySubstitute(live, outSlot, minute, events);
-      }
+    // Lesão base 0,4%/min — modulada por pressão da própria equipe e por fadiga individual
+    for (const live of [liveHome, liveAway] as const) {
+      const mul = live === liveHome ? tH.injuryMul : tA.injuryMul;
+      if (!live.starters.length) continue;
+      const outSlot = pick(live.starters, rand);
+      const perMinute = 0.004 * mul * injuryFatigueMult(outSlot.creature.energy);
+      if (rand() >= perMinute) continue;
+      const actor = outSlot.creature;
+      events.push({
+        minute,
+        event_type: "injury",
+        description: `${actor.name} sente uma lesão (${live.side.team_name}).`,
+        actor_creature_id: actor.id,
+        actor_team_id: live.side.team_id,
+      });
+      const i = live.starters.indexOf(outSlot);
+      if (i >= 0) live.starters.splice(i, 1);
+      trySubstitute(live, outSlot, minute, events);
     }
+
 
     if (minute === 45) {
       const hs = events.filter((e) => e.event_type === "goal" && e.actor_team_id === home.team_id).length;
@@ -333,15 +397,25 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
     actor_team_id: null,
   });
 
-  // Perda de energia por criatura utilizada (titular: 25, entrou do banco: 15)
+  // Perda de energia por criatura utilizada. GDD/Fadiga: base 36 titular, 18 reserva
+  // que entrou. Cada ponto de FÍSICO (0..100) reduz o desgaste em ~0,15% —
+  // criatura 5★ (100) tem -15%. Fórmula: loss = base * (1 - physical/100 * 0.15).
   const energy_loss: Record<string, number> = {};
   const usedHome = new Set([...initialHomeIds, ...liveHome.starters.map((s) => s.creature.id)]);
   const usedAway = new Set([...initialAwayIds, ...liveAway.starters.map((s) => s.creature.id)]);
-  for (const id of initialHomeIds) energy_loss[id] = 25;
-  for (const id of initialAwayIds) energy_loss[id] = 25;
-  // Reservas que entraram: usadas mas não estão no titular original
-  for (const s of liveHome.starters) if (!initialHomeIds.has(s.creature.id)) energy_loss[s.creature.id] = 15;
-  for (const s of liveAway.starters) if (!initialAwayIds.has(s.creature.id)) energy_loss[s.creature.id] = 15;
+  const wearFactor = (physical: number) => Math.max(0.5, 1 - (physical / 100) * 0.15);
+  const allSlots: EngineSlot[] = [
+    ...home.starters, ...home.bench, ...away.starters, ...away.bench,
+  ];
+  const physById = new Map<string, number>(allSlots.map((s) => [s.creature.id, s.creature.physical ?? 40]));
+  for (const id of initialHomeIds) energy_loss[id] = Math.round(36 * wearFactor(physById.get(id) ?? 40));
+  for (const id of initialAwayIds) energy_loss[id] = Math.round(36 * wearFactor(physById.get(id) ?? 40));
+  for (const s of liveHome.starters)
+    if (!initialHomeIds.has(s.creature.id))
+      energy_loss[s.creature.id] = Math.round(18 * wearFactor(s.creature.physical ?? 40));
+  for (const s of liveAway.starters)
+    if (!initialAwayIds.has(s.creature.id))
+      energy_loss[s.creature.id] = Math.round(18 * wearFactor(s.creature.physical ?? 40));
 
   const used_home_bench = [...usedHome].filter((id) => !initialHomeIds.has(id));
   const used_away_bench = [...usedAway].filter((id) => !initialAwayIds.has(id));
@@ -367,6 +441,7 @@ function processTeamChance(
   rand: () => number,
   events: EngineEvent[],
   weather: Weather,
+  qualityMul: number = 1,
 ) {
   if (rand() >= chance) return;
   if (!own.attackers.length || !opp.defenders.length) return;
@@ -381,7 +456,7 @@ function processTeamChance(
 
   const homeAdv = isHome ? 4 : 0;
   let chanceGoal =
-    (own.attack + homeAdv - opp.defense + 40) / 260 + bonusElem + affinityBonus + weatherBonus;
+    ((own.attack + homeAdv - opp.defense + 40) / 260 + bonusElem + affinityBonus + weatherBonus) * qualityMul;
   if (chanceGoal < 0.07) chanceGoal = 0.07;
 
   const goalieSlot = opp.defenders.find((s) => s.role === "GOL");

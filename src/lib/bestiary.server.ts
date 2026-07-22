@@ -44,7 +44,10 @@ export async function loadBestiary(supabase: any): Promise<LoadedBestiary> {
   if (cache) return cache;
   const [spRes, epRes] = await Promise.all([
     supabase.from("species").select("*"),
-    supabase.from("epithets").select("element, epithet"),
+    // Somente epítetos preposicionais (invariáveis em gênero) — evita
+    // "Fênix o Ardente" (correto seria "a Ardente"). Adjetivais virão depois
+    // com marcação de gênero por espécie.
+    supabase.from("epithets").select("element, epithet").eq("is_prepositional", true),
   ]);
   if (spRes.error) throw spRes.error;
   if (epRes.error) throw epRes.error;

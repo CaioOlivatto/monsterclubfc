@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Search, BatteryCharging, Star, Clock, Hourglass } from "lucide-react";
 import { ageStatus, seasonsRemaining, type AgeStatus } from "@/lib/age";
+import { fatigueState, FATIGUE_LABEL, FATIGUE_CLASS, effectiveOverall, energyMultiplier } from "@/lib/fatigue";
 
 export const Route = createFileRoute("/_authenticated/roster")({
   head: () => ({
@@ -278,15 +279,29 @@ function renderCard(c: any) {
             </div>
           )}
 
+          {(() => {
+            const fs = fatigueState(c.energy ?? 100);
+            const mult = energyMultiplier(c.energy ?? 100);
+            const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100);
+            const penalty = Math.round((1 - mult) * 100);
+            return (
+              <div className={"mt-2 flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] " + FATIGUE_CLASS[fs]}>
+                <BatteryCharging className="h-3 w-3" />
+                <span className="font-medium">{FATIGUE_LABEL[fs]}</span>
+                <span className="opacity-80">· {c.energy}%</span>
+                {penalty > 0 && (
+                  <span className="ml-auto font-semibold">Ovr {c.overall}→{eff} (-{penalty}%)</span>
+                )}
+              </div>
+            );
+          })()}
+
           <div className="mt-3 flex items-end justify-between">
             <div>
               <p className="text-3xl font-bold leading-none">{c.overall}</p>
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">overall</p>
             </div>
             <div className="text-right text-xs text-muted-foreground">
-              <p className="flex items-center justify-end gap-1">
-                <BatteryCharging className="h-3 w-3" /> {c.energy}%
-              </p>
               <p className="flex items-center justify-end gap-1">
                 <Star className="h-3 w-3" /> {(c.half_stars_earned / 2).toFixed(1)}★
               </p>
