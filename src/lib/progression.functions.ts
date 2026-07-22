@@ -93,8 +93,11 @@ export const spendHalfStar = createServerFn({ method: "POST" })
       .from("creatures").update(update as any).eq("id", c.id).eq("owner_trainer_id", trainer.id);
     if (error) throw error;
 
+    await awardTrainerXp(supabase, trainer.id, "half_star", 1);
+
     return { ok: true, message: "Meia-estrela aplicada!" };
   });
+
 
 /**
  * §3.1 — Recompensa semanal: 30 💎 a cada 7 dias.
