@@ -357,15 +357,26 @@ function CreatureDetail() {
                   <p className="text-xs text-muted-foreground">
                     Acelere a recuperação com gemas ({HEAL_GEMS_PER_MATCH}💎/partida).
                   </p>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={healMut.isPending}
-                    onClick={() => healMut.mutate()}
-                  >
-                    <Gem className="mr-1 h-3.5 w-3.5" />
-                    Curar agora ({cost} 💎)
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={reduceMut.isPending || remaining <= 1}
+                      onClick={() => reduceMut.mutate()}
+                    >
+                      <Gem className="mr-1 h-3.5 w-3.5" />
+                      Reduzir 1 partida ({HEAL_GEMS_PER_MATCH} 💎)
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={healMut.isPending}
+                      onClick={() => healMut.mutate()}
+                    >
+                      <Gem className="mr-1 h-3.5 w-3.5" />
+                      Curar agora ({cost} 💎)
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
