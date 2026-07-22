@@ -397,15 +397,25 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
     actor_team_id: null,
   });
 
-  // Perda de energia por criatura utilizada (titular: 25, entrou do banco: 15)
+  // Perda de energia por criatura utilizada. GDD/Fadiga: base 36 titular, 18 reserva
+  // que entrou. Cada ponto de FÍSICO (0..100) reduz o desgaste em ~0,15% —
+  // criatura 5★ (100) tem -15%. Fórmula: loss = base * (1 - physical/100 * 0.15).
   const energy_loss: Record<string, number> = {};
   const usedHome = new Set([...initialHomeIds, ...liveHome.starters.map((s) => s.creature.id)]);
   const usedAway = new Set([...initialAwayIds, ...liveAway.starters.map((s) => s.creature.id)]);
-  for (const id of initialHomeIds) energy_loss[id] = 25;
-  for (const id of initialAwayIds) energy_loss[id] = 25;
-  // Reservas que entraram: usadas mas não estão no titular original
-  for (const s of liveHome.starters) if (!initialHomeIds.has(s.creature.id)) energy_loss[s.creature.id] = 15;
-  for (const s of liveAway.starters) if (!initialAwayIds.has(s.creature.id)) energy_loss[s.creature.id] = 15;
+  const wearFactor = (physical: number) => Math.max(0.5, 1 - (physical / 100) * 0.15);
+  const allSlots: EngineSlot[] = [
+    ...home.starters, ...home.bench, ...away.starters, ...away.bench,
+  ];
+  const physById = new Map<string, number>(allSlots.map((s) => [s.creature.id, s.creature.physical ?? 40]));
+  for (const id of initialHomeIds) energy_loss[id] = Math.round(36 * wearFactor(physById.get(id) ?? 40));
+  for (const id of initialAwayIds) energy_loss[id] = Math.round(36 * wearFactor(physById.get(id) ?? 40));
+  for (const s of liveHome.starters)
+    if (!initialHomeIds.has(s.creature.id))
+      energy_loss[s.creature.id] = Math.round(18 * wearFactor(s.creature.physical ?? 40));
+  for (const s of liveAway.starters)
+    if (!initialAwayIds.has(s.creature.id))
+      energy_loss[s.creature.id] = Math.round(18 * wearFactor(s.creature.physical ?? 40));
 
   const used_home_bench = [...usedHome].filter((id) => !initialHomeIds.has(id));
   const used_away_bench = [...usedAway].filter((id) => !initialAwayIds.has(id));
