@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { generateStarterRoster, rosterToDbRows, type StarterKey } from "./starter-teams";
+
 
 
 export interface CareerEntry {
@@ -301,16 +301,14 @@ export const declineOffer = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-function starterKeyForTeam(dominant: string | null, style: string | null): StarterKey {
-  switch (dominant) {
-    case "terra": return "titas_pedra";
-    case "ar":    return "furacoes_vento";
-    case "fogo":  return "chamas_rubras";
-    case "agua":  return "mares_profundas";
-    case "gelo":  return "laminas_gelo";
-    default:      return "guardioes_mistos";
-  }
-}
+const STARTING_CASH_BY_DIVISION: Record<string, number> = {
+  lendaria: 2_000_000,
+  diamante: 1_200_000,
+  ouro: 700_000,
+  prata: 400_000,
+  bronze: 200_000,
+};
+
 
 export interface AcceptOfferResult {
   ok: true;
@@ -376,17 +374,16 @@ export const acceptOffer = createServerFn({ method: "POST" })
       throw new Error("Criaturas aposentadas não podem ser levadas.");
     }
 
-    // 5) Gera 24 criaturas para o novo time (26 - 2 trazidas)
-    const { loadBestiary } = await import("./bestiary.server");
-    const bestiary = await loadBestiary(supabase);
-    const starterKey = starterKeyForTeam(newTeam.dominant_element, newTeam.style);
-    const fullRoster = generateStarterRoster(starterKey, bestiary);
-    // Ordena por overall e descarta os 2 mais fortes (o treinador "traz" os melhores dele)
-    const trimmed = [...fullRoster].sort((a, b) => b.overall - a.overall).slice(2);
-    const newRows = rosterToDbRows(trainer.id, trimmed).map((r) => ({
-      ...r,
-      owner_team_id: newTeam.id,
-    }));
+    // 5) Absorve o elenco EXISTENTE do novo clube (CPU): assume owner_trainer_id
+    //    e descarta as 2 criaturas mais fracas para dar espaço às 2 trazidas.
+    const { data: existingRoster } = await supabase
+      .from("creatures")
+      .select("id, overall, retired")
+      .eq("owner_team_id", newTeam.id);
+    const activeRoster = (existingRoster ?? []).filter((c: any) => !c.retired);
+    const sortedByOvr = [...activeRoster].sort((a: any, b: any) => (a.overall ?? 0) - (b.overall ?? 0));
+    const dropIds = sortedByOvr.slice(0, 2).map((c: any) => c.id);
+    const keepFromNewClubIds = sortedByOvr.slice(2).map((c: any) => c.id);
 
     // 6) Solta o elenco antigo (menos as 2 escolhidas): owner_trainer_id → null
     if (trainer.current_team_id) {
@@ -411,15 +408,25 @@ export const acceptOffer = createServerFn({ method: "POST" })
         .eq("id", trainer.current_team_id);
     }
 
-    // 7) Reassinala as 2 mantidas ao novo clube
+    // 7) Descarta os 2 mais fracos do novo clube (liberados para nada — sumiram)
+    if (dropIds.length) {
+      await supabase.from("creatures").delete().in("id", dropIds);
+    }
+
+    // 8) Assume o elenco remanescente do novo clube
+    if (keepFromNewClubIds.length) {
+      await supabase
+        .from("creatures")
+        .update({ owner_trainer_id: trainer.id })
+        .in("id", keepFromNewClubIds);
+    }
+
+    // 9) Reassinala as 2 mantidas do treinador ao novo clube
     await supabase
       .from("creatures")
       .update({ owner_team_id: newTeam.id })
       .in("id", data.keepCreatureIds);
 
-    // 8) Insere elenco novo
-    const { error: insErr } = await supabase.from("creatures").insert(newRows as any);
-    if (insErr) throw insErr;
 
     // 9) Novo clube passa a ser do jogador
     await supabase
@@ -451,7 +458,44 @@ export const acceptOffer = createServerFn({ method: "POST" })
       .eq("trainer_id", trainer.id)
       .eq("status", "pending");
 
-    // 12) Bônus de contratação (financeiro)
+    // 12) Finanças: zera o caixa antigo e credita o caixa do novo clube + bônus.
+    //     O dinheiro NÃO viaja com o treinador — fica no clube que ele deixou.
+    const { data: allTx } = await supabase
+      .from("financial_transactions")
+      .select("transaction_type, amount")
+      .eq("trainer_id", trainer.id);
+    const currentBalance = (allTx ?? []).reduce((acc: number, t: any) => {
+      const amt = Number(t.amount) || 0;
+      return t.transaction_type === "income" ? acc + amt : acc - amt;
+    }, 0);
+    if (currentBalance > 0) {
+      await supabase.from("financial_transactions").insert({
+        trainer_id: trainer.id,
+        transaction_type: "expense",
+        category: "club_transfer",
+        amount: currentBalance,
+        description: `Caixa deixado no clube anterior`,
+      });
+    } else if (currentBalance < 0) {
+      // dívida também fica com o clube antigo
+      await supabase.from("financial_transactions").insert({
+        trainer_id: trainer.id,
+        transaction_type: "income",
+        category: "club_transfer",
+        amount: -currentBalance,
+        description: `Dívida deixada no clube anterior`,
+      });
+    }
+
+    const startingCash = STARTING_CASH_BY_DIVISION[newTeam.division ?? "bronze"] ?? 200_000;
+    await supabase.from("financial_transactions").insert({
+      trainer_id: trainer.id,
+      transaction_type: "income",
+      category: "club_transfer",
+      amount: startingCash,
+      description: `Caixa do ${newTeam.name}`,
+    });
+
     if (offer.signing_bonus > 0) {
       await supabase.from("financial_transactions").insert({
         trainer_id: trainer.id,
@@ -461,6 +505,7 @@ export const acceptOffer = createServerFn({ method: "POST" })
         description: `Bônus de contratação — ${offer.team_name}`,
       });
     }
+
 
     // 13) Reseta escalação (será regerada pelo botão "Auto definir")
     await supabase.from("team_lineups").delete().eq("trainer_id", trainer.id);
