@@ -41,7 +41,9 @@ const ELEMENT_LABEL: Record<string, string> = {
 const ELEMENTS = ["fogo", "agua", "terra", "ar", "gelo"] as const;
 const POSITIONS = ["Goleiro", "Zagueiro", "Meio-campo", "Atacante"] as const;
 
-type SortKey = "overall" | "name" | "energy" | "market_value" | "age";
+type SortKey = "position" | "overall" | "name" | "energy" | "market_value" | "age";
+
+const POSITION_ORDER: Record<string, number> = { GOL: 0, DEF: 1, MEI: 2, ATA: 3 };
 type AgeFilter = "all" | "veteran" | "last_season";
 
 function RosterPage() {
