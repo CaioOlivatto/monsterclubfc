@@ -118,7 +118,7 @@ const WEATHER_LABEL: Record<Weather, string> = {
   nublado: "Nublado",
 };
 
-const P_LESAO = 0.004; // 0,4% por minuto por time
+const P_LESAO = 0.0034; // 0,34% por minuto por time (~0,3 lesão por time/partida)
 const MAX_INJURIES_PER_TEAM = 2;
 
 function elementalBonus(attacker: Element, defender: Element): number {
