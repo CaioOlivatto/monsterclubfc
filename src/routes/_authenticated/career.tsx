@@ -1,12 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Award, Trophy, TrendingUp, TrendingDown, DoorOpen, Building2, Sparkles } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { ArrowLeft, Award, Trophy, TrendingUp, TrendingDown, DoorOpen, Building2, Sparkles, Handshake, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getCareer, type CareerEntry } from "@/lib/career.functions";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "sonner";
+import { getCareer, listOffers, declineOffer, acceptOffer, type CareerEntry, type JobOffer } from "@/lib/career.functions";
+import { listMyCreatures } from "@/lib/creatures.functions";
 
 const DIV_LABEL: Record<string, string> = {
   lendaria: "1ª — Lendária",
@@ -14,6 +18,12 @@ const DIV_LABEL: Record<string, string> = {
   ouro: "3ª — Ouro",
   prata: "4ª — Prata",
   bronze: "5ª — Bronze",
+};
+
+const REASON_LABEL: Record<JobOffer["reason"], string> = {
+  top_finish: "Boa campanha",
+  higher_division: "Divisão superior",
+  after_dismissal: "Após demissão",
 };
 
 const EVENT_META: Record<
@@ -33,9 +43,9 @@ export const Route = createFileRoute("/_authenticated/career")({
   head: () => ({
     meta: [
       { title: "Carreira do Treinador — Monster Club Manager" },
-      { name: "description", content: "Currículo do treinador: clubes dirigidos, títulos, promoções e rebaixamentos ao longo das temporadas." },
+      { name: "description", content: "Currículo do treinador: clubes dirigidos, títulos, promoções, rebaixamentos e propostas recebidas." },
       { property: "og:title", content: "Carreira do Treinador — Monster Club Manager" },
-      { property: "og:description", content: "Sua trajetória entre clubes, títulos e temporadas." },
+      { property: "og:description", content: "Sua trajetória entre clubes, títulos, temporadas e negociações." },
     ],
   }),
   component: CareerPage,
@@ -43,10 +53,9 @@ export const Route = createFileRoute("/_authenticated/career")({
 
 function CareerPage() {
   const fetchCareer = useServerFn(getCareer);
-  const { data, isLoading } = useQuery({
-    queryKey: ["career"],
-    queryFn: () => fetchCareer(),
-  });
+  const fetchOffers = useServerFn(listOffers);
+  const { data, isLoading } = useQuery({ queryKey: ["career"], queryFn: () => fetchCareer() });
+  const { data: offersData } = useQuery({ queryKey: ["career", "offers"], queryFn: () => fetchOffers() });
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-4">
@@ -56,7 +65,7 @@ function CareerPage() {
         </Button>
         <div>
           <h1 className="text-lg font-semibold leading-none">Carreira</h1>
-          <p className="text-xs text-muted-foreground">Seu currículo como treinador</p>
+          <p className="text-xs text-muted-foreground">Seu currículo e propostas</p>
         </div>
       </div>
 
@@ -67,6 +76,20 @@ function CareerPage() {
         </div>
       ) : (
         <>
+          {offersData?.status === "dismissed" && (
+            <Card className="mb-3 border-orange-500/40 bg-orange-500/10">
+              <CardContent className="flex items-start gap-2 py-3 text-sm">
+                <AlertTriangle className="mt-0.5 h-4 w-4 text-orange-300" />
+                <div>
+                  <p className="font-medium text-orange-200">Você está sem clube</p>
+                  <p className="text-xs text-orange-300/80">
+                    Escolha uma das propostas abaixo para retomar sua carreira.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card className="mb-3">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
@@ -105,6 +128,22 @@ function CareerPage() {
             <MiniStat label="Rebaixamentos" value={data.totals.relegations} accent="red" />
             <MiniStat label="Demissões" value={data.totals.dismissals} accent="orange" />
           </div>
+
+          {offersData && offersData.offers.length > 0 && (
+            <Card className="mb-3 border-primary/40">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <Handshake className="h-4 w-4 text-primary" />
+                  Propostas recebidas ({offersData.offers.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 p-3">
+                {offersData.offers.map((o) => (
+                  <OfferCard key={o.id} offer={o} />
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader className="pb-2">
@@ -150,6 +189,174 @@ function CareerPage() {
         </>
       )}
     </div>
+  );
+}
+
+function OfferCard({ offer }: { offer: JobOffer }) {
+  const qc = useQueryClient();
+  const declineFn = useServerFn(declineOffer);
+  const [open, setOpen] = useState(false);
+
+  const declineMut = useMutation({
+    mutationFn: () => declineFn({ data: { offerId: offer.id } }),
+    onSuccess: () => {
+      toast.success(`Proposta do ${offer.team_name} recusada`);
+      qc.invalidateQueries({ queryKey: ["career", "offers"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao recusar"),
+  });
+
+  return (
+    <>
+      <div className="rounded-md border bg-card p-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-sm font-medium">{offer.team_name}</span>
+          <Badge variant="outline" className="text-[10px]">
+            {DIV_LABEL[offer.division] ?? offer.division}
+          </Badge>
+          <Badge variant="outline" className="text-[10px]">
+            {REASON_LABEL[offer.reason]}
+          </Badge>
+        </div>
+        {offer.message && (
+          <p className="mt-1 text-xs text-muted-foreground">{offer.message}</p>
+        )}
+        <p className="mt-1 text-xs">
+          Bônus de contratação: <span className="font-semibold text-emerald-300">
+            R$ {Math.round(offer.signing_bonus).toLocaleString("pt-BR")}
+          </span>
+        </p>
+        <div className="mt-2 flex gap-2">
+          <Button size="sm" className="flex-1" onClick={() => setOpen(true)}>
+            Aceitar
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => declineMut.mutate()}
+            disabled={declineMut.isPending}
+          >
+            Recusar
+          </Button>
+        </div>
+      </div>
+      {open && <AcceptDialog offer={offer} open={open} onOpenChange={setOpen} />}
+    </>
+  );
+}
+
+function AcceptDialog({
+  offer,
+  open,
+  onOpenChange,
+}: {
+  offer: JobOffer;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const qc = useQueryClient();
+  const listFn = useServerFn(listMyCreatures);
+  const acceptFn = useServerFn(acceptOffer);
+  const { data: creatures = [], isLoading } = useQuery({
+    queryKey: ["my-creatures", "for-transfer"],
+    queryFn: () => listFn(),
+    enabled: open,
+  });
+
+  const [picked, setPicked] = useState<string[]>([]);
+
+  const acceptMut = useMutation({
+    mutationFn: () => acceptFn({ data: { offerId: offer.id, keepCreatureIds: picked } }),
+    onSuccess: (res: any) => {
+      toast.success(`Bem-vindo ao ${res.new_team_name}!`, {
+        description: `Bônus de R$ ${Math.round(res.signing_bonus).toLocaleString("pt-BR")} recebido. Você trouxe 2 criaturas.`,
+      });
+      qc.invalidateQueries();
+      onOpenChange(false);
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao aceitar proposta"),
+  });
+
+  function toggle(id: string) {
+    setPicked((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= 2) return prev;
+      return [...prev, id];
+    });
+  }
+
+  const eligible = (creatures as any[]).filter((c) => !c.retired);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] max-w-md overflow-hidden">
+        <DialogHeader>
+          <DialogTitle>Aceitar proposta do {offer.team_name}</DialogTitle>
+          <DialogDescription>
+            Escolha 2 criaturas do seu elenco atual para levar. As demais permanecem no clube antigo.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="max-h-[45vh] overflow-y-auto rounded-md border">
+          {isLoading ? (
+            <div className="space-y-2 p-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : (
+            <ul className="divide-y">
+              {eligible.map((c: any) => {
+                const selected = picked.includes(c.id);
+                const disabled = !selected && picked.length >= 2;
+                return (
+                  <li
+                    key={c.id}
+                    className={`flex cursor-pointer items-center gap-2 p-2 text-sm transition ${
+                      selected ? "bg-primary/15" : ""
+                    } ${disabled ? "opacity-40" : "hover:bg-muted/50"}`}
+                    onClick={() => !disabled && toggle(c.id)}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      readOnly
+                      disabled={disabled}
+                      className="pointer-events-none"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate font-medium">{c.name}</span>
+                        <Badge variant="outline" className="text-[10px]">{c.suggested_position}</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        OVR {c.overall} · {c.age} anos · {c.element}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        <p className="text-center text-xs text-muted-foreground">
+          {picked.length}/2 selecionadas
+        </p>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => acceptMut.mutate()}
+            disabled={picked.length !== 2 || acceptMut.isPending}
+          >
+            {acceptMut.isPending ? "Assinando..." : "Confirmar transferência"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

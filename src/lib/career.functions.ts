@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { generateStarterRoster, rosterToDbRows, type StarterKey } from "./starter-teams";
+
 
 export interface CareerEntry {
   id: string;
@@ -298,4 +300,200 @@ export const declineOffer = createServerFn({ method: "POST" })
     if (error) throw error;
     return { ok: true };
   });
+
+function starterKeyForTeam(dominant: string | null, style: string | null): StarterKey {
+  switch (dominant) {
+    case "terra": return "titas_pedra";
+    case "ar":    return "furacoes_vento";
+    case "fogo":  return "chamas_rubras";
+    case "agua":  return "mares_profundas";
+    case "gelo":  return "laminas_gelo";
+    default:      return "guardioes_mistos";
+  }
+}
+
+export interface AcceptOfferResult {
+  ok: true;
+  new_team_name: string;
+  new_division: string;
+  signing_bonus: number;
+  brought_creatures: number;
+}
+
+export const acceptOffer = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { offerId: string; keepCreatureIds: string[] }) => {
+    if (!Array.isArray(input.keepCreatureIds) || input.keepCreatureIds.length !== 2) {
+      throw new Error("Você deve escolher exatamente 2 criaturas para levar.");
+    }
+    if (input.keepCreatureIds[0] === input.keepCreatureIds[1]) {
+      throw new Error("Escolha duas criaturas diferentes.");
+    }
+    return input;
+  })
+  .handler(async ({ data, context }): Promise<AcceptOfferResult> => {
+    const { supabase, userId } = context;
+
+    // 1) Treinador
+    const { data: trainer } = await supabase
+      .from("trainers")
+      .select("id, current_team_id, status, trainer_name")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!trainer) throw new Error("Treinador não encontrado.");
+
+    // 2) Proposta
+    const { data: offer } = await supabase
+      .from("job_offers")
+      .select("id, team_id, team_name, division, signing_bonus, status")
+      .eq("id", data.offerId)
+      .eq("trainer_id", trainer.id)
+      .maybeSingle();
+    if (!offer) throw new Error("Proposta não encontrada.");
+    if (offer.status !== "pending") throw new Error("Esta proposta não está mais disponível.");
+
+    // 3) Novo time (verifica que está livre)
+    const { data: newTeam } = await supabase
+      .from("teams")
+      .select("id, name, division, dominant_element, style, trainer_id")
+      .eq("id", offer.team_id)
+      .maybeSingle();
+    if (!newTeam) throw new Error("Clube não encontrado.");
+    if (newTeam.trainer_id && newTeam.trainer_id !== trainer.id) {
+      throw new Error("Este clube já contratou outro treinador.");
+    }
+
+    // 4) Valida as 2 criaturas escolhidas
+    const { data: kept } = await supabase
+      .from("creatures")
+      .select("id, name, owner_trainer_id, retired")
+      .in("id", data.keepCreatureIds)
+      .eq("owner_trainer_id", trainer.id);
+    if (!kept || kept.length !== 2) {
+      throw new Error("Criaturas inválidas. Escolha duas do seu elenco atual.");
+    }
+    if (kept.some((c: any) => c.retired)) {
+      throw new Error("Criaturas aposentadas não podem ser levadas.");
+    }
+
+    // 5) Gera 24 criaturas para o novo time (26 - 2 trazidas)
+    const { loadBestiary } = await import("./bestiary.server");
+    const bestiary = await loadBestiary(supabase);
+    const starterKey = starterKeyForTeam(newTeam.dominant_element, newTeam.style);
+    const fullRoster = generateStarterRoster(starterKey, bestiary);
+    // Ordena por overall e descarta os 2 mais fortes (o treinador "traz" os melhores dele)
+    const trimmed = [...fullRoster].sort((a, b) => b.overall - a.overall).slice(2);
+    const newRows = rosterToDbRows(trainer.id, trimmed).map((r) => ({
+      ...r,
+      owner_team_id: newTeam.id,
+    }));
+
+    // 6) Solta o elenco antigo (menos as 2 escolhidas): owner_trainer_id → null
+    if (trainer.current_team_id) {
+      const keepSet = new Set(data.keepCreatureIds);
+      const { data: allOld } = await supabase
+        .from("creatures")
+        .select("id")
+        .eq("owner_trainer_id", trainer.id)
+        .eq("owner_team_id", trainer.current_team_id);
+      const releaseIds = (allOld ?? []).map((c: any) => c.id).filter((id: string) => !keepSet.has(id));
+      if (releaseIds.length) {
+        await supabase
+          .from("creatures")
+          .update({ owner_trainer_id: null })
+          .in("id", releaseIds);
+      }
+
+      // Libera clube antigo
+      await supabase
+        .from("teams")
+        .update({ trainer_id: null, is_player: false, is_cpu: true })
+        .eq("id", trainer.current_team_id);
+    }
+
+    // 7) Reassinala as 2 mantidas ao novo clube
+    await supabase
+      .from("creatures")
+      .update({ owner_team_id: newTeam.id })
+      .in("id", data.keepCreatureIds);
+
+    // 8) Insere elenco novo
+    const { error: insErr } = await supabase.from("creatures").insert(newRows as any);
+    if (insErr) throw insErr;
+
+    // 9) Novo clube passa a ser do jogador
+    await supabase
+      .from("teams")
+      .update({ trainer_id: trainer.id, is_player: true, is_cpu: false })
+      .eq("id", newTeam.id);
+
+    // 10) Trainer: novos vínculos e reset de contadores
+    await supabase
+      .from("trainers")
+      .update({
+        current_team_id: newTeam.id,
+        seasons_at_current_club: 0,
+        consecutive_bad_seasons: 0,
+        last_final_position: null,
+        status: "employed",
+        pending_transition: false,
+      })
+      .eq("id", trainer.id);
+
+    // 11) Ofertas: aceita esta, expira as demais
+    await supabase
+      .from("job_offers")
+      .update({ status: "accepted" })
+      .eq("id", offer.id);
+    await supabase
+      .from("job_offers")
+      .update({ status: "expired" })
+      .eq("trainer_id", trainer.id)
+      .eq("status", "pending");
+
+    // 12) Bônus de contratação (financeiro)
+    if (offer.signing_bonus > 0) {
+      await supabase.from("financial_transactions").insert({
+        trainer_id: trainer.id,
+        transaction_type: "income",
+        category: "signing_bonus",
+        amount: offer.signing_bonus,
+        description: `Bônus de contratação — ${offer.team_name}`,
+      });
+    }
+
+    // 13) Reseta escalação (será regerada pelo botão "Auto definir")
+    await supabase.from("team_lineups").delete().eq("trainer_id", trainer.id);
+
+    // 14) Histórico de carreira: chegou ao novo clube
+    const { data: currentSeason } = await supabase
+      .from("game_seasons")
+      .select("season_number")
+      .eq("trainer_id", trainer.id)
+      .eq("is_current", true)
+      .maybeSingle();
+    const seasonNum = currentSeason?.season_number ?? 1;
+
+    await supabase.from("trainer_career").insert({
+      trainer_id: trainer.id,
+      team_id: newTeam.id,
+      team_name: newTeam.name,
+      division: newTeam.division ?? "bronze",
+
+      season_start: seasonNum,
+      season_end: seasonNum,
+      final_position: null,
+      event: "hired",
+      title: `Contratado pelo ${newTeam.name}`,
+    });
+
+    return {
+      ok: true,
+      new_team_name: newTeam.name,
+      new_division: newTeam.division ?? "bronze",
+      signing_bonus: offer.signing_bonus,
+      brought_creatures: 2,
+    };
+  });
+
 
