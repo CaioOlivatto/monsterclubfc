@@ -307,19 +307,23 @@ export const createInitialTrainer = createServerFn({ method: "POST" })
 
 // ---------- Times iniciais ----------
 
-export const listStarterTeams = createServerFn({ method: "GET" }).handler(async () => {
-  return STARTER_TEAMS.map((t) => ({
-    key: t.key,
-    name: t.name,
-    emblem: t.emblem,
-    color: t.color,
-    colorClass: t.colorClass,
-    dominant: t.dominant,
-    style: t.style,
-    description: t.description,
-    ...starterTeamSummary(t.key),
-  }));
-});
+export const listStarterTeams = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { loadBestiary } = await import("./bestiary.server");
+    const bestiary = await loadBestiary(context.supabase);
+    return STARTER_TEAMS.map((t) => ({
+      key: t.key,
+      name: t.name,
+      emblem: t.emblem,
+      color: t.color,
+      colorClass: t.colorClass,
+      dominant: t.dominant,
+      style: t.style,
+      description: t.description,
+      ...starterTeamSummary(t.key, bestiary),
+    }));
+  });
 
 const starterKeySchema = z.object({
   key: z.enum([
