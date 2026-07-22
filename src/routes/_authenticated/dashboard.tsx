@@ -336,7 +336,9 @@ function Dashboard() {
                     {standing.losses}D · {standing.goals_for}-
                     {standing.goals_against}
                   </p>
-                </div>
+        </div>
+
+        {confidence && <ConfidenceCard c={confidence} />}
               ) : (
                 <p className="text-sm text-muted-foreground">
                   Sem classificação ainda.
