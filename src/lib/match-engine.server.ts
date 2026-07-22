@@ -210,9 +210,10 @@ function computeStrength(live: LiveSide): SideStrength {
   const attackers = live.starters.filter((s) => s.role === "MEI" || s.role === "ATA");
   const defenders = live.starters.filter((s) => s.role === "GOL" || s.role === "DEF");
   const mod = strategyMod(live.side.strategy);
+  const t = tacticsMod(live.side.tactics);
   return {
-    attack: avg(attackers.map((s) => energyAdjusted(s.creature))) + mod.atk,
-    defense: avg(defenders.map((s) => energyAdjusted(s.creature))) + mod.def,
+    attack: avg(attackers.map((s) => energyAdjusted(s.creature))) + mod.atk + t.atk,
+    defense: avg(defenders.map((s) => energyAdjusted(s.creature))) + mod.def + t.def,
     attackers,
     defenders,
   };
