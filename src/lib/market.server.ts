@@ -3,13 +3,13 @@
 // do treinador — Balanceamento §7.1/§7.2.
 
 import {
-  BESTIARY,
   rollCreature,
   overallToStars,
   computeMarketValue,
   type Element,
   type SpeciesBase,
 } from "./bestiary";
+import type { LoadedBestiary } from "./bestiary.server";
 import { rollBandForDivision, type Division } from "./economy";
 
 
