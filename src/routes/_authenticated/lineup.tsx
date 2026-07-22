@@ -465,9 +465,22 @@ function LineupPage() {
                     <div className={"ml-[4.5rem] inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] " + FATIGUE_CLASS[currFs] + (warn ? " font-semibold" : "")}>
                       {warn && <AlertTriangle className="h-3 w-3" />}
                       <span>{FATIGUE_LABEL[currFs]} · {currentCreature.energy}%</span>
-                      <span className="opacity-80">Ovr {currentCreature.overall}→{currEff} (-{Math.round((1 - currMult) * 100)}%)</span>
+                      <span className="opacity-80">Ovr {currentCreature.overall}→{currEff} (fadiga -{Math.round((1 - currMult) * 100)}%{(() => {
+                        const mm = moraleMultiplier(currentCreature.morale);
+                        const mp = Math.round((mm - 1) * 100);
+                        return mp !== 0 ? `, moral ${mp > 0 ? "+" : ""}${mp}%` : "";
+                      })()})</span>
                     </div>
                   )}
+                  {currentCreature && (() => {
+                    const ms = moraleState(currentCreature.morale);
+                    if (ms === "normal" || ms === "bom") return null;
+                    return (
+                      <div className="ml-[4.5rem] inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <span>{MORALE_EMOJI[ms]} Moral: {MORALE_LABEL[ms]} ({currentCreature.morale ?? 50})</span>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
