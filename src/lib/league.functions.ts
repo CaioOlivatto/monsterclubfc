@@ -6,12 +6,22 @@ import {
   simulate,
   generateCpuSideFor,
   type EngineSide,
+  type EngineBestiary,
 } from "./match-engine.server";
 import { stadiumCapacity } from "./buildings.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { awardTrainerXp, resetSeasonBreakdown } from "./trainer-xp.server";
 import { MATCH_REVENUE, MAINTENANCE_PER_MATCH, matchSalary } from "./economy";
+import { loadBestiary } from "./bestiary.server";
+
+async function loadEngineBestiary(supabase: any): Promise<EngineBestiary> {
+  const b = await loadBestiary(supabase);
+  return {
+    species: b.species.map((s) => ({ species: s.species, element: s.element })),
+    epithets: b.epithets,
+  };
+}
 
 
 async function getTrainer(supabase: any, userId: string) {
