@@ -49,7 +49,6 @@ function rollHalfStarBand(rng: () => number, division: Division): number {
 // Baralho determinístico: distribui as N cartas conforme os pesos da divisão,
 // garantindo a variedade prometida (§7.1) mesmo em amostras pequenas.
 function buildBandDeck(division: Division, count: number, rng: () => number): number[] {
-  const { DIVISION_STAR_PROFILE } = require("./economy") as typeof import("./economy");
   const weights = DIVISION_STAR_PROFILE[division];
   const total = weights.reduce((a, b) => a + b, 0);
   const deck: number[] = [];
