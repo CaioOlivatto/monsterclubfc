@@ -168,22 +168,24 @@ function generateOne(rng: () => number, division: Division): MarketListing {
 export function generateMarketListings(
   trainerId: string,
   seasonNumber: number,
+  division: Division = "bronze",
   count = 24,
 ): MarketListing[] {
-  const seed = hashString(`${trainerId}:season:${seasonNumber}`);
+  const seed = hashString(`${trainerId}:season:${seasonNumber}:${division}`);
   const rng = mulberry32(seed);
   const listings: MarketListing[] = [];
-  for (let i = 0; i < count; i++) listings.push(generateOne(rng));
+  for (let i = 0; i < count; i++) listings.push(generateOne(rng, division));
   return listings;
 }
 
 export function findListing(
   trainerId: string,
   seasonNumber: number,
+  division: Division,
   listingId: string,
 ): MarketListing | null {
   return (
-    generateMarketListings(trainerId, seasonNumber).find((l) => l.id === listingId) ??
+    generateMarketListings(trainerId, seasonNumber, division).find((l) => l.id === listingId) ??
     null
   );
 }
