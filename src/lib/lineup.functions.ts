@@ -53,7 +53,7 @@ export const getMyLineup = createServerFn({ method: "GET" })
 
     const { data: creatures } = await supabase
       .from("creatures")
-      .select("id, name, element, suggested_position, overall, energy, injury_matches_remaining, injury_severity")
+      .select("id, name, element, suggested_position, overall, energy, morale, injury_matches_remaining, injury_severity")
       .eq("owner_trainer_id", trainerId)
       .order("overall", { ascending: false });
 
