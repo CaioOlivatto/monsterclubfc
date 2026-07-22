@@ -448,18 +448,40 @@ const CPU_PREFIXES = ["Falcão", "Lobo", "Trovão", "Sombra", "Fúria", "Cometa"
 const CPU_SUFFIXES = ["FC", "Atlético", "United", "Sporting", "Real", "Racing", "Selvagem", "Elemental"];
 const ELS: Element[] = ["fogo", "agua", "terra", "ar", "gelo"];
 
-export function generateCpuSide(seed: number, playerOverall: number): EngineSide {
+// Bestiário mínimo necessário para nomes (species + epithets por elemento).
+export interface EngineBestiary {
+  species: { species: string; element: Element }[];
+  epithets: Record<Element, string[]>;
+}
+
+export function generateCpuSide(seed: number, playerOverall: number, bestiary?: EngineBestiary): EngineSide {
   const rand = mulberry32(seed ^ 0x5f3759df);
   const name = `${pick(CPU_PREFIXES, rand)} ${pick(CPU_SUFFIXES, rand)}`;
   const target = Math.max(15, Math.min(95, playerOverall + Math.floor((rand() - 0.5) * 20)));
-  return buildCpuSideCore(seed, target, name, `cpu-${seed}`);
+  return buildCpuSideCore(seed, target, name, `cpu-${seed}`, bestiary);
 }
 
-export function generateCpuSideFor(seed: number, teamId: string, teamName: string, strength: number): EngineSide {
-  return buildCpuSideCore(seed, strength, teamName, teamId);
+export function generateCpuSideFor(
+  seed: number, teamId: string, teamName: string, strength: number, bestiary?: EngineBestiary,
+): EngineSide {
+  return buildCpuSideCore(seed, strength, teamName, teamId, bestiary);
 }
 
-function buildCpuSideCore(seed: number, target: number, teamName: string, teamId: string): EngineSide {
+function creatureName(el: Element, rand: () => number, bestiary?: EngineBestiary): string {
+  if (bestiary && bestiary.species.length) {
+    const pool = bestiary.species.filter((s) => s.element === el);
+    const list = pool.length ? pool : bestiary.species;
+    const sp = list[Math.floor(rand() * list.length)];
+    const eps = bestiary.epithets[sp.element] ?? [];
+    const ep = eps.length ? eps[Math.floor(rand() * eps.length)] : "";
+    return ep ? `${sp.species} ${ep}` : sp.species;
+  }
+  return `${pick(CPU_PREFIXES, rand)} ${pick(CPU_SUFFIXES, rand)}`;
+}
+
+function buildCpuSideCore(
+  seed: number, target: number, teamName: string, teamId: string, bestiary?: EngineBestiary,
+): EngineSide {
   const rand = mulberry32(seed ^ 0x9e3779b9);
   const roles: SlotRole[] = ["GOL", "DEF", "DEF", "DEF", "DEF", "MEI", "MEI", "MEI", "MEI", "ATA", "ATA"];
   const benchRoles: SlotRole[] = ["GOL", "DEF", "MEI", "ATA", "MEI"];
@@ -470,7 +492,7 @@ function buildCpuSideCore(seed: number, target: number, teamName: string, teamId
       role,
       creature: {
         id: `cpu-${teamId}-${tag}-${i}`,
-        name: `${pick(CPU_PREFIXES, rand)}${pick(CPU_SUFFIXES, rand)}`.replace(/\s+/g, ""),
+        name: creatureName(element, rand, bestiary),
         element,
         overall,
         physical: overall,
@@ -487,3 +509,4 @@ function buildCpuSideCore(seed: number, target: number, teamName: string, teamId
   const bench = benchRoles.map((r, i) => buildSlot(r, i, "b"));
   return { team_id: teamId, team_name: teamName, starters, bench, strategy: "equilibrada" };
 }
+
