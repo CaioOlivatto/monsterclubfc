@@ -517,13 +517,17 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
     const division = competition.division as Division;
     const divIdx = DIVISION_ORDER.indexOf(division);
     const winPrize = MATCH_PRIZE[division][0];
-    const posMult = position >= 1 && position <= 8 ? SEASON_POSITION_MULT[position - 1] : 0;
+    const posMult =
+      position >= 1 && position <= SEASON_POSITION_MULT.length
+        ? SEASON_POSITION_MULT[position - 1]
+        : 0;
     const prize = Math.round(winPrize * posMult);
     const championGems = playerIsChampion ? 50 : 0;
 
+    // Promoção: 1º, 2º e 3º sobem. Rebaixamento: 12º, 13º e 14º caem. (§8)
     let newDivIdx = divIdx;
-    if (position <= 2 && divIdx < DIVISION_ORDER.length - 1) newDivIdx = divIdx + 1;
-    else if (position >= 7 && divIdx > 0) newDivIdx = divIdx - 1;
+    if (position <= 3 && divIdx < DIVISION_ORDER.length - 1) newDivIdx = divIdx + 1;
+    else if (position >= LEAGUE_SIZE - 2 && divIdx > 0) newDivIdx = divIdx - 1;
     const newDivision = DIVISION_ORDER[newDivIdx];
     const promoted = newDivIdx > divIdx;
     const relegated = newDivIdx < divIdx;
