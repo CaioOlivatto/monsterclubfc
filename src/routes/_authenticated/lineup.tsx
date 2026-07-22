@@ -137,8 +137,20 @@ function LineupPage() {
     ...bench,
   ]);
 
+  const naturalRoleOf = (pos: string | null | undefined): SlotRole => {
+    if (pos === "Goleiro") return "GOL";
+    if (pos === "Zagueiro") return "DEF";
+    if (pos === "Atacante") return "ATA";
+    return "MEI";
+  };
+  const ROLE_LABEL: Record<SlotRole, string> = { GOL: "GOL", DEF: "DEF", MEI: "MEI", ATA: "ATA" };
+
+  const sortByEff = (a: any, b: any) =>
+    effectiveOverall(b.overall ?? 0, b.energy ?? 100) - effectiveOverall(a.overall ?? 0, a.energy ?? 100);
+
   const availableFor = (currentId: string | null) =>
     creatures.filter((c: any) => c.id === currentId || !usedIds.has(c.id));
+
 
   const setSlotCreature = (slotIdx: number, creatureId: string | null) => {
     setStarters((prev) =>
@@ -375,12 +387,42 @@ function LineupPage() {
             {slots.map((s) => {
               const current = starters.find((x) => x.slot === s.index)?.creature_id ?? null;
               const options = availableFor(current);
-              const sug = ROLE_HINT[s.role];
               const currentCreature = current ? creatures.find((x) => x.id === current) : null;
               const currFs = currentCreature ? fatigueState(currentCreature.energy ?? 100) : null;
               const currMult = currentCreature ? energyMultiplier(currentCreature.energy ?? 100) : 1;
               const currEff = currentCreature ? effectiveOverall(currentCreature.overall ?? 0, currentCreature.energy ?? 100) : 0;
+              const currNaturalRole = currentCreature ? naturalRoleOf(currentCreature.suggested_position) : null;
+              const currOOP = currentCreature && currNaturalRole !== s.role;
+              const currOopOvr = currentCreature ? Math.round((currentCreature.overall ?? 0) * 0.85) : 0;
               const warn = currFs === "muito_cansado" || currFs === "exausto";
+
+              const inPos = options
+                .filter((c: any) => naturalRoleOf(c.suggested_position) === s.role)
+                .sort(sortByEff);
+              const outPos = options
+                .filter((c: any) => naturalRoleOf(c.suggested_position) !== s.role)
+                .sort(sortByEff);
+
+              const renderItem = (c: any, oop: boolean) => {
+                const fs = fatigueState(c.energy ?? 100);
+                const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100);
+                const displayOvr = oop ? Math.round((c.overall ?? 0) * 0.85) : c.overall;
+                const tag =
+                  fs === "exausto" ? " ⚠️ EXAUSTO" :
+                  fs === "muito_cansado" ? " ⚠️ Muito cansado" :
+                  fs === "cansado" ? " · cansado" :
+                  fs === "leve" ? " · leve cansaço" : "";
+                return (
+                  <SelectItem key={c.id} value={c.id} className={oop ? "opacity-70" : ""}>
+                    {c.name} · {ELEMENT_LABEL[c.element] ?? c.element}
+                    {oop
+                      ? ` · ${ROLE_LABEL[naturalRoleOf(c.suggested_position)]} → ${s.role} · OVR ${c.overall}→${displayOvr} (-15%)`
+                      : ` · OVR ${c.overall}${eff !== c.overall ? `→${eff}` : ""}`}
+                    {" "}· {(c.overall / 20).toFixed(1)}★ · {c.energy ?? 100}%{tag}
+                  </SelectItem>
+                );
+              };
+
               return (
                 <div key={s.index} className="flex flex-col gap-1">
                   <div className="flex items-center gap-2">
@@ -394,26 +436,29 @@ function LineupPage() {
                       <SelectTrigger className="flex-1"><SelectValue placeholder="Vazio" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__none">— Vazio —</SelectItem>
-                        {options.map((c) => {
-                          const match = sug.includes(c.suggested_position ?? "");
-                          const fs = fatigueState(c.energy ?? 100);
-                          const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100);
-                          const tag =
-                            fs === "exausto" ? " ⚠️ EXAUSTO" :
-                            fs === "muito_cansado" ? " ⚠️ Muito cansado" :
-                            fs === "cansado" ? " · cansado" :
-                            fs === "leve" ? " · leve cansaço" : "";
-
-                          return (
-                            <SelectItem key={c.id} value={c.id}>
-                              {c.name} · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}{eff !== c.overall ? `→${eff}` : ""} · {(c.overall / 20).toFixed(1)}★
-                              {match ? " (posição ideal)" : ""}{tag}
-                            </SelectItem>
-                          );
-                        })}
+                        {inPos.length === 0 && (
+                          <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                            Nenhuma criatura de {s.role} disponível.
+                          </div>
+                        )}
+                        {inPos.map((c) => renderItem(c, false))}
+                        {outPos.length > 0 && (
+                          <div className="mt-1 border-t px-2 py-1 text-[11px] font-semibold uppercase text-muted-foreground">
+                            Outras posições (-15%)
+                          </div>
+                        )}
+                        {outPos.map((c) => renderItem(c, true))}
                       </SelectContent>
                     </Select>
                   </div>
+                  {currentCreature && currOOP && (
+                    <div className="ml-[4.5rem] inline-flex items-center gap-1.5 rounded-md border border-amber-500/60 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-200">
+                      <AlertTriangle className="h-3 w-3" />
+                      <span>
+                        {ROLE_LABEL[currNaturalRole!]} escalado como {s.role} · OVR {currentCreature.overall}→{currOopOvr} (-15%)
+                      </span>
+                    </div>
+                  )}
                   {currentCreature && currFs && currFs !== "pleno" && (
                     <div className={"ml-[4.5rem] inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] " + FATIGUE_CLASS[currFs] + (warn ? " font-semibold" : "")}>
                       {warn && <AlertTriangle className="h-3 w-3" />}
@@ -424,6 +469,7 @@ function LineupPage() {
                 </div>
               );
             })}
+
           </CardContent>
         </Card>
 
@@ -467,12 +513,17 @@ function LineupPage() {
                   <SelectContent>
                     {creatures
                       .filter((c) => !usedIds.has(c.id))
-                      .map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name} · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall} · {(c.overall / 20).toFixed(1)}★
-                        </SelectItem>
-                      ))}
+                      .sort(sortByEff)
+                      .map((c) => {
+                        const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100);
+                        return (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name} · {ROLE_LABEL[naturalRoleOf(c.suggested_position)]} · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}{eff !== c.overall ? `→${eff}` : ""} · {(c.overall / 20).toFixed(1)}★ · {c.energy ?? 100}%
+                          </SelectItem>
+                        );
+                      })}
                   </SelectContent>
+
                 </Select>
               </div>
             )}
