@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { getCreature, healCreatureWithGems, HEAL_GEMS_PER_MATCH } from "@/lib/creatures.functions";
+import { getCreature, healCreatureWithGems, reduceInjuryWithGems, HEAL_GEMS_PER_MATCH } from "@/lib/creatures.functions";
 import { trainCreature, restCreature } from "@/lib/training.functions";
 import { spendHalfStar } from "@/lib/progression.functions";
 
