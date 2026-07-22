@@ -209,87 +209,92 @@ function RosterPage() {
           <p className="text-sm text-muted-foreground">
             Nenhuma criatura encontrada.
           </p>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((c) => {
-              const status = ageStatus((c as any).age);
-              const seasons = seasonsRemaining((c as any).age);
-              const cardBorder =
-                status === "last_season"
-                  ? "border-orange-500/60 bg-orange-500/5 hover:border-orange-400/80"
-                  : status === "veteran"
-                  ? "border-amber-500/40 hover:border-amber-400/60"
-                  : "hover:border-primary/40 hover:bg-card/70";
+        ) : sort === "position" ? (
+          <div className="space-y-6">
+            {POSITION_KEYS.map((posKey) => {
+              const group = filtered.filter((c) => c.suggested_position === posKey);
+              if (group.length === 0) return null;
               return (
-              <Link
-                key={c.id}
-                to="/creatures/$id"
-                params={{ id: c.id }}
-                className="block"
-              >
-                <Card className={"transition-colors " + cardBorder}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-base font-semibold">
-                          {c.name}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {c.suggested_position} · {(c as any).age ?? 18} anos
-                        </p>
-                      </div>
-                      <Badge
-                        variant="outline"
-                        className={ELEMENT_COLORS[c.element] ?? ""}
-                      >
-                        {ELEMENT_LABEL[c.element] ?? c.element}
-                      </Badge>
-                    </div>
-
-                    {status === "veteran" && (
-                      <div className="mt-2 flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-300">
-                        <Clock className="h-3 w-3" />
-                        <span className="font-medium">Veterano</span>
-                        <span className="text-amber-300/80">· {seasons} temporadas restantes</span>
-                      </div>
-                    )}
-                    {status === "last_season" && (
-                      <div className="mt-2 flex items-center gap-1.5 rounded-md border border-orange-500/60 bg-orange-500/15 px-2 py-1 text-[11px] text-orange-200">
-                        <Hourglass className="h-3 w-3" />
-                        <span className="font-medium">Última temporada</span>
-                      </div>
-                    )}
-
-                    <div className="mt-3 flex items-end justify-between">
-                      <div>
-                        <p className="text-3xl font-bold leading-none">
-                          {c.overall}
-                        </p>
-                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                          overall
-                        </p>
-                      </div>
-                      <div className="text-right text-xs text-muted-foreground">
-                        <p className="flex items-center justify-end gap-1">
-                          <BatteryCharging className="h-3 w-3" /> {c.energy}%
-                        </p>
-                        <p className="flex items-center justify-end gap-1">
-                          <Star className="h-3 w-3" />{" "}
-                          {(c.half_stars_earned / 2).toFixed(1)}★
-                        </p>
-                        <p className="mt-1">
-                          $ {c.market_value.toLocaleString("pt-BR")}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
+                <section key={posKey}>
+                  <div className="mb-2 flex items-baseline gap-2 border-b border-border/40 pb-1">
+                    <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                      {POSITION_LABEL[posKey]}
+                    </h2>
+                    <span className="text-xs text-muted-foreground">({group.length})</span>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {group.map((c) => renderCard(c))}
+                  </div>
+                </section>
               );
             })}
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {filtered.map((c) => renderCard(c))}
           </div>
         )}
       </main>
     </div>
+  );
+}
+
+function renderCard(c: any) {
+  const status = ageStatus(c.age);
+  const seasons = seasonsRemaining(c.age);
+  const cardBorder =
+    status === "last_season"
+      ? "border-orange-500/60 bg-orange-500/5 hover:border-orange-400/80"
+      : status === "veteran"
+      ? "border-amber-500/40 hover:border-amber-400/60"
+      : "hover:border-primary/40 hover:bg-card/70";
+  return (
+    <Link key={c.id} to="/creatures/$id" params={{ id: c.id }} className="block">
+      <Card className={"transition-colors " + cardBorder}>
+        <CardContent className="p-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="truncate text-base font-semibold">{c.name}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {c.suggested_position} · {c.age ?? 18} anos
+              </p>
+            </div>
+            <Badge variant="outline" className={ELEMENT_COLORS[c.element] ?? ""}>
+              {ELEMENT_LABEL[c.element] ?? c.element}
+            </Badge>
+          </div>
+
+          {status === "veteran" && (
+            <div className="mt-2 flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-300">
+              <Clock className="h-3 w-3" />
+              <span className="font-medium">Veterano</span>
+              <span className="text-amber-300/80">· {seasons} temporadas restantes</span>
+            </div>
+          )}
+          {status === "last_season" && (
+            <div className="mt-2 flex items-center gap-1.5 rounded-md border border-orange-500/60 bg-orange-500/15 px-2 py-1 text-[11px] text-orange-200">
+              <Hourglass className="h-3 w-3" />
+              <span className="font-medium">Última temporada</span>
+            </div>
+          )}
+
+          <div className="mt-3 flex items-end justify-between">
+            <div>
+              <p className="text-3xl font-bold leading-none">{c.overall}</p>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">overall</p>
+            </div>
+            <div className="text-right text-xs text-muted-foreground">
+              <p className="flex items-center justify-end gap-1">
+                <BatteryCharging className="h-3 w-3" /> {c.energy}%
+              </p>
+              <p className="flex items-center justify-end gap-1">
+                <Star className="h-3 w-3" /> {(c.half_stars_earned / 2).toFixed(1)}★
+              </p>
+              <p className="mt-1">$ {c.market_value.toLocaleString("pt-BR")}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
   );
 }
