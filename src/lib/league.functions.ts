@@ -15,6 +15,7 @@ import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { awardTrainerXp, resetSeasonBreakdown } from "./trainer-xp.server";
 import { MATCH_REVENUE, MAINTENANCE_PER_MATCH, matchSalary } from "./economy";
 import { loadBestiary } from "./bestiary.server";
+import { applySeasonOutcome } from "./career-transition.server";
 
 async function loadEngineBestiary(supabase: any): Promise<EngineBestiary> {
   const b = await loadBestiary(supabase);
@@ -873,6 +874,20 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
     // Zera o breakdown de XP para começar a nova temporada
     await resetSeasonBreakdown(supabase, trainer.id);
 
+    // Fase 3 — Carreira: propostas e demissão
+    const careerOutcome = await applySeasonOutcome({
+      supabase,
+      trainerId: trainer.id,
+      trainerCurrentTeamId: playerTeam.id,
+      seasonNumber: currentSeason.season_number,
+      playerDivision: playerDiv,
+      playerPosition: position,
+      totalTeams: playerRanked.length,
+      promoted,
+      relegated,
+      isChampion: playerIsChampion,
+    });
+
     return {
 
       position,
@@ -887,6 +902,7 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
       newSeasonNumber: currentSeason.season_number + 1,
       championName: championByDiv.get(playerDiv)?.name ?? "—",
       worldSummary,
+      career: careerOutcome,
     };
   });
 

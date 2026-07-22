@@ -218,3 +218,84 @@ export const getConfidence = createServerFn({ method: "GET" })
       consecutiveBadSeasons: bad,
     };
   });
+
+// ---------- Propostas de clubes (Fase 3) ----------
+
+export interface JobOffer {
+  id: string;
+  team_id: string;
+  team_name: string;
+  division: string;
+  season_offered: number;
+  reason: "top_finish" | "higher_division" | "after_dismissal";
+  status: "pending" | "accepted" | "declined" | "expired";
+  signing_bonus: number;
+  message: string | null;
+  created_at: string;
+}
+
+export interface OffersOverview {
+  status: "employed" | "dismissed";
+  pending_transition: boolean;
+  current_team_id: string | null;
+  current_team_name: string | null;
+  offers: JobOffer[];
+}
+
+export const listOffers = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<OffersOverview> => {
+    const { supabase, userId } = context;
+    const { data: trainer } = await supabase
+      .from("trainers")
+      .select("id, current_team_id, status, pending_transition")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!trainer) throw new Error("Treinador não encontrado.");
+
+    let currentTeamName: string | null = null;
+    if (trainer.current_team_id) {
+      const { data: t } = await supabase
+        .from("teams")
+        .select("name")
+        .eq("id", trainer.current_team_id)
+        .maybeSingle();
+      currentTeamName = t?.name ?? null;
+    }
+
+    const { data: offers } = await supabase
+      .from("job_offers")
+      .select("id, team_id, team_name, division, season_offered, reason, status, signing_bonus, message, created_at")
+      .eq("trainer_id", trainer.id)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false });
+
+    return {
+      status: (trainer.status as "employed" | "dismissed") ?? "employed",
+      pending_transition: !!trainer.pending_transition,
+      current_team_id: trainer.current_team_id,
+      current_team_name: currentTeamName,
+      offers: (offers ?? []) as JobOffer[],
+    };
+  });
+
+export const declineOffer = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { offerId: string }) => input)
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: trainer } = await supabase
+      .from("trainers")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!trainer) throw new Error("Treinador não encontrado.");
+    const { error } = await supabase
+      .from("job_offers")
+      .update({ status: "declined" })
+      .eq("id", data.offerId)
+      .eq("trainer_id", trainer.id);
+    if (error) throw error;
+    return { ok: true };
+  });
+
