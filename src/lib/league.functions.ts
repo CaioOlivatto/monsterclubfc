@@ -840,7 +840,7 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
       playerIsChampion
         ? `Campeão da ${playerDiv}! (+${championGems}💎)`
         : `Temporada encerrada — ${position}º lugar`,
-      `Prêmio: $${prize.toLocaleString("pt-BR")} • Salários: $${salaries.toLocaleString("pt-BR")}${promoted ? ` • Promovido para ${newDivision}` : relegated ? ` • Rebaixado para ${newDivision}` : ""}`,
+      `Prêmio: $${prize.toLocaleString("pt-BR")}${promoted ? ` • Promovido para ${newDivision}` : relegated ? ` • Rebaixado para ${newDivision}` : ""}`,
     );
 
     // Resumo do mundo
