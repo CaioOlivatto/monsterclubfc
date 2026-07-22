@@ -1,9 +1,18 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { simulate, generateCpuSideFor, type EngineSide } from "./match-engine.server";
+import { simulate, generateCpuSideFor, type EngineSide, type EngineBestiary } from "./match-engine.server";
 
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
+import { loadBestiary } from "./bestiary.server";
+
+async function loadEngineBestiary(supabase: any): Promise<EngineBestiary> {
+  const b = await loadBestiary(supabase);
+  return {
+    species: b.species.map((s) => ({ species: s.species, element: s.element })),
+    epithets: b.epithets,
+  };
+}
 
 const CUP_ROUND_NAMES: Record<number, string> = { 1: "Quartas", 2: "Semifinal", 3: "Final" };
 
