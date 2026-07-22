@@ -229,6 +229,26 @@ function Dashboard() {
             </Card>
           </Link>
         )}
+        {tiredStarters > 0 && (
+          <Link to="/lineup" className="block">
+            <Card className="border-amber-500/60 bg-amber-500/5 transition-colors hover:bg-amber-500/10">
+              <CardContent className="flex items-center gap-3 py-3">
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-amber-500/20 text-amber-300">
+                  <BatteryLow className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-amber-200">
+                    {tiredStarters} {tiredStarters === 1 ? "titular está cansado" : "titulares estão cansados"}
+                  </p>
+                  <p className="text-xs text-amber-200/80">
+                    Considere revezar o elenco antes da próxima partida.
+                  </p>
+                </div>
+                <span className="shrink-0 text-xs text-amber-300">Ver escalação →</span>
+              </CardContent>
+            </Card>
+          </Link>
+        )}
         <div className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
