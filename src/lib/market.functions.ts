@@ -222,8 +222,29 @@ export const buyCreature = createServerFn({ method: "POST" })
       transfer_type: "buy",
       amount: listing.price,
     });
+    await supabase.from("market_purchases").insert({
+      trainer_id: trainer.id,
+      season_number: trainer.season_number,
+      division: trainer.division,
+      listing_id: listing.id,
+    });
 
-    return { creature_id: created.id, name: listing.name, price: listing.price };
+    const newPayroll = payroll + addSalary;
+    return {
+      creature_id: created.id,
+      name: listing.name,
+      price: listing.price,
+      salary: addSalary,
+      element: listing.element,
+      position: listing.suggested_position,
+      overall: listing.overall,
+      stars: listing.overall / 20,
+      payroll_before: payroll,
+      payroll_after: newPayroll,
+      salary_cap: cap,
+      roster_slots: trainer.roster_slots,
+      roster_count_after: rosterCount + 1,
+    };
   });
 
 export const sellCreature = createServerFn({ method: "POST" })
