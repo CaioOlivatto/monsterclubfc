@@ -276,6 +276,27 @@ export type Database = {
           },
         ]
       }
+      epithets: {
+        Row: {
+          created_at: string
+          element: Database["public"]["Enums"]["element_type"]
+          epithet: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          element: Database["public"]["Enums"]["element_type"]
+          epithet: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          element?: Database["public"]["Enums"]["element_type"]
+          epithet?: string
+          id?: string
+        }
+        Relationships: []
+      }
       financial_transactions: {
         Row: {
           amount: number
@@ -613,6 +634,75 @@ export type Database = {
           display_name?: string | null
           id?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      species: {
+        Row: {
+          base_atacar: number
+          base_concentracao: number
+          base_defender: number
+          base_elasticidade: number
+          base_forca: number
+          base_maos: number
+          base_passar: number
+          base_pique: number
+          base_tecnica: number
+          created_at: string
+          element: Database["public"]["Enums"]["element_type"]
+          id: string
+          is_goalkeeper: boolean
+          origin: string
+          position_label: string
+          position_role: string
+          power_desc: string
+          power_key: string
+          power_name: string
+          species: string
+        }
+        Insert: {
+          base_atacar?: number
+          base_concentracao?: number
+          base_defender?: number
+          base_elasticidade?: number
+          base_forca?: number
+          base_maos?: number
+          base_passar?: number
+          base_pique?: number
+          base_tecnica?: number
+          created_at?: string
+          element: Database["public"]["Enums"]["element_type"]
+          id?: string
+          is_goalkeeper?: boolean
+          origin: string
+          position_label: string
+          position_role: string
+          power_desc: string
+          power_key: string
+          power_name: string
+          species: string
+        }
+        Update: {
+          base_atacar?: number
+          base_concentracao?: number
+          base_defender?: number
+          base_elasticidade?: number
+          base_forca?: number
+          base_maos?: number
+          base_passar?: number
+          base_pique?: number
+          base_tecnica?: number
+          created_at?: string
+          element?: Database["public"]["Enums"]["element_type"]
+          id?: string
+          is_goalkeeper?: boolean
+          origin?: string
+          position_label?: string
+          position_role?: string
+          power_desc?: string
+          power_key?: string
+          power_name?: string
+          species?: string
         }
         Relationships: []
       }
