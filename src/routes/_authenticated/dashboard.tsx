@@ -336,9 +336,7 @@ function Dashboard() {
                     {standing.losses}D · {standing.goals_for}-
                     {standing.goals_against}
                   </p>
-        </div>
-
-        {confidence && <ConfidenceCard c={confidence} />}
+                </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
                   Sem classificação ainda.
@@ -348,7 +346,10 @@ function Dashboard() {
           </Card>
         </div>
 
+        {confidence && <ConfidenceCard c={confidence} />}
+
         <div className="grid gap-4 md:grid-cols-3">
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
