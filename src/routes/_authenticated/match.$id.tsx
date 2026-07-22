@@ -174,11 +174,12 @@ function MatchPage() {
       ...r,
       {
         ...buildRevealed(p.raw, homeId),
-        narration: `${parts.p1} ${parts.p2} ${parts.p3}${
-          parts.callbacks.length ? " — " + parts.callbacks[0] : ""
+        narration: `${capFirst(parts.p1)} ${capFirst(parts.p2)} ${capFirst(parts.p3)}${
+          parts.callbacks.length ? " — " + capFirst(parts.callbacks[0]) : ""
         }`,
       },
     ]);
+
 
     const reaction = narrRef.current.maybeReaction(p.minute, {
       homeGoals: newHome,
@@ -380,6 +381,19 @@ function indexKey(e: any): number {
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   return h;
 }
+
+// Ao concatenar as 3 partes do banco em uma linha só, subimos a inicial
+// quando ela vem em minúscula (partes escritas para tarja em 3 tempos).
+// Frases que já começam em maiúscula intencional (ex: "TÁ LIVRE!", "GOOOOL!")
+// não são alteradas.
+function capFirst(s: string): string {
+  if (!s) return s;
+  const first = s[0];
+  const up = first.toLocaleUpperCase("pt-BR");
+  if (first === up) return s; // já é maiúscula (ou não é letra)
+  return up + s.slice(1);
+}
+
 
 function buildRevealed(e: any, playerTeamId: string | undefined): RevealedEvent & { raw_team_id?: string | null } {
   const meta = e.meta ?? {};
