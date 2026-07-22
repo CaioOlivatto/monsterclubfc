@@ -1,77 +1,111 @@
+# Mundo Completo — 5 Divisões / 70 Times
 
-# Bestiário Mitológico — plano de implementação
+## Objetivo
+Popular o mundo inteiro com 70 times globais (14 por divisão, 26 criaturas cada), simular todas as divisões a cada rodada e conectar promoção/rebaixamento a esse pool.
 
-Esta é uma mudança grande e cruzada (schema + gerador + motor + evolução + UI). Vou dividir em blocos para você aprovar antes de eu tocar em tudo.
+## 1. Schema (migração)
 
-## 1. Schema do banco (migração)
+Alterações em `teams`:
+- `division_id INT NOT NULL` (1=Lendária … 5=Bronze) — passa a ser MUTÁVEL
+- `is_cpu BOOLEAN NOT NULL DEFAULT true`
+- `element_dominant` (enum já existente) — cor primária/secundária em `colors JSONB`
+- Remover unicidade por competição; time é global
 
-Adicionar em `creatures`:
-- `species text` — nome da espécie (Fênix, Golem, Kraken…)
-- `epithet text` — epíteto sorteado ("Escarlate", "de Basalto"…)
-- `power_key text` — id do poder único da espécie
-- `age integer default 18` — idade atual
-- `career_season integer default 1` — 1..5
-- `retired boolean default false`
-- **6 novos atributos de linha:** `attr_defender`, `attr_passar`, `attr_atacar`, `attr_tecnica`, `attr_forca`, `attr_pique` (int)
-- **3 novos atributos de goleiro:** `attr_maos`, `attr_concentracao`, `attr_elasticidade` (int)
-- `is_goalkeeper boolean` (derivado da espécie no catálogo)
+Nova tabela `world_state`:
+- `season_id`, `current_round`, `initialized_at`
+- controla a rodada atual global (todas as divisões avançam juntas)
 
-Os campos legados (`attack`, `defense`, `goalkeeper`, `physical`, `strength`) ficam por compatibilidade curta e depois removo, ou já removo agora — **preciso da sua confirmação** (ver §Perguntas).
+Ajuste em `standings`:
+- passa a chavear por `(season_id, division_id, team_id)` em vez de `competition_id`
+- índice por divisão + pontos
 
-## 2. Catálogo (novo arquivo `src/lib/bestiary.ts`)
+Ajuste em `matches`:
+- `division_id INT`, `round INT`, `is_player_match BOOLEAN`
+- `simulated_summary BOOLEAN` — quando true, sem `match_events`
 
-- Lista das 60 espécies com origem, elemento, posição, atributos-base e `power_key`.
-- Lista dos 100 epítetos por elemento + epítetos de elite ("o Lendário", "o Imortal", "o Invicto", "o Ancião").
-- Função `rollCreature(species, rng)` → aplica variação ±12, gera epíteto, calcula Overall com pesos da §1.4.
-- Função `computeOverall(attrs, position)` e `overallToStars(overall)` (tabela §1.3).
-- Poderes: por ora só `power_key` + descrição textual; o efeito mecânico entra em uma segunda passada no motor (a maioria é passiva de aura/moral).
+Ajuste em `creatures`:
+- garantir `team_id` obrigatório (já é), permitir criaturas de times CPU sem `trainer_id`
 
-## 3. Gerador dos times iniciais
+Todas com GRANT correto para `authenticated` e `service_role`. Times/criaturas CPU têm política SELECT pública (para o jogador ver classificação e escalação inimiga).
 
-`src/lib/starter-teams.ts` reescrito para sortear 22 espécies do bestiário respeitando o perfil elemental do time (dominante 70% / apoio 20% / outros 10%) e a composição 3 GOL + 7 DEF + 7 MEI + 5 ATA. Sem mais Pyronix/Aquaron.
+## 2. Seed do mundo (server function `seedWorld`)
 
-## 4. Mercado
+Roda uma vez no primeiro onboarding após limpar mundo antigo:
+- Insere os 70 times fixos da lista (nome, elemento, cores, divisão)
+- O time escolhido pelo jogador ocupa o slot dos 6 iniciais na 5ª Divisão (substitui aquele CPU)
+- Para cada time: gera 26 criaturas (3 GK / 8 DEF / 8 MID / 7 ATK)
+  - ~50% do elemento dominante (uniforme se Misto)
+  - estrelas conforme perfil da divisão (tabela do prompt)
+  - idades distribuídas: 6×18 / 6×21 / 5×24 / 5×27 / 4×30
+  - espécie do bestiário + epíteto elemental
+- Gera calendário de 26 rodadas (round-robin duplo) por divisão
+- Cria `world_state` com `current_round = 1`
 
-`src/lib/market.server.ts` reescrito para gerar as 24 listagens da temporada a partir do bestiário, mantendo a distribuição de raridade por meia-estrela (§5 do balanceamento). Espécies com Overall base alto (Ymir, Golem, Quetzalcóatl, Argos) ficam mais raras.
+Arquivo: `src/lib/world/*.server.ts` (dados + geradores) + `src/lib/world.functions.ts` (thin wrapper).
 
-## 5. Motor de partida
+## 3. Simulação global por rodada
 
-`src/lib/match-engine.server.ts` e `src/lib/player-side.server.ts` migram para o novo bloco de atributos:
-- Ataque efetivo do lado = média ponderada de `atacar/tecnica/pique` dos ATA + `passar/tecnica` dos MEI.
-- Defesa efetiva = `defender/forca` dos DEF + `defender` dos MEI.
-- Goleiro usa `maos/concentracao/elasticidade`.
-- Ciclo elemental e clima ficam iguais.
-- Poderes: nesta primeira leva **só os passivos simples** (Pele de Brasa, Regeneração, Muralha, Voo Livre, Morto-vivo, Cem Olhos, Guardião do Tesouro). Os outros ficam registrados mas inertes até a próxima etapa — te aviso caso a caso.
+Nova função `advanceWorldRound`:
+1. Simula a partida do jogador com engine completo (eventos minuto a minuto) — o que já existe
+2. Para cada uma das 5 divisões, simula as 6 outras partidas da rodada com **`simulateSummary`** — só placar/gols (rápido, sem eventos)
+3. Atualiza `standings` de todas as divisões
+4. Incrementa `world_state.current_round`
 
-## 6. Evolução e XP
+Engine resumido: reaproveita cálculo de força ofensiva/defensiva por time (média ponderada de overall dos 11 melhores) + ciclo elemental + variação Poisson para placar. ~5ms por partida CPUxCPU.
 
-- Nova curva em `src/lib/xp.server.ts`: `custo(n) = round(800 × 1.25^(n−1))`.
-- `spendHalfStar` passa a oferecer os 6 atributos novos (ou 3, se goleiro) em vez dos 5 antigos.
+## 4. Fim de temporada
 
-## 7. Idade, aposentadoria e renascimento
+Função `finishSeasonAndAdvance` (atualiza a existente):
+- Para cada divisão em paralelo:
+  - Top 3 → `division_id - 1` (exceto Lendária: premiação extra)
+  - Bottom 3 → `division_id + 1` (exceto Bronze: só permanecem)
+- **Gestão CPU** (nova, `manageCpuRoster`):
+  - Para cada time CPU: aposenta criaturas de 33 anos (renascer se ≥2★ após perda, senão vender)
+  - Repõe até 26 respeitando teto salarial e perfil da divisão
+- Zera standings, gera novo calendário, incrementa `season_id`
 
-- Ao final de cada temporada (`finishSeasonAndAdvance`): `age += 3`, `career_season += 1`.
-- Aos 33: cria um alerta em `messages` e libera dois botões na ficha da criatura:
-  - **Aposentar/vender** → credita `market_value × 0.75`, marca `retired = true`, remove do elenco.
-  - **Renascer** → aplica a tabela §10.2 (estrelas alvo), recalcula XP acumulado para bater esse degrau, reseta `age=18`, `career_season=1`. Mantém espécie/elemento/poder/afinidades/nome.
-- Valor de mercado decai a partir dos 27 anos (fator linear até 0.5 aos 33).
-- Ao atingir 5★, ganha epíteto de elite (persistido em `epithet`).
+## 5. UI — tela `/league`
 
-## 8. UI
+Adicionar `<Select>` no topo com as 5 divisões (default: divisão do jogador).
+- Destacar linha do jogador
+- Verde nas 3 primeiras posições (promoção), vermelho nas 3 últimas (rebaixamento)
+- Ocultar bandas na Lendária (topo, só verde) e Bronze (piso, só vermelho)
+- Manter aba de calendário funcionando por divisão selecionada
 
-- **Ficha da criatura (`/creatures.$id`):** novo bloco de atributos (6 ou 3), badge de espécie/origem, poder com descrição, idade + carreira + aviso "última temporada", botões Aposentar/Renascer quando aplicável.
-- **Roster, Escalação, Mercado:** exibir `species + epíteto`, elemento, estrelas (via `overallToStars`) e idade. Reordenar filtros para usar os novos atributos.
-- **Onboarding:** o preview do time inicial mostra as espécies em vez de nomes gerados.
+## 6. Performance
 
-## 9. Migração de dados existentes (seu save atual)
+- Simulação resumida CPUxCPU sem inserir `match_events`
+- Batch INSERT/UPDATE em standings (uma query por divisão)
+- Cache de força dos times por rodada
+- Alvo: <500ms para simular 34 partidas CPUxCPU + a do jogador
 
-Duas opções — **preciso da sua escolha**:
+## Arquivos técnicos
 
-- **A. Wipe:** apaga criaturas atuais e força re-onboarding. Simples, mas perde progresso.
-- **B. Conversão:** mapeia cada criatura antiga para uma espécie do bestiário pelo elemento + posição, converte atributos antigos nos novos (Ataque→Atacar, Defesa→Defender, Musculação→Força, Físico→Pique, com Passar/Técnica derivados), preserva XP/estrelas. Mais trabalhoso e um pouco impreciso, mas mantém seu save.
+Novos:
+- `src/lib/world/teams-catalog.ts` — 70 times fixos (nome, elemento, cores, divisão)
+- `src/lib/world/seed.server.ts` — geradores de elenco/calendário
+- `src/lib/world/simulate.server.ts` — engine resumido
+- `src/lib/world/cpu-manager.server.ts` — aposentadorias e reposição CPU
+- `src/lib/world.functions.ts` — thin wrapper (`seedWorld`, `advanceWorldRound`, `getDivisionStandings`)
 
-## Perguntas antes de eu escrever código
+Modificados:
+- Migração schema (`teams.division_id`, `world_state`, `standings` reindex)
+- `src/lib/creatures.functions.ts` (onboarding chama `seedWorld` na primeira vez)
+- `src/lib/league.functions.ts` (`playNextLeagueMatch` → chama `advanceWorldRound`)
+- `src/lib/season.functions.ts` (fim de temporada com gestão CPU global)
+- `src/routes/_authenticated/league.tsx` (seletor + destaques visuais)
 
-1. **Save atual:** wipe (A) ou conversão (B)?
-2. **Poderes:** posso liberar só os passivos simples nesta rodada e deixar os ativos ("Investida", "Rasante", "Trovão", "Renovação"…) para uma segunda passada — ok?
-3. **Colunas antigas** de atributos em `creatures` (`attack`, `defense`, `goalkeeper`, `physical`, `strength`): removo já na mesma migração, ou mantenho por compatibilidade uma versão?
+## Escopo NÃO incluído (fica para pendências seguintes)
+- Destaque de idade ≥30 no `/roster` (pendência #2)
+- Migrar bestiário para tabela `species` (pendência #3)
+
+## Ordem de execução
+1. Migração schema
+2. Catálogo dos 70 times + geradores (código)
+3. `seedWorld` + integração no onboarding
+4. Engine resumido + `advanceWorldRound`
+5. Ajuste do fim de temporada + gestão CPU
+6. UI da liga com seletor
+7. Verificação: contagem, distribuição de estrelas, rodada global
+
+Confirma que posso executar assim?
