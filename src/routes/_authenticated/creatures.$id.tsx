@@ -296,8 +296,8 @@ function CreatureDetail() {
 
             <div>
               <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Atributos</p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                {(["attack", "defense", "goalkeeper", "physical", "strength"] as const).map((k) => (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {ATTR_KEYS.map((k) => (
                   <Button
                     key={k}
                     size="sm"
@@ -305,7 +305,7 @@ function CreatureDetail() {
                     disabled={trainMut.isPending || c.energy < 20}
                     onClick={() => trainMut.mutate({ kind: "attribute", key: k })}
                   >
-                    {({ attack: "Ataque", defense: "Defesa", goalkeeper: "Goleiro", physical: "Físico", strength: "Força" } as const)[k]}
+                    {ATTR_LABELS[k]}
                   </Button>
                 ))}
               </div>
