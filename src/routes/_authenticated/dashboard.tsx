@@ -89,6 +89,20 @@ function Dashboard() {
     (c: any) => ageStatus(c.age) === "last_season",
   ).length;
 
+  const fetchLineup = useServerFn(getMyLineup);
+  const { data: lineupData } = useQuery({
+    queryKey: ["my-lineup"],
+    queryFn: () => fetchLineup(),
+  });
+  const tiredStarters = React.useMemo(() => {
+    const starters: any[] = (lineupData as any)?.lineup?.starters ?? [];
+    const creatures: any[] = (lineupData as any)?.creatures ?? [];
+    const byId = new Map(creatures.map((c) => [c.id, c]));
+    return starters
+      .map((s: any) => byId.get(s.creature_id))
+      .filter((c: any) => c && (c.energy ?? 100) < 50).length;
+  }, [lineupData]);
+
   // Toast comemorativo quando o treinador subir de nível
   const notifiedRef = React.useRef(false);
   React.useEffect(() => {
