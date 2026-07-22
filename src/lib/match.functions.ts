@@ -162,7 +162,7 @@ export const getMatch = createServerFn({ method: "GET" })
 
     const { data: match, error } = await supabase
       .from("matches")
-      .select("id, home_team_id, away_team_id, home_score, away_score, status, is_friendly, played_at, clima")
+      .select("id, home_team_id, away_team_id, home_score, away_score, status, is_friendly, played_at, clima, finance_summary")
       .eq("id", data.id)
       .maybeSingle();
     if (error) throw error;
