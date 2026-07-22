@@ -18,10 +18,15 @@ import { loadBestiary } from "./bestiary.server";
 async function loadEngineBestiary(supabase: any): Promise<EngineBestiary> {
   const b = await loadBestiary(supabase);
   return {
-    species: b.species.map((s) => ({ species: s.species, element: s.element })),
+    species: b.species.map((s) => ({
+      species: s.species,
+      element: s.element,
+      is_goalkeeper: s.position === "Goleiro",
+    })),
     epithets: b.epithets,
   };
 }
+
 
 
 async function getTrainer(supabase: any, userId: string) {
