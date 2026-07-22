@@ -294,17 +294,22 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
   const initialHomeIds = new Set(home.starters.map((s) => s.creature.id));
   const initialAwayIds = new Set(away.starters.map((s) => s.creature.id));
 
+  const tH = tacticsMod(home.tactics);
+  const tA = tacticsMod(away.tactics);
+  const yellowRate = 0.015 * ((tH.yellowMul + tA.yellowMul) / 2);
+  const redRate = 0.0025 * ((tH.yellowMul + tA.yellowMul) / 2);
+
   for (let minute = 1; minute <= 90; minute++) {
     const H = computeStrength(liveHome);
     const A = computeStrength(liveAway);
-    const chanceHome = (H.attack + 4) / 600;
-    const chanceAway = A.attack / 670;
+    const chanceHome = ((H.attack + 4) / 600) * tH.freq;
+    const chanceAway = (A.attack / 670) * tA.freq;
 
-    processTeamChance(true, minute, liveHome, H, A, chanceHome, rand, events, weather);
-    processTeamChance(false, minute, liveAway, A, H, chanceAway, rand, events, weather);
+    processTeamChance(true, minute, liveHome, H, A, chanceHome, rand, events, weather, tH.quality);
+    processTeamChance(false, minute, liveAway, A, H, chanceAway, rand, events, weather, tA.quality);
 
-    // Cartão amarelo ~1,5%/min
-    if (rand() < 0.015) {
+    // Cartão amarelo — modulado por pressão/cortes de ambos os lados
+    if (rand() < yellowRate) {
       const live = rand() < 0.5 ? liveHome : liveAway;
       if (live.starters.length) {
         const actorSlot = pick(live.starters, rand);
@@ -319,7 +324,7 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
       }
     }
     // Cartão vermelho ~0,25%/min (§4.5)
-    if (rand() < 0.0025) {
+    if (rand() < redRate) {
       const live = rand() < 0.5 ? liveHome : liveAway;
       if (live.starters.length > 7) {
         const idx = Math.floor(rand() * live.starters.length);
@@ -335,25 +340,26 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
         });
       }
     }
-    // Lesão ~0,4%/min — tenta substituir automaticamente (§5.5)
-    if (rand() < 0.004) {
-      const live = rand() < 0.5 ? liveHome : liveAway;
-      if (live.starters.length) {
-        const outSlot = pick(live.starters, rand);
-        const actor = outSlot.creature;
-        events.push({
-          minute,
-          event_type: "injury",
-          description: `${actor.name} sente uma lesão (${live.side.team_name}).`,
-          actor_creature_id: actor.id,
-          actor_team_id: live.side.team_id,
-        });
-        // Remove titular lesionado
-        const i = live.starters.indexOf(outSlot);
-        if (i >= 0) live.starters.splice(i, 1);
-        trySubstitute(live, outSlot, minute, events);
-      }
+    // Lesão base 0,4%/min — modulada por pressão da própria equipe e por fadiga individual
+    for (const live of [liveHome, liveAway] as const) {
+      const mul = live === liveHome ? tH.injuryMul : tA.injuryMul;
+      if (!live.starters.length) continue;
+      const outSlot = pick(live.starters, rand);
+      const perMinute = 0.004 * mul * injuryFatigueMult(outSlot.creature.energy);
+      if (rand() >= perMinute) continue;
+      const actor = outSlot.creature;
+      events.push({
+        minute,
+        event_type: "injury",
+        description: `${actor.name} sente uma lesão (${live.side.team_name}).`,
+        actor_creature_id: actor.id,
+        actor_team_id: live.side.team_id,
+      });
+      const i = live.starters.indexOf(outSlot);
+      if (i >= 0) live.starters.splice(i, 1);
+      trySubstitute(live, outSlot, minute, events);
     }
+
 
     if (minute === 45) {
       const hs = events.filter((e) => e.event_type === "goal" && e.actor_team_id === home.team_id).length;
