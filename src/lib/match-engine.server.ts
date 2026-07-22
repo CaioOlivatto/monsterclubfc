@@ -167,7 +167,7 @@ function trySubstitute(
   minute: number,
   events: EngineEvent[],
 ): boolean {
-  if (live.subsUsed >= 3) return false;
+  if (live.subsUsed >= 5) return false;
   if (!live.bench.length) return false;
   // Reserva com maior energia, preferindo mesmo role
   const candidates = [...live.bench].sort((a, b) => {
