@@ -41,9 +41,12 @@ export async function applyPostMatchXp(
     unusedReserveIds: string[];
     outcome: "W" | "D" | "L";
     energy_loss: Record<string, number>;
+    injuries?: Array<{ creature_id: string; severity: "leve" | "moderada" | "grave"; matches: number }>;
+    isOfficial?: boolean;
   },
 ) {
   const base = opts.outcome === "W" ? 100 : opts.outcome === "D" ? 50 : 0;
+  const isOfficial = opts.isOfficial ?? false;
 
   const { data: buildings } = await supabase
     .from("buildings")
@@ -59,6 +62,9 @@ export async function applyPostMatchXp(
   // Nv1:+18, Nv2:+22, Nv3:+26, Nv4:+29, Nv5:+32. Reservas não usadas: 2×.
   const MED_RECOVERY = [0, 18, 22, 26, 29, 32];
   const recovery = MED_RECOVERY[Math.min(medLevel, 5)] ?? 18;
+  // Redução de duração de lesão por Centro Médico (§Lesões): -15% a -50%.
+  const MED_INJURY_REDUCE = [0, 0.15, 0.25, 0.35, 0.45, 0.5];
+  const injReduce = MED_INJURY_REDUCE[Math.min(medLevel, 5)] ?? 0;
 
   const { data: trainer } = await supabase
     .from("trainers")
@@ -86,6 +92,15 @@ export async function applyPostMatchXp(
   const enteredSet = new Set(opts.enteredReserveIds);
   const starterSet = new Set(opts.starterIds);
 
+  // Índice de novas lesões (só aplicadas em partidas oficiais).
+  const injuryMap = new Map<string, { severity: "leve" | "moderada" | "grave"; matches: number }>();
+  if (isOfficial) {
+    for (const inj of opts.injuries ?? []) {
+      const reduced = Math.max(1, Math.ceil(inj.matches * (1 - injReduce)));
+      injuryMap.set(inj.creature_id, { severity: inj.severity, matches: reduced });
+    }
+  }
+
   if (!allTrainerIds.length) {
     await tickBurst(supabase, trainerId, burstLeft);
     return;
@@ -93,7 +108,7 @@ export async function applyPostMatchXp(
 
   const { data: creatures } = await supabase
     .from("creatures")
-    .select("id, xp, pending_half_stars, half_stars_earned, energy")
+    .select("id, xp, pending_half_stars, half_stars_earned, energy, injury_matches_remaining, injury_severity")
     .in("id", allTrainerIds)
     .eq("owner_trainer_id", trainerId);
 
@@ -108,9 +123,30 @@ export async function applyPostMatchXp(
     const played = starterSet.has(c.id) || enteredSet.has(c.id);
     const rec = played ? recovery : recovery * 2;
     const newEnergy = Math.max(0, Math.min(100, (c.energy ?? 100) - loss + rec));
+
+    // Duração de lesão (§Lesões): decrementa em partidas oficiais; se recebeu nova lesão nesta partida
+    // aplica a maior/nova duração.
+    let injRemaining = c.injury_matches_remaining ?? 0;
+    let injSeverity: string | null = c.injury_severity ?? null;
+    if (isOfficial && injRemaining > 0) {
+      injRemaining = Math.max(0, injRemaining - 1);
+      if (injRemaining === 0) injSeverity = null;
+    }
+    const newInj = injuryMap.get(c.id);
+    if (newInj && newInj.matches > injRemaining) {
+      injRemaining = newInj.matches;
+      injSeverity = newInj.severity;
+    }
+
     await supabase
       .from("creatures")
-      .update({ xp: newXp, pending_half_stars: pending, energy: newEnergy })
+      .update({
+        xp: newXp,
+        pending_half_stars: pending,
+        energy: newEnergy,
+        injury_matches_remaining: injRemaining,
+        injury_severity: injSeverity,
+      })
       .eq("id", c.id);
   }
 
@@ -120,6 +156,7 @@ export async function applyPostMatchXp(
   const src = opts.outcome === "W" ? "match_win" : opts.outcome === "D" ? "match_draw" : "match_loss";
   await awardTrainerXp(supabase, trainerId, src, 1);
 }
+
 
 
 async function tickBurst(supabase: any, trainerId: string, current: number) {

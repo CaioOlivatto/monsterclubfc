@@ -53,7 +53,7 @@ export const getMyLineup = createServerFn({ method: "GET" })
 
     const { data: creatures } = await supabase
       .from("creatures")
-      .select("id, name, element, suggested_position, overall, energy")
+      .select("id, name, element, suggested_position, overall, energy, injury_matches_remaining, injury_severity")
       .eq("owner_trainer_id", trainerId)
       .order("overall", { ascending: false });
 
@@ -114,11 +114,15 @@ export const saveLineup = createServerFn({ method: "POST" })
     if (allIds.length > 0) {
       const { data: owned } = await supabase
         .from("creatures")
-        .select("id")
+        .select("id, name, injury_matches_remaining")
         .eq("owner_trainer_id", trainerId)
         .in("id", allIds);
       if ((owned?.length ?? 0) !== allIds.length) {
         throw new Error("Uma das criaturas selecionadas não pertence ao seu elenco.");
+      }
+      const injured = (owned ?? []).find((c: any) => (c.injury_matches_remaining ?? 0) > 0);
+      if (injured) {
+        throw new Error(`${injured.name} está lesionada e não pode ser escalada.`);
       }
     }
 

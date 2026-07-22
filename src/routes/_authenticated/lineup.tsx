@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Save, Shield, Swords, Scale, Wand2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Save, Shield, Swords, Scale, Wand2, AlertTriangle, HeartPulse } from "lucide-react";
 import { fatigueState, FATIGUE_LABEL, FATIGUE_CLASS, effectiveOverall, energyMultiplier } from "@/lib/fatigue";
 
 export const Route = createFileRoute("/_authenticated/lineup")({
@@ -102,14 +102,16 @@ function LineupPage() {
     });
   }, [slots]);
 
-  const creatures = data?.creatures ?? [];
+  const allCreatures = data?.creatures ?? [];
+  const creatures = allCreatures.filter((c: any) => (c.injury_matches_remaining ?? 0) === 0);
+  const injuredList = allCreatures.filter((c: any) => (c.injury_matches_remaining ?? 0) > 0);
   const usedIds = new Set<string>([
     ...starters.map((s) => s.creature_id).filter(Boolean) as string[],
     ...bench,
   ]);
 
   const availableFor = (currentId: string | null) =>
-    creatures.filter((c) => c.id === currentId || !usedIds.has(c.id));
+    creatures.filter((c: any) => c.id === currentId || !usedIds.has(c.id));
 
   const setSlotCreature = (slotIdx: number, creatureId: string | null) => {
     setStarters((prev) =>
@@ -248,6 +250,14 @@ function LineupPage() {
             <div className="sm:col-span-2 text-xs text-muted-foreground">
               Titulares preenchidos: <b>{filledStarters}/11</b> · Reservas: <b>{bench.length}/{MAX_BENCH}</b>
             </div>
+            {injuredList.length > 0 && (
+              <div className="sm:col-span-2 flex items-start gap-2 rounded-md border border-red-500/60 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                <HeartPulse className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  {injuredList.length} {injuredList.length === 1 ? "criatura lesionada" : "criaturas lesionadas"} não estão disponíveis: {injuredList.map((c: any) => c.name).join(", ")}.
+                </span>
+              </div>
+            )}
           </CardContent>
         </Card>
 

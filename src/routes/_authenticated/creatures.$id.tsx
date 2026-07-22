@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { getCreature } from "@/lib/creatures.functions";
+import { getCreature, healCreatureWithGems, HEAL_GEMS_PER_MATCH } from "@/lib/creatures.functions";
 import { trainCreature, restCreature } from "@/lib/training.functions";
 import { spendHalfStar } from "@/lib/progression.functions";
 
@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, BatteryCharging, Clock, Coins, Dumbbell, Hourglass, Sparkles, Star } from "lucide-react";
+import { ArrowLeft, BatteryCharging, Clock, Coins, Dumbbell, Gem, HeartPulse, Hourglass, Sparkles, Star } from "lucide-react";
 import { ageStatus, seasonsRemaining, rebirthHalfStarsPreview, sellValuePreview } from "@/lib/age";
 
 
@@ -99,6 +99,17 @@ function CreatureDetail() {
       qc.invalidateQueries({ queryKey: ["creature", id] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao aplicar"),
+  });
+
+  const healFn = useServerFn(healCreatureWithGems);
+  const healMut = useMutation({
+    mutationFn: () => healFn({ data: { id } }),
+    onSuccess: (res) => {
+      toast.success(`Cura acelerada! -${res.spent} 💎`);
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao curar"),
   });
 
 
@@ -307,6 +318,49 @@ function CreatureDetail() {
             </Card>
           );
         })()}
+
+        {((c as any).injury_matches_remaining ?? 0) > 0 && (() => {
+          const remaining = (c as any).injury_matches_remaining as number;
+          const severity = ((c as any).injury_severity as string) ?? "leve";
+          const sevLabel = severity === "grave" ? "GRAVE" : severity === "moderada" ? "Moderada" : "Leve";
+          const tone = severity === "grave"
+            ? "border-red-500/60 bg-red-500/10"
+            : severity === "moderada"
+            ? "border-orange-500/60 bg-orange-500/10"
+            : "border-yellow-500/60 bg-yellow-500/10";
+          const cost = remaining * HEAL_GEMS_PER_MATCH;
+          return (
+            <Card className={tone}>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <HeartPulse className="h-4 w-4" />
+                  Lesão {sevLabel}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <p>
+                  Faltam <b>{remaining}</b> {remaining === 1 ? "partida oficial" : "partidas oficiais"} para
+                  se recuperar. Não pode ser escalada.
+                </p>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">
+                    Acelere a recuperação com gemas ({HEAL_GEMS_PER_MATCH}💎/partida).
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={healMut.isPending}
+                    onClick={() => healMut.mutate()}
+                  >
+                    <Gem className="mr-1 h-3.5 w-3.5" />
+                    Curar agora ({cost} 💎)
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })()}
+
 
         {(c.pending_half_stars ?? 0) > 0 && (
           <Card className="border-primary/50 bg-primary/5">

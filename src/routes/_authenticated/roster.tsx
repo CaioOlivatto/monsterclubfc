@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Search, BatteryCharging, Star, Clock, Hourglass } from "lucide-react";
+import { ArrowLeft, Search, BatteryCharging, Star, Clock, Hourglass, HeartPulse } from "lucide-react";
 import { ageStatus, seasonsRemaining, type AgeStatus } from "@/lib/age";
 import { fatigueState, FATIGUE_LABEL, FATIGUE_CLASS, effectiveOverall, energyMultiplier } from "@/lib/fatigue";
 
@@ -276,6 +276,14 @@ function renderCard(c: any) {
             <div className="mt-2 flex items-center gap-1.5 rounded-md border border-orange-400 bg-orange-500 px-2 py-1 text-[11px] font-bold text-white shadow-sm">
               <Hourglass className="h-3 w-3" />
               <span>Última temporada</span>
+            </div>
+          )}
+
+          {(c.injury_matches_remaining ?? 0) > 0 && (
+            <div className="mt-2 flex items-center gap-1.5 rounded-md border border-red-500/60 bg-red-500/10 px-2 py-1 text-[11px] font-semibold text-red-300">
+              <HeartPulse className="h-3 w-3" />
+              <span>Lesão {c.injury_severity === "grave" ? "GRAVE" : c.injury_severity === "moderada" ? "moderada" : "leve"}</span>
+              <span className="opacity-80">· {c.injury_matches_remaining} {c.injury_matches_remaining === 1 ? "partida" : "partidas"}</span>
             </div>
           )}
 
