@@ -93,25 +93,22 @@ export interface MarketListing {
   age: number;
 }
 
-function pickSpeciesForBand(band: number, rng: () => number): SpeciesBase {
-  // Bandas altas (>=8): favorece espécies com overall base >=70
-  // Bandas baixas (<=3): favorece espécies com base <=45
-  const scored = BESTIARY.map((s) => ({ s, o: speciesBaseOverall(s) }));
+function pickSpeciesForBand(bestiary: LoadedBestiary, band: number, rng: () => number): SpeciesBase {
+  const scored = bestiary.species.map((s) => ({ s, o: speciesBaseOverall(s) }));
   let pool: SpeciesBase[];
   if (band >= 8) pool = scored.filter((x) => x.o >= 68).map((x) => x.s);
   else if (band >= 6) pool = scored.filter((x) => x.o >= 55).map((x) => x.s);
   else if (band <= 3) pool = scored.filter((x) => x.o <= 55).map((x) => x.s);
-  else pool = BESTIARY;
-  if (!pool.length) pool = BESTIARY;
+  else pool = bestiary.species;
+  if (!pool.length) pool = bestiary.species;
   return pick(rng, pool);
 }
 
-function generateOne(rng: () => number, division: Division): MarketListing {
+function generateOne(bestiary: LoadedBestiary, rng: () => number, division: Division): MarketListing {
   const band = rollHalfStarBand(rng, division);
   const targetOverall = band * 10; // 10..100
-  const spBase = pickSpeciesForBand(band, rng);
-  // Rola a criatura, depois ajusta atributos proporcionalmente para bater a banda
-  const c = rollCreature(spBase, rng, { variation: 6 });
+  const spBase = pickSpeciesForBand(bestiary, band, rng);
+  const c = rollCreature(spBase, bestiary.epithets[spBase.element] ?? [], rng, { variation: 6 });
   const currOverall = c.overall || 40;
   const scale = Math.max(0.3, Math.min(2.5, targetOverall / currOverall));
   const scl = (n: number) => Math.max(5, Math.min(100, Math.round(n * scale)));
@@ -133,7 +130,7 @@ function generateOne(rng: () => number, division: Division): MarketListing {
   const priceMultiplier = 0.9 + rng() * 0.4;
   const price = Math.max(1000, Math.round((market_value * priceMultiplier) / 1000) * 1000);
   const idSeed = Math.floor(rng() * 1e9).toString(16);
-  const age = 18 + Math.floor(rng() * 6); // 18..23
+  const age = 18 + Math.floor(rng() * 6);
 
   return {
     id: `market_${idSeed}`,
@@ -166,6 +163,7 @@ function generateOne(rng: () => number, division: Division): MarketListing {
 }
 
 export function generateMarketListings(
+  bestiary: LoadedBestiary,
   trainerId: string,
   seasonNumber: number,
   division: Division = "bronze",
@@ -174,18 +172,19 @@ export function generateMarketListings(
   const seed = hashString(`${trainerId}:season:${seasonNumber}:${division}`);
   const rng = mulberry32(seed);
   const listings: MarketListing[] = [];
-  for (let i = 0; i < count; i++) listings.push(generateOne(rng, division));
+  for (let i = 0; i < count; i++) listings.push(generateOne(bestiary, rng, division));
   return listings;
 }
 
 export function findListing(
+  bestiary: LoadedBestiary,
   trainerId: string,
   seasonNumber: number,
   division: Division,
   listingId: string,
 ): MarketListing | null {
   return (
-    generateMarketListings(trainerId, seasonNumber, division).find((l) => l.id === listingId) ??
+    generateMarketListings(bestiary, trainerId, seasonNumber, division).find((l) => l.id === listingId) ??
     null
   );
 }
