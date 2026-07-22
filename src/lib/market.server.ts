@@ -1,5 +1,6 @@
 // Gerador de listagens de mercado (server-only) usando o Bestiário Mitológico.
-// 24 criaturas por temporada, distribuição de raridade §5 do balanceamento.
+// 24 criaturas por temporada; distribuição de raridade segue o perfil da divisão
+// do treinador — Balanceamento §7.1/§7.2.
 
 import {
   BESTIARY,
@@ -9,6 +10,8 @@ import {
   type Element,
   type SpeciesBase,
 } from "./bestiary";
+import { rollBandForDivision, type Division } from "./economy";
+
 
 const STAR_VALUE = [
   15_000, 35_000, 70_000, 130_000, 240_000,
