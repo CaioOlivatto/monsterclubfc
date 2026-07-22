@@ -2,6 +2,16 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { FORMATIONS, MAX_BENCH } from "./lineup.server";
+import { NEUTRAL_TACTICS, type Tactics } from "./match-engine.server";
+
+const TacticAxis = z.number().int().min(-2).max(2);
+const TacticsSchema = z.object({
+  mentalidade: TacticAxis,
+  verticalidade: TacticAxis,
+  pressao: TacticAxis,
+  cortes: TacticAxis,
+});
+
 
 const StrategyEnum = z.enum(["ofensiva", "equilibrada", "defensiva"]);
 const FormationEnum = z.enum(FORMATIONS);
