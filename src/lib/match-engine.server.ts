@@ -298,6 +298,29 @@ export interface SimulationResult {
   injuries: EngineInjury[];
 }
 
+/**
+ * Persist only injury events that correspond to NEW injuries produced by this
+ * simulation result. Existing roster injuries must never be re-announced as
+ * match events; they are handled by lineup blocking/recovery state instead.
+ */
+export function persistableSimulationEvents(result: SimulationResult): EngineEvent[] {
+  const newInjuries = new Map<string, number>();
+  for (const injury of result.injuries) {
+    const key = `${injury.team_id}:${injury.creature_id}`;
+    newInjuries.set(key, (newInjuries.get(key) ?? 0) + 1);
+  }
+
+  return result.events.filter((event) => {
+    if (event.event_type !== "injury") return true;
+    if (!event.actor_team_id || !event.actor_creature_id) return false;
+    const key = `${event.actor_team_id}:${event.actor_creature_id}`;
+    const remaining = newInjuries.get(key) ?? 0;
+    if (remaining <= 0) return false;
+    newInjuries.set(key, remaining - 1);
+    return true;
+  });
+}
+
 export function simulate(home: EngineSide, away: EngineSide, seed: number): SimulationResult {
   const rand = mulberry32(seed);
   const events: EngineEvent[] = [];
