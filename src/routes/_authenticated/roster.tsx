@@ -11,6 +11,7 @@ import { ArrowLeft, Search, BatteryCharging, Star, Clock, Hourglass, HeartPulse 
 import { ageStatus, seasonsRemaining, type AgeStatus } from "@/lib/age";
 import { fatigueState, FATIGUE_LABEL, FATIGUE_CLASS, effectiveOverall, energyMultiplier } from "@/lib/fatigue";
 import { moraleState, MORALE_EMOJI, MORALE_LABEL, MORALE_CLASS, moraleMultiplier, moraleReason } from "@/lib/morale";
+import { StarRating, halfStarsToStars } from "@/components/StarRating";
 
 export const Route = createFileRoute("/_authenticated/roster")({
   head: () => ({
@@ -327,9 +328,9 @@ function renderCard(c: any) {
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">overall</p>
             </div>
             <div className="text-right text-xs text-muted-foreground">
-              <p className="flex items-center justify-end gap-1">
-                <Star className="h-3 w-3" /> {(c.half_stars_earned / 2).toFixed(1)}★
-              </p>
+              <div className="flex items-center justify-end">
+                <StarRating value={halfStarsToStars(c.half_stars_earned ?? 0)} size={0.8} />
+              </div>
               <p className="mt-1">$ {c.market_value.toLocaleString("pt-BR")}</p>
             </div>
           </div>

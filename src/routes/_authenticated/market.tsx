@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ArrowLeft, Coins, Store, Users, Star } from "lucide-react";
+import { StarRating, overallToStars, halfStarsToStars } from "@/components/StarRating";
 
 export const Route = createFileRoute("/_authenticated/market")({
   head: () => ({
@@ -56,13 +57,7 @@ function formatMoney(n: number) {
 }
 
 function Stars({ overall }: { overall: number }) {
-  const stars = overall / 20;
-  return (
-    <div className="flex items-center gap-0.5">
-      <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-      <span className="text-xs font-semibold">{stars.toFixed(1)}</span>
-    </div>
-  );
+  return <StarRating value={overallToStars(overall)} size={0.75} />;
 }
 
 function MarketPage() {
@@ -108,7 +103,7 @@ function MarketPage() {
             <p>
               <span className="font-medium">{ELEMENT_LABEL[res.element] ?? res.element}</span>
               {" · "}{res.position}{" · "}
-              <span className="text-amber-300">{res.stars.toFixed(1)}★</span>
+              <span className="inline-flex items-center gap-1"><StarRating value={res.stars} size={0.75} /></span>
             </p>
             <p>Salário: <span className="font-medium">{formatMoney((res as any).salary_per_match ?? Math.round(res.salary / 26))}/partida</span> <span className="text-muted-foreground">({formatMoney(res.salary)}/temporada)</span></p>
             <p>
@@ -208,7 +203,7 @@ function MarketPage() {
             {data?.division && (
               <div className="text-xs text-muted-foreground">
                 Divisão: <span className="font-medium capitalize">{data.division}</span>
-                {" · "}Até <span className="font-medium">{((data.max_band ?? 0) / 2).toFixed(1)}★</span>
+                {" · "}Até <span className="inline-flex items-center gap-1 align-middle"><StarRating value={halfStarsToStars(data.max_band ?? 0)} size={0.75} /></span>
               </div>
             )}
             {typeof data?.payroll === "number" && (

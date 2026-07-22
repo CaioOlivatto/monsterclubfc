@@ -14,6 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, BatteryCharging, Clock, Coins, Dumbbell, Gem, HeartPulse, Hourglass, Sparkles, Star } from "lucide-react";
 import { ageStatus, seasonsRemaining, rebirthHalfStarsPreview, sellValuePreview } from "@/lib/age";
 import { moraleState, MORALE_EMOJI, MORALE_LABEL } from "@/lib/morale";
+import { StarRating, halfStarsToStars } from "@/components/StarRating";
 
 
 export const Route = createFileRoute("/_authenticated/creatures/$id")({
@@ -202,7 +203,7 @@ function CreatureDetail() {
           <StatChip label="Overall" value={String(c.overall)} icon={<Star className="h-4 w-4" />} />
           <StatChip
             label="Estrelas"
-            value={`${(c.half_stars_earned / 2).toFixed(1)}★`}
+            value={<StarRating value={halfStarsToStars(c.half_stars_earned ?? 0)} size={0.85} showNumber />}
             icon={<Star className="h-4 w-4" />}
           />
           <StatChip
@@ -572,7 +573,7 @@ function StatChip({
   icon,
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   icon: React.ReactNode;
 }) {
   return (
@@ -584,7 +585,7 @@ function StatChip({
         <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
           {label}
         </p>
-        <p className="truncate text-sm font-semibold">{value}</p>
+        <div className="truncate text-sm font-semibold">{value}</div>
       </div>
     </div>
   );
