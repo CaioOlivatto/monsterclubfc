@@ -57,8 +57,16 @@ const MATCH_PRIZE: Record<Division, [number, number, number]> = {
   lendaria:[160_000, 64_000, 24_000],
 };
 
+// Liga de 14 times, 26 rodadas (turno e returno) — Balanceamento §1.2 e §8.
+const LEAGUE_SIZE = 14;
+const CPU_COUNT = LEAGUE_SIZE - 1;
+
 // Multiplicador aplicado sobre o prêmio de vitória da divisão (fim de temporada)
-const SEASON_POSITION_MULT: number[] = [10, 6, 3, 3, 1.5, 1.5, 0.5, 0.5];
+// §2.3: 1º ×10 · 2º ×6 · 3º–4º ×3 · 5º–6º ×1,5 · 7º–8º ×0,5 · demais 0
+const SEASON_POSITION_MULT: number[] = [
+  10, 6, 3, 3, 1.5, 1.5, 0.5, 0.5,
+  0, 0, 0, 0, 0, 0,
+];
 
 // Salário por temporada baseado no overall (aprox. tier de estrelas)
 function seasonSalary(overall: number): number {
