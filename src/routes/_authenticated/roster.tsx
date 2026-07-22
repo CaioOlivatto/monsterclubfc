@@ -43,7 +43,19 @@ const POSITIONS = ["Goleiro", "Zagueiro", "Meio-campo", "Atacante"] as const;
 
 type SortKey = "position" | "overall" | "name" | "energy" | "market_value" | "age";
 
-const POSITION_ORDER: Record<string, number> = { GOL: 0, DEF: 1, MEI: 2, ATA: 3 };
+const POSITION_ORDER: Record<string, number> = {
+  Goleiro: 0,
+  Zagueiro: 1,
+  "Meio-campo": 2,
+  Atacante: 3,
+};
+const POSITION_LABEL: Record<string, string> = {
+  Goleiro: "GOLEIROS",
+  Zagueiro: "ZAGUEIROS",
+  "Meio-campo": "MEIO-CAMPO",
+  Atacante: "ATACANTES",
+};
+const POSITION_KEYS = ["Goleiro", "Zagueiro", "Meio-campo", "Atacante"] as const;
 type AgeFilter = "all" | "veteran" | "last_season";
 
 function RosterPage() {
