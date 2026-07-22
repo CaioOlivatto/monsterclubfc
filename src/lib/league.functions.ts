@@ -813,7 +813,11 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
       relegated: relegatedByDiv.get(div) ?? [],
     })).reverse(); // Lendária no topo
 
+    // Zera o breakdown de XP para começar a nova temporada
+    await resetSeasonBreakdown(supabase, trainer.id);
+
     return {
+
       position,
       prize,
       championGems,
