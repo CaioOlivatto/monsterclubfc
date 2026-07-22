@@ -57,13 +57,7 @@ function formatMoney(n: number) {
 }
 
 function Stars({ overall }: { overall: number }) {
-  const stars = overall / 20;
-  return (
-    <div className="flex items-center gap-0.5">
-      <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-      <span className="text-xs font-semibold">{stars.toFixed(1)}</span>
-    </div>
-  );
+  return <StarRating value={overallToStars(overall)} size={0.75} />;
 }
 
 function MarketPage() {
