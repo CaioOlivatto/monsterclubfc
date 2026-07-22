@@ -458,7 +458,44 @@ export const acceptOffer = createServerFn({ method: "POST" })
       .eq("trainer_id", trainer.id)
       .eq("status", "pending");
 
-    // 12) Bônus de contratação (financeiro)
+    // 12) Finanças: zera o caixa antigo e credita o caixa do novo clube + bônus.
+    //     O dinheiro NÃO viaja com o treinador — fica no clube que ele deixou.
+    const { data: allTx } = await supabase
+      .from("financial_transactions")
+      .select("transaction_type, amount")
+      .eq("trainer_id", trainer.id);
+    const currentBalance = (allTx ?? []).reduce((acc: number, t: any) => {
+      const amt = Number(t.amount) || 0;
+      return t.transaction_type === "income" ? acc + amt : acc - amt;
+    }, 0);
+    if (currentBalance > 0) {
+      await supabase.from("financial_transactions").insert({
+        trainer_id: trainer.id,
+        transaction_type: "expense",
+        category: "club_transfer",
+        amount: currentBalance,
+        description: `Caixa deixado no clube anterior`,
+      });
+    } else if (currentBalance < 0) {
+      // dívida também fica com o clube antigo
+      await supabase.from("financial_transactions").insert({
+        trainer_id: trainer.id,
+        transaction_type: "income",
+        category: "club_transfer",
+        amount: -currentBalance,
+        description: `Dívida deixada no clube anterior`,
+      });
+    }
+
+    const startingCash = STARTING_CASH_BY_DIVISION[newTeam.division ?? "bronze"] ?? 200_000;
+    await supabase.from("financial_transactions").insert({
+      trainer_id: trainer.id,
+      transaction_type: "income",
+      category: "club_transfer",
+      amount: startingCash,
+      description: `Caixa do ${newTeam.name}`,
+    });
+
     if (offer.signing_bonus > 0) {
       await supabase.from("financial_transactions").insert({
         trainer_id: trainer.id,
@@ -468,6 +505,7 @@ export const acceptOffer = createServerFn({ method: "POST" })
         description: `Bônus de contratação — ${offer.team_name}`,
       });
     }
+
 
     // 13) Reseta escalação (será regerada pelo botão "Auto definir")
     await supabase.from("team_lineups").delete().eq("trainer_id", trainer.id);
