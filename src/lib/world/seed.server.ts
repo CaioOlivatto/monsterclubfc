@@ -2,7 +2,6 @@
 // Server-only: chamado por chooseStarterTeam para popular o mundo do treinador.
 
 import {
-  BESTIARY,
   bestiaryByElement,
   bestiaryByPosition,
   rollCreature,
@@ -10,6 +9,7 @@ import {
   type Position,
   type SpeciesBase,
 } from "@/lib/bestiary";
+import { loadBestiary, type LoadedBestiary } from "@/lib/bestiary.server";
 import {
   AGE_BUCKETS,
   DIVISION_ORDER,
