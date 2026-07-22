@@ -135,7 +135,7 @@ export const startLeague = createServerFn({ method: "POST" })
     const { error: sErr } = await supabase.from("standings").insert(standingsRows);
     if (sErr) throw sErr;
 
-    const schedule = generateSchedule(8, true);
+    const schedule = generateSchedule(LEAGUE_SIZE, true);
     const matchesRows: any[] = [];
     schedule.forEach((round, rIdx) => {
       round.forEach(([h, a]) => {
