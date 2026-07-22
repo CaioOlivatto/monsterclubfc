@@ -10,7 +10,7 @@ import {
   type SpeciesBase,
 } from "./bestiary";
 import type { LoadedBestiary } from "./bestiary.server";
-import { rollBandForDivision, type Division } from "./economy";
+import { rollBandForDivision, DIVISION_STAR_PROFILE, type Division } from "./economy";
 
 
 const STAR_VALUE = [
