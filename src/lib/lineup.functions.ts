@@ -47,7 +47,7 @@ export const getMyLineup = createServerFn({ method: "GET" })
 
     const { data: lineup } = await supabase
       .from("team_lineups")
-      .select("formation, strategy, starters, bench")
+      .select("formation, strategy, starters, bench, default_tactics")
       .eq("trainer_id", trainerId)
       .maybeSingle();
 
@@ -63,10 +63,39 @@ export const getMyLineup = createServerFn({ method: "GET" })
         strategy: "equilibrada",
         starters: [],
         bench: [],
+        default_tactics: NEUTRAL_TACTICS,
       },
       creatures: creatures ?? [],
     };
   });
+
+export const getMyTactics = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const trainerId = await getTrainerId(supabase, userId);
+    const { data } = await supabase
+      .from("team_lineups")
+      .select("default_tactics")
+      .eq("trainer_id", trainerId)
+      .maybeSingle();
+    return { tactics: (data?.default_tactics as Tactics | null) ?? NEUTRAL_TACTICS };
+  });
+
+export const saveTactics = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((raw: unknown) => TacticsSchema.parse(raw))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const trainerId = await getTrainerId(supabase, userId);
+    const { error } = await supabase
+      .from("team_lineups")
+      .update({ default_tactics: data })
+      .eq("trainer_id", trainerId);
+    if (error) throw error;
+    return { ok: true, tactics: data };
+  });
+
 
 export const saveLineup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
