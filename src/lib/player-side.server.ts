@@ -49,7 +49,7 @@ export async function buildPlayerSideFromDb(
   const { data: creatures, error } = await supabase
     .from("creatures")
     .select(
-      "id, name, element, suggested_position, overall, is_goalkeeper, attr_pique, attr_forca, energy, aff_fogo, aff_agua, aff_terra, aff_ar, aff_gelo, injury_matches_remaining",
+      "id, name, element, suggested_position, overall, is_goalkeeper, attr_pique, attr_forca, energy, morale, aff_fogo, aff_agua, aff_terra, aff_ar, aff_gelo, injury_matches_remaining",
     )
     .in("id", allIds);
   if (error) throw error;
@@ -129,7 +129,7 @@ export async function buildPlayerSideFromDraft(
   const { data: creatures, error } = await supabase
     .from("creatures")
     .select(
-      "id, name, element, suggested_position, overall, is_goalkeeper, attr_pique, attr_forca, energy, aff_fogo, aff_agua, aff_terra, aff_ar, aff_gelo, injury_matches_remaining, owner_trainer_id",
+      "id, name, element, suggested_position, overall, is_goalkeeper, attr_pique, attr_forca, energy, morale, aff_fogo, aff_agua, aff_terra, aff_ar, aff_gelo, injury_matches_remaining, owner_trainer_id",
     )
     .in("id", allIds);
   if (error) throw error;
