@@ -82,12 +82,37 @@ export const startCup = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!season) throw new Error("Sem temporada ativa. Inicie a liga primeiro.");
 
+    // Time do jogador (da liga vigente) + divisão
+    const { data: playerLeagueTeam } = await supabase
+      .from("teams")
+      .select("id, name, division, color, colors, dominant_element")
+      .eq("trainer_id", trainer.id)
+      .eq("is_player", true)
+      .maybeSingle();
+    if (!playerLeagueTeam) throw new Error("Você precisa ter uma liga ativa antes de disputar a copa.");
+    const division = (playerLeagueTeam.division as string) ?? "bronze";
+
+    // 7 adversários sorteados entre os times reais da MESMA divisão do jogador
+    const { data: divTeams } = await supabase
+      .from("teams")
+      .select("id, name, color, colors, dominant_element")
+      .eq("division", division)
+      .eq("is_player", false);
+    const pool = (divTeams ?? []).slice();
+    if (pool.length < 7) throw new Error("Divisão sem adversários suficientes para a copa.");
+    const rng = mulberry(hashSeed(trainer.id + ":cup:" + season.id));
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const opponents = pool.slice(0, 7);
+
     const { data: cup, error: cErr } = await supabase
       .from("competitions")
       .insert({
         trainer_id: trainer.id,
         season_id: season.id,
-        division: "bronze",
+        division,
         type: "cup",
         status: "active",
       })
@@ -95,32 +120,43 @@ export const startCup = createServerFn({ method: "POST" })
       .single();
     if (cErr) throw cErr;
 
-    const { data: playerTeam } = await supabase
-      .from("teams")
-      .insert({
+    const avg = await playerAverage(supabase, trainer.id);
+    // Cria as "cópias" dos times na competição da copa (mantém os nomes reais)
+    const teamRows = [
+      {
         competition_id: cup.id,
         trainer_id: trainer.id,
         is_player: true,
-        name: trainer.academy_name,
-      })
-      .select("id")
-      .single();
+        name: playerLeagueTeam.name,
+        color: playerLeagueTeam.color ?? null,
+        colors: playerLeagueTeam.colors ?? null,
+        dominant_element: playerLeagueTeam.dominant_element ?? null,
+        division,
+      },
+      ...opponents.map((t: any, i: number) => ({
+        competition_id: cup.id,
+        trainer_id: null,
+        is_player: false,
+        is_cpu: true,
+        name: t.name,
+        color: t.color ?? null,
+        colors: t.colors ?? null,
+        dominant_element: t.dominant_element ?? null,
+        division,
+        cpu_strength: Math.max(25, Math.min(95, avg + (i - 3) * 5 + 6)),
+      })),
+    ];
+    const { data: insertedTeams, error: itErr } = await supabase
+      .from("teams")
+      .insert(teamRows)
+      .select("id, is_player, cpu_strength");
+    if (itErr) throw itErr;
 
-    const avg = await playerAverage(supabase, trainer.id);
-    const cpuNames = pickCpuTeamNames(7, (Date.now() ^ 0x5c) & 0xffffffff);
-    // Copa: adversários mais fortes na média (torneio nacional)
-    const cpuRows = cpuNames.map((name, i) => ({
-      competition_id: cup.id,
-      trainer_id: null,
-      is_player: false,
-      name,
-      cpu_strength: Math.max(25, Math.min(95, avg + (i - 3) * 5 + 6)),
-    }));
-    const { data: cpuTeams } = await supabase.from("teams").insert(cpuRows).select("id, cpu_strength");
-    const cpus = [...(cpuTeams ?? [])].sort((a: any, b: any) => a.cpu_strength - b.cpu_strength);
-    // Sorteio: jogador = seed 1, restante 2..8 por força ascendente
-    const seeds = [playerTeam!.id, ...cpus.map((c: any) => c.id)];
-    // Chaveamento clássico: 1v8, 4v5, 3v6, 2v7 (quartas → semi cruzada)
+    const playerTeamCup = insertedTeams!.find((t: any) => t.is_player)!;
+    const cpus = insertedTeams!
+      .filter((t: any) => !t.is_player)
+      .sort((a: any, b: any) => (a.cpu_strength ?? 0) - (b.cpu_strength ?? 0));
+    const seeds = [playerTeamCup.id, ...cpus.map((c: any) => c.id)];
     const q = [
       [seeds[0], seeds[7]],
       [seeds[3], seeds[4]],
@@ -138,6 +174,17 @@ export const startCup = createServerFn({ method: "POST" })
     await supabase.from("matches").insert(rows);
     return { cup_id: cup.id };
   });
+
+function mulberry(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 export const playNextCupMatch = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
