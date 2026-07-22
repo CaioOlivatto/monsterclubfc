@@ -103,7 +103,11 @@ export const getMarket = createServerFn({ method: "GET" })
     const boughtSet = new Set((bought ?? []).map((r: any) => r.listing_id));
     const listings = allListings
       .filter((l) => !boughtSet.has(l.id))
-      .map((l) => ({ ...l, salary: seasonSalary(l.overall) }));
+      .map((l) => ({
+        ...l,
+        salary: seasonSalary(l.overall),
+        salary_per_match: matchSalary(l.overall),
+      }));
 
     const rosterCount = creatures?.length ?? 0;
     const payroll = await currentPayroll(supabase, trainer.id);
