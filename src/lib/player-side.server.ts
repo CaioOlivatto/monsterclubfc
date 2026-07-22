@@ -16,6 +16,8 @@ export async function buildPlayerSideFromDb(
     .eq("trainer_id", trainerId)
     .maybeSingle();
   if (!lineup) throw new Error("Você ainda não tem escalação salva. Vá em Escalação primeiro.");
+  const medicalLevel = await fetchMedicalLevel(supabase, trainerId);
+
 
   const savedStarters = (lineup.starters ?? []) as {
     slot: number; role: SlotRole; creature_id: string | null;
