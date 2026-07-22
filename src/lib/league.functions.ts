@@ -225,7 +225,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
 
     const { data: competition } = await supabase
       .from("competitions")
-      .select("id, division")
+      .select("id, division, season_id")
       .eq("trainer_id", trainer.id)
       .eq("type", "league")
       .eq("status", "active")
