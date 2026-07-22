@@ -211,14 +211,12 @@ function CreatureDetail() {
             icon={<BatteryCharging className="h-4 w-4" />}
           />
           {(() => {
-            const { moraleState, MORALE_EMOJI, MORALE_LABEL, moraleReason } = require("@/lib/morale");
             const s = moraleState((c as any).morale);
             return (
               <StatChip
                 label="Moral"
                 value={`${MORALE_EMOJI[s]} ${MORALE_LABEL[s]} (${(c as any).morale ?? 50})`}
                 icon={<span className="text-base leading-none">{MORALE_EMOJI[s]}</span>}
-                title={moraleReason(c)}
               />
             );
           })()}
