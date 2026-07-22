@@ -157,20 +157,40 @@ export const startLeague = createServerFn({ method: "POST" })
 
 export const getLeague = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((raw: unknown) =>
+    z.object({ division: z.enum(["bronze", "prata", "ouro", "diamante", "lendaria"]).optional() }).parse(raw ?? {}),
+  )
+  .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const trainer = await getTrainer(supabase, userId);
-    const { data: competition } = await supabase
+
+    // Todas as competições ativas da temporada corrente do treinador (5 divisões)
+    const { data: allComps } = await supabase
       .from("competitions")
       .select("id, division, season_id, status, champion_team_id")
       .eq("trainer_id", trainer.id)
       .eq("type", "league")
-      .eq("status", "active")
+      .eq("status", "active");
+    if (!allComps || !allComps.length) return { competition: null };
+
+    // Divisão do jogador = a que tem o time do jogador
+    const { data: playerTeamRow } = await supabase
+      .from("teams")
+      .select("id, competition_id, division")
+      .eq("trainer_id", trainer.id)
+      .eq("is_player", true)
+      .in("competition_id", allComps.map((c: any) => c.id))
       .maybeSingle();
-    if (!competition) return { competition: null };
+
+    const playerDiv = (playerTeamRow?.division as Division | undefined) ?? "bronze";
+    const requested = (data.division ?? playerDiv) as Division;
+    const competition = allComps.find((c: any) => c.division === requested) ?? allComps[0];
 
     const [teamsRes, standingsRes, matchesRes] = await Promise.all([
-      supabase.from("teams").select("id, name, is_player, cpu_strength").eq("competition_id", competition.id),
+      supabase
+        .from("teams")
+        .select("id, name, is_player, cpu_strength, division, colors")
+        .eq("competition_id", competition.id),
       supabase
         .from("standings")
         .select("team_id, points, wins, draws, losses, goals_for, goals_against")
@@ -187,8 +207,15 @@ export const getLeague = createServerFn({ method: "GET" })
       teams: teamsRes.data ?? [],
       standings: standingsRes.data ?? [],
       matches: matchesRes.data ?? [],
+      divisions: DIVISION_ORDER.map((d) => ({
+        division: d,
+        competition_id: allComps.find((c: any) => c.division === d)?.id ?? null,
+      })),
+      playerDivision: playerDiv,
+      selectedDivision: requested,
     };
   });
+
 
 export const playNextLeagueMatch = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
