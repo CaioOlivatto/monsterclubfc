@@ -11,6 +11,7 @@ import { stadiumCapacity } from "./buildings.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { awardTrainerXp, resetSeasonBreakdown } from "./trainer-xp.server";
+import { MATCH_REVENUE, MAINTENANCE_PER_MATCH, matchSalary } from "./economy";
 
 
 async function getTrainer(supabase: any, userId: string) {
