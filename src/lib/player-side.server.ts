@@ -96,8 +96,10 @@ export async function buildPlayerSideFromDb(
     .map((c: any) => toEngine(c, posToRole(c.suggested_position)));
 
   const tactics: Tactics = (lineup.default_tactics as Tactics | null) ?? NEUTRAL_TACTICS;
-  return { team_id: teamId, team_name: teamName, starters, bench, strategy: lineup.strategy, tactics, medical_level: medicalLevel };
+  const division = await fetchTeamDivision(supabase, teamId);
+  return { team_id: teamId, team_name: teamName, starters, bench, strategy: lineup.strategy, tactics, medical_level: medicalLevel, division };
 }
+
 
 /** Constrói o lado do jogador a partir de um DRAFT enviado pela UI (sem salvar). */
 export async function buildPlayerSideFromDraft(
