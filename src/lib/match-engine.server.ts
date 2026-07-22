@@ -422,6 +422,8 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
 
   const tH = tacticsMod(home.tactics);
   const tA = tacticsMod(away.tactics);
+  const sH = strategyMod(home.strategy);
+  const sA = strategyMod(away.strategy);
   // Pressão de ambos os lados eleva o ritmo do jogo dos dois times.
   const pressureFreq = 1 + Math.max(0, (tH.injuryMul - 1) + (tA.injuryMul - 1)) * 0.2;
   const yellowRate = 0.015 * ((tH.yellowMul + tA.yellowMul) / 2);
@@ -431,11 +433,12 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
     const H = computeView(liveHome);
     const A = computeView(liveAway);
 
-    const chanceHome = ((H.attackAvg + HOME_ATK_BONUS) / CHANCE_DIVISOR) * tH.freq * pressureFreq;
-    const chanceAway = (A.attackAvg / CHANCE_DIVISOR) * tA.freq * pressureFreq;
+    const chanceHome = ((H.attackAvg + HOME_ATK_BONUS) / CHANCE_DIVISOR) * tH.freq * sH.freqMul * pressureFreq;
+    const chanceAway = (A.attackAvg / CHANCE_DIVISOR) * tA.freq * sA.freqMul * pressureFreq;
 
-    if (rand() < chanceHome) resolveChance(true, minute, H, A, liveHome, tA, rand, events, weather);
-    if (rand() < chanceAway) resolveChance(false, minute, A, H, liveAway, tH, rand, events, weather);
+    if (rand() < chanceHome) resolveChance(true, minute, H, A, liveHome, tA, sA, rand, events, weather);
+    if (rand() < chanceAway) resolveChance(false, minute, A, H, liveAway, tH, sH, rand, events, weather);
+
 
     // Cartões
     if (rand() < yellowRate) {
