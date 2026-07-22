@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { generateSchedule, pickCpuTeamNames } from "./league.server";
+import { generateSchedule } from "./league.server";
 import {
   simulate,
   generateCpuSideFor,
