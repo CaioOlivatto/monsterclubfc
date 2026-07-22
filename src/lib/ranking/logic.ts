@@ -53,9 +53,9 @@ export async function seedWorldAcademiesIfNeeded(supabase: any) {
   for (const div of DIVISION_ORDER) {
     const profile = PRO_PROFILE[div];
     for (const team of WORLD_TEAMS[div]) {
-      rows.push({
       const level = rand(rng, profile.level[0], profile.level[1]);
       rows.push({
+
         academy_name: `Academia ${team.name}`,
         trainer_name: syntheticTrainerName(rng),
         division: div,
