@@ -1,5 +1,5 @@
 import { buildSlots } from "./lineup.server";
-import type { EngineSide, EngineSlot, SlotRole, Element, Tactics } from "./match-engine.server";
+import type { EngineSide, EngineSlot, SlotRole, Element, Tactics, Division } from "./match-engine.server";
 import { NEUTRAL_TACTICS } from "./match-engine.server";
 
 async function fetchMedicalLevel(supabase: any, trainerId: string): Promise<number> {
@@ -11,6 +11,14 @@ async function fetchMedicalLevel(supabase: any, trainerId: string): Promise<numb
     .maybeSingle();
   return Math.max(1, Math.min(5, data?.level ?? 1));
 }
+
+async function fetchTeamDivision(supabase: any, teamId: string): Promise<Division | undefined> {
+  const { data } = await supabase.from("teams").select("division").eq("id", teamId).maybeSingle();
+  const d = data?.division as string | undefined;
+  if (d === "bronze" || d === "prata" || d === "ouro" || d === "diamante" || d === "lendaria") return d;
+  return undefined;
+}
+
 
 
 
