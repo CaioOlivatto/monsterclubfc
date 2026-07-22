@@ -263,6 +263,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     const home = teams!.find((t: any) => t.id === next.home_team_id) as any;
     const away = teams!.find((t: any) => t.id === next.away_team_id) as any;
 
+    const bestiary = await loadEngineBestiary(supabase);
     const playerSideRef: { current: EngineSide | null } = { current: null };
     async function buildSide(team: any): Promise<EngineSide> {
       if (team.is_player) {
@@ -271,7 +272,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         return side;
       }
       const seed = hashSeed(team.id);
-      return generateCpuSideFor(seed, team.id, team.name, team.cpu_strength ?? 45);
+      return generateCpuSideFor(seed, team.id, team.name, team.cpu_strength ?? 45, bestiary);
     }
     const homeSide = await buildSide(home);
     const awaySide = await buildSide(away);
