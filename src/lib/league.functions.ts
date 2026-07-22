@@ -114,13 +114,13 @@ export const startLeague = createServerFn({ method: "POST" })
     if (ptErr) throw ptErr;
 
     const avg = await playerAverage(supabase, trainer.id);
-    const cpuNames = pickCpuTeamNames(7, Date.now() & 0xffffffff);
+    const cpuNames = pickCpuTeamNames(CPU_COUNT, Date.now() & 0xffffffff);
     const cpuRows = cpuNames.map((name, i) => ({
       competition_id: competition.id,
       trainer_id: null,
       is_player: false,
       name,
-      cpu_strength: Math.max(20, Math.min(90, avg + (i - 3) * 4)),
+      cpu_strength: Math.max(20, Math.min(90, avg + (i - Math.floor(CPU_COUNT / 2)) * 3)),
     }));
     const { data: cpuTeams, error: ctErr } = await supabase.from("teams").insert(cpuRows).select("id");
     if (ctErr) throw ctErr;
