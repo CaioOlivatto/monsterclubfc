@@ -137,8 +137,20 @@ function LineupPage() {
     ...bench,
   ]);
 
+  const naturalRoleOf = (pos: string | null | undefined): SlotRole => {
+    if (pos === "Goleiro") return "GOL";
+    if (pos === "Zagueiro") return "DEF";
+    if (pos === "Atacante") return "ATA";
+    return "MEI";
+  };
+  const ROLE_LABEL: Record<SlotRole, string> = { GOL: "GOL", DEF: "DEF", MEI: "MEI", ATA: "ATA" };
+
+  const sortByEff = (a: any, b: any) =>
+    effectiveOverall(b.overall ?? 0, b.energy ?? 100) - effectiveOverall(a.overall ?? 0, a.energy ?? 100);
+
   const availableFor = (currentId: string | null) =>
     creatures.filter((c: any) => c.id === currentId || !usedIds.has(c.id));
+
 
   const setSlotCreature = (slotIdx: number, creatureId: string | null) => {
     setStarters((prev) =>
