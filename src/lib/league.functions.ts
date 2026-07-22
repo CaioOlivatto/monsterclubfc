@@ -335,8 +335,8 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
           return b.goals_for - a.goals_for;
         });
         const posIdx = rankedCur.findIndex((r: any) => r.team_id === playerTeam.id);
-        const pos = posIdx >= 0 ? posIdx + 1 : 8;
-        const posInvertida = 9 - pos; // 1º → 8; 8º → 1
+        const pos = posIdx >= 0 ? posIdx + 1 : LEAGUE_SIZE;
+        const posInvertida = LEAGUE_SIZE + 1 - pos; // 1º → 14 ; último → 1
         const fillRate = Math.min(1, 0.70 + 0.03 * posInvertida);
         gate = Math.round(capacity * fillRate * 25);
       }
