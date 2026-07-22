@@ -203,7 +203,7 @@ function CreatureDetail() {
           <StatChip label="Overall" value={String(c.overall)} icon={<Star className="h-4 w-4" />} />
           <StatChip
             label="Estrelas"
-            value={`${(c.half_stars_earned / 2).toFixed(1)}★`}
+            value={<StarRating value={halfStarsToStars(c.half_stars_earned ?? 0)} size={0.85} showNumber />}
             icon={<Star className="h-4 w-4" />}
           />
           <StatChip
