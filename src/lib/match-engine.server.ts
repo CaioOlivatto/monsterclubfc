@@ -470,8 +470,9 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
     const H = computeView(liveHome);
     const A = computeView(liveAway);
 
-    const chanceHome = ((H.attackAvg + HOME_ATK_BONUS) / CHANCE_DIVISOR) * tH.freq * sH.freqMul * pressureFreq;
-    const chanceAway = (A.attackAvg / CHANCE_DIVISOR) * tA.freq * sA.freqMul * pressureFreq;
+    const chanceHome = CHANCE_RATE * ((H.attackAvg + HOME_ATK_BONUS) / referenceOvr(home, H.attackAvg)) * tH.freq * sH.freqMul * pressureFreq;
+    const chanceAway = CHANCE_RATE * (A.attackAvg / referenceOvr(away, A.attackAvg)) * tA.freq * sA.freqMul * pressureFreq;
+
 
     if (rand() < chanceHome) resolveChance(true, minute, H, A, liveHome, tA, sA, rand, events, weather);
     if (rand() < chanceAway) resolveChance(false, minute, A, H, liveAway, tH, sH, rand, events, weather);
