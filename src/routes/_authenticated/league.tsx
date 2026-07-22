@@ -172,29 +172,51 @@ function LeagueBody({
   const roundNumbers = [...rounds.keys()].sort((a, b) => a - b);
   const nextRound = roundNumbers.find((r) => rounds.get(r)!.some((m) => m.status === "scheduled"));
 
-  const division = data.competition?.division ?? "bronze";
+  const playerDivision = (data as any).playerDivision ?? "bronze";
+  const isPlayerDivision = division === playerDivision;
   const leagueDone = !nextRound;
 
   return (
     <>
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 py-4">
-          <div>
-            <CardTitle className="text-base capitalize">Divisão {division}</CardTitle>
+        <CardHeader className="flex flex-col gap-3 space-y-0 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 space-y-2">
+            <div className="flex items-center gap-2">
+              <Select value={division} onValueChange={setDivision}>
+                <SelectTrigger className="h-8 w-[190px]">
+                  <SelectValue placeholder="Divisão" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DIVS.map((d) => (
+                    <SelectItem key={d} value={d}>
+                      {DIV_LABEL[d]}
+                      {d === playerDivision ? " · sua" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {isPlayerDivision && <Badge variant="secondary" className="text-[10px]">Sua divisão</Badge>}
+            </div>
             <p className="text-xs text-muted-foreground">
-              {leagueDone ? "Temporada concluída — encerre para promoção/rebaixamento." : `Rodada ${nextRound} de ${roundNumbers.length}`}
+              {leagueDone
+                ? isPlayerDivision
+                  ? "Temporada concluída — encerre para promoção/rebaixamento."
+                  : "Temporada concluída nesta divisão."
+                : `Rodada ${nextRound} de ${roundNumbers.length}`}
             </p>
           </div>
-          {leagueDone ? (
-            <Button onClick={onFinishSeason} disabled={isFinishing} variant="default">
-              <Trophy className="mr-2 h-4 w-4" />
-              {isFinishing ? "Encerrando..." : "Encerrar temporada"}
-            </Button>
-          ) : (
-            <Button onClick={onPlayNext} disabled={isPlaying}>
-              <Play className="mr-2 h-4 w-4" />
-              {isPlaying ? "Jogando..." : "Jogar próxima"}
-            </Button>
+          {isPlayerDivision && (
+            leagueDone ? (
+              <Button onClick={onFinishSeason} disabled={isFinishing} variant="default">
+                <Trophy className="mr-2 h-4 w-4" />
+                {isFinishing ? "Encerrando..." : "Encerrar temporada"}
+              </Button>
+            ) : (
+              <Button onClick={onPlayNext} disabled={isPlaying}>
+                <Play className="mr-2 h-4 w-4" />
+                {isPlaying ? "Jogando..." : "Jogar próxima"}
+              </Button>
+            )
           )}
         </CardHeader>
         {nextRound && (
