@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { simulate, generateCpuSide, type EngineSide } from "./match-engine.server";
+import { simulate, generateCpuSide, type EngineSide, type EngineBestiary } from "./match-engine.server";
+import { loadBestiary } from "./bestiary.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { SPEED_UNLOCK_COSTS } from "./shop.server";
