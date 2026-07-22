@@ -292,14 +292,16 @@ function LineupPage() {
               Auto definir
             </Button>
             <Button
-              onClick={autoRested}
-              disabled={creatures.length === 0}
+              onClick={openPoupar}
+              disabled={creatures.length < 16 || poupPending}
               size="sm"
               variant="outline"
-              title="Prioriza criaturas com energia alta"
+              title="Escala os reservas e mantém seus 5 melhores descansados para a próxima partida"
             >
-              Escalar time descansado
+              <BedDouble className="mr-2 h-4 w-4" />
+              {poupPending ? "Calculando…" : "Poupar titulares"}
             </Button>
+
 
             <Button
               onClick={() => mut.mutate()}
