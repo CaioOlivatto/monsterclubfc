@@ -97,7 +97,12 @@ export async function applyPostMatchXp(
   }
 
   await tickBurst(supabase, trainerId, burstLeft);
+
+  // XP de prestígio do treinador pelo resultado
+  const src = opts.outcome === "W" ? "match_win" : opts.outcome === "D" ? "match_draw" : "match_loss";
+  await awardTrainerXp(supabase, trainerId, src, 1);
 }
+
 
 async function tickBurst(supabase: any, trainerId: string, current: number) {
   if (current <= 0) return;
