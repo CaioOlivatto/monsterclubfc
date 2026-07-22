@@ -166,13 +166,15 @@ export async function buildPlayerSideFromDraft(
     .map((c: any) => toEngine(c, posToRole(c.suggested_position)));
 
   const medicalLevel = await fetchMedicalLevel(supabase, trainerId);
+  const division = await fetchTeamDivision(supabase, teamId);
   return {
     team_id: teamId, team_name: teamName, starters, bench,
     strategy: draft.strategy,
     tactics: (draft.tactics as Tactics | null) ?? NEUTRAL_TACTICS,
     medical_level: medicalLevel,
+    division,
   };
-
 }
+
 
 
