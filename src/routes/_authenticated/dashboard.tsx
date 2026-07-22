@@ -31,7 +31,9 @@ import {
   Inbox,
   Wallet,
   Hourglass,
+  Award,
 } from "lucide-react";
+
 
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -438,7 +440,9 @@ function Dashboard() {
           <Shortcut icon={<Wallet className="h-5 w-5" />} label="Finanças" to="/finances" />
           <Shortcut icon={<Inbox className="h-5 w-5" />} label="Mensagens" to="/messages" />
           <Shortcut icon={<Trophy className="h-5 w-5" />} label="Ranking Mundial" to="/ranking" />
+          <Shortcut icon={<Award className="h-5 w-5" />} label="Carreira" to="/career" />
         </div>
+
 
 
         <Card>
