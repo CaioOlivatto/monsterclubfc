@@ -1,6 +1,19 @@
-# Tabela de Balanceamento — MVP v1 (recalibrada p/ liga 14/26 + ciclo de vida)
+# Tabela de Balanceamento — MVP v1 (liga 14/26 + ciclo de vida + mundo 5 divisões)
 
 Complemento numérico do GDD e do Bestiário. Valores já aplicados no código, salvo pendências no fim.
+
+Decisões já fechadas nesta versão:
+- Empate dá 50% de XP.
+- XP enche a barra → força/overall sobe. Afinidades sobem via treino nos CTs.
+- Salários por temporada.
+- Curva de XP difícil, ~1 temporada por meia-estrela no começo.
+- Mercado renova por temporada (24 criaturas).
+- Liga 14 times, 26 rodadas (turno/returno).
+- Atributos escala 0–100 (linha: Defender/Passar/Atacar/Técnica/Força/Pique; goleiro: Mãos/Concentração/Elasticidade).
+- Bestiário mitológico de 60 espécies.
+- Contratação limitada por calibre + teto de folha.
+- Idade 18→33 (5 temporadas), aposentadoria com venda (−25%) ou renascimento perdendo estrelas.
+- 1ª Divisão nasce com craques (§7.1).
 
 ## 1. XP e Evolução
 
@@ -38,6 +51,8 @@ Uma carreira inteira (~7.750 XP) sobe ~2 estrelas. 5★ exige nascimento excepci
 - **Burst de XP** (Gemas): +5%, +10% ou +15% por um período.
 
 ## 2. Economia — Dinheiro
+
+> ⚠️ **A seção 2 será SUBSTITUÍDA pelo documento `Economia-Por-Partida.md`**, que introduz salário por partida, Direitos de TV, Patrocínios, Merchandising e Manutenção de infraestrutura. Os valores abaixo ficam como referência histórica até a migração.
 
 ### 2.1 Premiação por rodada
 | Divisão | V | E | D |
@@ -136,7 +151,6 @@ Uma carreira inteira (~7.750 XP) sobe ~2 estrelas. 5★ exige nascimento excepci
 ## 5. Mercado
 
 - **24 listagens por temporada** (renova junto com a temporada).
-- Distribuição: 60% 0,5–1,5★, 30% 2–2,5★, 8% 3–3,5★, 2% 4★+.
 - Venda: **90%** do valor de mercado.
 - `mod_elemento = 1,0` no MVP.
 
@@ -158,17 +172,36 @@ Uma carreira inteira (~7.750 XP) sobe ~2 estrelas. 5★ exige nascimento excepci
 - Dinheiro: **$400.000**
 - Gemas: **50💎**
 - Construtores: 1
-- Elenco: **22 criaturas** (time inicial escolhido)
+- Elenco: **22 criaturas** (time inicial escolhido, 0,5★–3★)
 - Vagas de elenco: 26
 - Estádio nv 1, CT Treinamento nv 1, Centro Médico nv 1, CT Elemental **nv 0**
 - Divisão inicial: **5ª Divisão – Liga Bronze**
 - Itens: 3 Poção Individual + 1 Poção Coletiva
 
-## 7. Liga e Promoção / Rebaixamento
+## 7. Liga, Promoção e Mundo
 
 - **14 times, 26 rodadas** (turno e returno).
 - Sobem **3** (1º–3º); caem **3** (12º–14º).
 - **Bronze não rebaixa**, **Lendária não promove**.
+
+### 7.1 Distribuição de estrelas por divisão (geração do mundo)
+Perfis em `DIVISION_STAR_PROFILE` (`src/lib/economy.ts`). 14 times × 26 criaturas = 364 por divisão, 1.820 no mundo.
+
+| Divisão | Média | 5★ | 4,5★ | 4★ |
+|---|---|---|---|---|
+| 1ª Lendária | 3,64★ | 5% | 12% | 25% |
+| 2ª Diamante | 3,18★ | — | 4% | 14% |
+| 3ª Ouro | 2,75★ | — | — | 5% |
+| 4ª Prata / 5ª Bronze | — | — | — | — |
+
+Apenas ~18 criaturas 5★ existem no mundo inteiro (1%), todas na 1ª Divisão.
+
+### 7.2 Como os 5★ se mantêm no mundo
+1. **Mercado por divisão**: cada divisão gera seu mercado seguindo o próprio perfil. Bronze nem vê 5★ à venda.
+2. **Auge de carreira**: um 4,5★ que joga carreira completa pode chegar a 5★ (Bestiário §10.3).
+3. **Nascimento excepcional** (opcional, ~0,5%): criatura nasce uma estrela acima do perfil da divisão.
+
+Estoque global de craques oscila em torno de 1% — nunca some, nunca inflaciona.
 
 ## 8. Calibre e Teto Salarial (aplicado)
 
@@ -192,14 +225,24 @@ Enforced em `src/lib/economy.ts` + `buyCreature`:
 | Diamante | $11.193.000 | $3.920.000 |
 | Lendária | $17.191.000 | $6.020.000 |
 
-### 8.3 Perfil de estrelas no mercado (§7.1)
-O gerador de mercado sorteia a banda de meia-estrela segundo o perfil da divisão do treinador (`DIVISION_STAR_PROFILE`). Bronze produz majoritariamente 1★–2★; Lendária concentra 3,5★–5★, com 5★ na casa de 5%.
+## 9. Fluxo econômico de sanidade (referência)
+
+Time de Ouro em temporada mediana:
+- Vitórias ~7 × 50.000 = 350.000
+- Bilheteria ~7 × 450.000 = 3.150.000
+- Prêmio de posição (5º, ×1,5) = 75.000
+- **Total ≈ $3.575.000**
+
+Gastos:
+- Salários (~22 mistos): ~$600.000
+- 1 evolução de construção: ~$600.000–900.000
+- Sobra para mercado: ~$2.000.000+ → 1 criatura ~3★ por temporada
 
 ## FASE 2 / Pendências
 
+- Migrar §2 para `Economia-Por-Partida.md` (salário/partida, TV, patrocínios, merchandising, manutenção).
 - `mod_elemento` variável no mercado.
 - Ocupação de público refinada por fama.
 - Penalidade de overall por energia baixa.
 - Preço de ingresso ajustável pelo jogador.
 - Playtest de 5 temporadas para calibragem final.
-
