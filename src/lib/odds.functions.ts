@@ -96,7 +96,7 @@ export const getLineupPrognostic = createServerFn({ method: "GET" })
       const opp = pool[Math.floor(Math.random() * pool.length)] ?? pool[0];
       // força média do elenco do jogador — para amistoso balanceado
       const { data: creatures } = await supabase
-        .from("creatures").select("overall").eq("trainer_id", trainer.id);
+        .from("creatures").select("overall").eq("owner_trainer_id", trainer.id);
       const avgOvr = creatures?.length
         ? Math.round(creatures.reduce((a: number, c: any) => a + (c.overall ?? 40), 0) / creatures.length)
         : 45;
