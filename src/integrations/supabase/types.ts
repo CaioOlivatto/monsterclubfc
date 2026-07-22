@@ -411,6 +411,66 @@ export type Database = {
           },
         ]
       }
+      job_offers: {
+        Row: {
+          created_at: string
+          division: string
+          id: string
+          message: string | null
+          reason: Database["public"]["Enums"]["job_offer_reason"]
+          season_offered: number
+          signing_bonus: number
+          status: Database["public"]["Enums"]["job_offer_status"]
+          team_id: string
+          team_name: string
+          trainer_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          division: string
+          id?: string
+          message?: string | null
+          reason: Database["public"]["Enums"]["job_offer_reason"]
+          season_offered: number
+          signing_bonus?: number
+          status?: Database["public"]["Enums"]["job_offer_status"]
+          team_id: string
+          team_name: string
+          trainer_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          division?: string
+          id?: string
+          message?: string | null
+          reason?: Database["public"]["Enums"]["job_offer_reason"]
+          season_offered?: number
+          signing_bonus?: number
+          status?: Database["public"]["Enums"]["job_offer_status"]
+          team_id?: string
+          team_name?: string
+          trainer_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_offers_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_offers_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "trainers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       live_matches: {
         Row: {
           cpu_tactics: Json
@@ -1051,8 +1111,10 @@ export type Database = {
           last_weekly_gems_at: string | null
           level: number
           pending_level_ups: number
+          pending_transition: boolean
           season_xp_breakdown: Json
           seasons_at_current_club: number
+          status: string
           trainer_name: string
           updated_at: string
           user_id: string
@@ -1071,8 +1133,10 @@ export type Database = {
           last_weekly_gems_at?: string | null
           level?: number
           pending_level_ups?: number
+          pending_transition?: boolean
           season_xp_breakdown?: Json
           seasons_at_current_club?: number
+          status?: string
           trainer_name: string
           updated_at?: string
           user_id: string
@@ -1091,8 +1155,10 @@ export type Database = {
           last_weekly_gems_at?: string | null
           level?: number
           pending_level_ups?: number
+          pending_transition?: boolean
           season_xp_breakdown?: Json
           seasons_at_current_club?: number
+          status?: string
           trainer_name?: string
           updated_at?: string
           user_id?: string
@@ -1281,6 +1347,8 @@ export type Database = {
       building_type: "ct_treino" | "ct_elemental" | "estadio" | "centro_medico"
       division_type: "bronze" | "prata" | "ouro" | "diamante" | "lendaria"
       element_type: "fogo" | "agua" | "terra" | "ar" | "gelo"
+      job_offer_reason: "top_finish" | "higher_division" | "after_dismissal"
+      job_offer_status: "pending" | "accepted" | "declined" | "expired"
       match_status: "scheduled" | "in_progress" | "finished"
       strategy_type: "ofensiva" | "equilibrada" | "defensiva"
       transaction_type: "income" | "expense"
@@ -1415,6 +1483,8 @@ export const Constants = {
       building_type: ["ct_treino", "ct_elemental", "estadio", "centro_medico"],
       division_type: ["bronze", "prata", "ouro", "diamante", "lendaria"],
       element_type: ["fogo", "agua", "terra", "ar", "gelo"],
+      job_offer_reason: ["top_finish", "higher_division", "after_dismissal"],
+      job_offer_status: ["pending", "accepted", "declined", "expired"],
       match_status: ["scheduled", "in_progress", "finished"],
       strategy_type: ["ofensiva", "equilibrada", "defensiva"],
       transaction_type: ["income", "expense"],
