@@ -209,8 +209,18 @@ function fatMult(c: EngineCreature): number {
   return energyMultiplier(normalizedEnergy(c.energy));
 }
 
+function moraleMult(c: EngineCreature): number {
+  const m = typeof c.morale === "number" && Number.isFinite(c.morale)
+    ? Math.max(0, Math.min(100, c.morale)) : 50;
+  if (m >= 80) return 1.10;
+  if (m >= 60) return 1.05;
+  if (m >= 40) return 1.00;
+  if (m >= 20) return 0.95;
+  return 0.90;
+}
+
 function ratingBase(c: EngineCreature): number {
-  return c.overall * fatMult(c);
+  return c.overall * fatMult(c) * moraleMult(c);
 }
 
 function ratingVs(attacker: EngineCreature, opponent: EngineCreature): number {
