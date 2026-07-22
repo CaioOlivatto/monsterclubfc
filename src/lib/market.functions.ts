@@ -128,7 +128,9 @@ export const buyCreature = createServerFn({ method: "POST" })
       );
     }
 
-    const listing = findListing(trainer.id, trainer.season_number, trainer.division, data.listing_id);
+    const { loadBestiary } = await import("./bestiary.server");
+    const bestiary = await loadBestiary(supabase);
+    const listing = findListing(bestiary, trainer.id, trainer.season_number, trainer.division, data.listing_id);
     if (!listing) throw new Error("Oferta não encontrada ou já expirou.");
 
     // §8.1 — Calibre por divisão
