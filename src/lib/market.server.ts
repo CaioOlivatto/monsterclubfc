@@ -130,7 +130,9 @@ function generateOne(bestiary: LoadedBestiary, rng: () => number, division: Divi
   const priceMultiplier = 0.9 + rng() * 0.4;
   const price = Math.max(1000, Math.round((market_value * priceMultiplier) / 1000) * 1000);
   const idSeed = Math.floor(rng() * 1e9).toString(16);
-  const age = 18 + Math.floor(rng() * 6);
+  // Idade em múltiplos de 3, entre 18 e 30, com peso maior para jovens/meia-idade
+  const AGE_POOL = [18, 18, 21, 21, 21, 24, 24, 27, 27, 30];
+  const age = AGE_POOL[Math.floor(rng() * AGE_POOL.length)];
 
   return {
     id: `market_${idSeed}`,
