@@ -114,10 +114,26 @@ const WEATHER_LABEL: Record<Weather, string> = {
 const K_DUEL = 24;              // sensibilidade do duelo logístico
 const GOALIE_BONUS = 18;        // vantagem do goleiro no duelo 2
 const HOME_ATK_BONUS = 4;       // fator casa somado à força ofensiva
-const CHANCE_DIVISOR = 620;     // divisor da chance de lance por minuto
+const CHANCE_RATE = 0.10;       // taxa-base de criação de lance por minuto (normalizada pela divisão)
+
+/** OVR médio de cada divisão — usado para normalizar a chance de lance por minuto. */
+const DIVISION_OVR: Record<Division, number> = {
+  bronze: 33, prata: 44, ouro: 55, diamante: 64, lendaria: 72,
+};
+
+/** OVR de referência do time. Usa a divisão quando conhecida; senão infere pelo attackAvg. */
+function referenceOvr(side: EngineSide, attackAvg: number): number {
+  if (side.division) return DIVISION_OVR[side.division];
+  // Fallback: aproxima ao balde de divisão mais próximo do attackAvg.
+  const buckets: number[] = [33, 44, 55, 64, 72];
+  let best = buckets[0], d = Infinity;
+  for (const b of buckets) { const dd = Math.abs(b - attackAvg); if (dd < d) { d = dd; best = b; } }
+  return best;
+}
 
 const P_LESAO = 0.004;
 const MAX_INJURIES_PER_TEAM = 2;
+
 
 // Elemental multiplicativo, aplicado DUELO A DUELO (não mais bônus de time).
 function elementalMult(attacker: Element, defender: Element): number {
