@@ -147,7 +147,7 @@ export function starterTeamSummary(teamKey: StarterKey) {
 
 // Helper para inserts no banco (formata linhas prontas)
 export function rosterToDbRows(trainerId: string, roster: RolledCreature[]) {
-  return roster.map((c) => ({
+  return roster.map((c, i) => ({
     owner_trainer_id: trainerId,
     name: c.name,
     species: c.species,
@@ -171,7 +171,7 @@ export function rosterToDbRows(trainerId: string, roster: RolledCreature[]) {
     pending_half_stars: 0,
     energy: 100,
     market_value: c.market_value,
-    age: 18,
+    age: AGE_PLAN[i % AGE_PLAN.length] ?? 18,
     career_season: 1,
     retired: false,
     aff_fogo: 0, aff_agua: 0, aff_terra: 0, aff_ar: 0, aff_gelo: 0,
