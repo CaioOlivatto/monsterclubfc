@@ -236,6 +236,7 @@ export async function seedWorldForTrainer({
   playerStarterKey,
   playerRoster,
 }: SeedInput): Promise<{ competitionsByDiv: Record<DivisionSlug, string>; playerTeamId: string }> {
+  const bestiary = await loadBestiary(supabase);
   // 1) Cria 5 competições (uma por divisão)
   const competitionsByDiv = {} as Record<DivisionSlug, string>;
   for (const div of DIVISION_ORDER) {
