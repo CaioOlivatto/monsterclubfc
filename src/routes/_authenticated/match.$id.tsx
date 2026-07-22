@@ -205,6 +205,13 @@ function MatchPage() {
     (e) => e.event_type === "goal" && e.raw_team_id === awayId,
   ).length;
 
+  // Constrói NarrationParts sob demanda para o banner ativo (hook antes de qualquer return)
+  const bannerParts = useMemo(() => {
+    if (!pending) return null;
+    return narrRef.current.buildPlay(pending.outcome, pending.meta, pending.minute);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending?.minute, pending?.raw?.actor_creature_id]);
+
   if (isLoading) return <div className="p-6 text-center text-muted-foreground">Carregando…</div>;
   if (error || !data)
     return (
@@ -214,17 +221,7 @@ function MatchPage() {
     );
 
   const isFinal = minute >= 90 && !pending;
-  // enquanto o banner está aberto o "clock" fica visualmente pausado no minuto do lance
   const displayedMinute = pending ? pending.minute : minute;
-
-  // Constrói NarrationParts sob demanda para o banner ativo
-  const bannerParts = useMemo(() => {
-    if (!pending) return null;
-    // usar uma "prévia" sem afetar o session (o real é gerado em handleBannerFinished)
-    // Truque simples: gerar sim, mas o session ainda vai atualizar depois — ok, usamos o mesmo obj:
-    return narrRef.current.buildPlay(pending.outcome, pending.meta, pending.minute);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pending?.minute, pending?.raw?.actor_creature_id]);
 
   return (
     <div className="min-h-screen bg-background pb-6">
