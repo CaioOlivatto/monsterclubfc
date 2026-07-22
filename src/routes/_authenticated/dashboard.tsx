@@ -172,6 +172,26 @@ function Dashboard() {
       </header>
 
       <main className="mx-auto max-w-6xl space-y-4 p-4">
+        {lastSeasonCount > 0 && (
+          <Link to="/roster" className="block">
+            <Card className="border-orange-500/60 bg-orange-500/5 transition-colors hover:bg-orange-500/10">
+              <CardContent className="flex items-center gap-3 py-3">
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-orange-500/20 text-orange-300">
+                  <Hourglass className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-orange-200">
+                    {lastSeasonCount} {lastSeasonCount === 1 ? "criatura se aposenta" : "criaturas se aposentam"} no fim desta temporada
+                  </p>
+                  <p className="text-xs text-orange-200/80">
+                    Hora de decidir: vender agora ou renascer.
+                  </p>
+                </div>
+                <span className="shrink-0 text-xs text-orange-300">Ver elenco →</span>
+              </CardContent>
+            </Card>
+          </Link>
+        )}
         <div className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
