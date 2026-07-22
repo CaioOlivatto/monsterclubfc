@@ -122,6 +122,8 @@ function LeaguePage() {
         {comp && data && (
           <LeagueBody
             data={data}
+            division={division ?? (data as any).selectedDivision ?? "bronze"}
+            setDivision={setDivision}
             onPlayNext={() => playMut.mutate()}
             isPlaying={playMut.isPending}
             onFinishSeason={() => finishMut.mutate()}
@@ -136,12 +138,16 @@ function LeaguePage() {
 
 function LeagueBody({
   data,
+  division,
+  setDivision,
   onPlayNext,
   isPlaying,
   onFinishSeason,
   isFinishing,
 }: {
   data: any;
+  division: string;
+  setDivision: (v: string) => void;
   onPlayNext: () => void;
   isPlaying: boolean;
   onFinishSeason: () => void;
