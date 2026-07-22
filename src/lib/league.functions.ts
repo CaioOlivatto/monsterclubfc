@@ -10,6 +10,8 @@ import {
 import { stadiumCapacity } from "./buildings.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
+import { awardTrainerXp, resetSeasonBreakdown } from "./trainer-xp.server";
+
 
 async function getTrainer(supabase: any, userId: string) {
   const { data: trainer } = await supabase
@@ -652,6 +654,12 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
       })
       .eq("trainer_id", trainer.id);
 
+    // XP de prestígio de fim de temporada
+    if (playerIsChampion) await awardTrainerXp(supabase, trainer.id, "title", 1);
+    if (promoted) await awardTrainerXp(supabase, trainer.id, "promotion", 1);
+
+
+
     const txs: any[] = [];
     if (prize > 0) txs.push({
       trainer_id: trainer.id,
@@ -805,7 +813,11 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
       relegated: relegatedByDiv.get(div) ?? [],
     })).reverse(); // Lendária no topo
 
+    // Zera o breakdown de XP para começar a nova temporada
+    await resetSeasonBreakdown(supabase, trainer.id);
+
     return {
+
       position,
       prize,
       championGems,

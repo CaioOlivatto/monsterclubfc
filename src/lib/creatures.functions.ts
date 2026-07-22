@@ -226,18 +226,35 @@ export const getDashboard = createServerFn({ method: "GET" })
       }
     }
 
+    const { levelProgress } = await import("./trainer-xp.server");
+    const prog = levelProgress(trainer.xp ?? 0);
+
+    // Consome pending_level_ups para exibir animação uma única vez.
+    const pendingLevelUps = trainer.pending_level_ups ?? 0;
+    if (pendingLevelUps > 0) {
+      await supabase.from("trainers").update({ pending_level_ups: 0 }).eq("id", trainer.id);
+    }
+
     return {
       trainer: {
         id: trainer.id,
         trainer_name: trainer.trainer_name,
         academy_name: trainer.academy_name,
-        level: trainer.level,
+        level: prog.level,
+        xp: trainer.xp ?? 0,
+        xpIntoLevel: prog.intoLevel,
+        xpForNextLevel: prog.levelNeed,
+        xpTotalForNext: prog.totalForNext,
+        isMaxLevel: prog.isMax,
+        pendingLevelUps,
+        seasonXpBreakdown: (trainer.season_xp_breakdown as Record<string, number>) ?? {},
       },
       academy: trainer.academies ?? null,
       roster: { count: rosterCount, avgEnergy, avgOverall, top: topCreatures },
       standing,
       nextMatch,
       hasLeague: !!activeLeague,
+
     };
   });
 

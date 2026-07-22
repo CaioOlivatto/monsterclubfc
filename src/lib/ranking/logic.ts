@@ -1,5 +1,6 @@
 import { generateAmateurAcademies } from "./names";
 import { WORLD_TEAMS, DIVISION_ORDER } from "../world/catalog";
+import { levelFromXp, xpForLevel } from "../trainer-xp.server";
 
 export type SortKey = "level" | "wins" | "patrimony";
 export type Div = "lendaria" | "diamante" | "ouro" | "prata" | "bronze" | "amador";
@@ -7,13 +8,15 @@ export type Div = "lendaria" | "diamante" | "ouro" | "prata" | "bronze" | "amado
 export const TOTAL_ACADEMIES = 1200;
 export const AMATEUR_COUNT = TOTAL_ACADEMIES - 70;
 
+// Distribuição de nível por faixa de posição (do prompt do SISTEMA DE NÍVEL)
 const PRO_PROFILE: Record<Exclude<Div, "amador">, { level: [number, number]; wins: [number, number]; patrimony: [number, number] }> = {
-  lendaria: { level: [40, 55], wins: [800, 1600], patrimony: [8_000_000, 20_000_000] },
-  diamante: { level: [30, 42], wins: [500, 950], patrimony: [4_000_000, 10_000_000] },
-  ouro:     { level: [22, 34], wins: [280, 620], patrimony: [1_800_000, 5_000_000] },
-  prata:    { level: [15, 26], wins: [140, 360], patrimony: [700_000, 2_500_000] },
-  bronze:   { level: [10, 18], wins: [50, 200], patrimony: [250_000, 900_000] },
+  lendaria: { level: [40, 50], wins: [800, 1600], patrimony: [8_000_000, 20_000_000] },  // pos 1-14
+  diamante: { level: [32, 42], wins: [500, 950], patrimony: [4_000_000, 10_000_000] },   // pos 15-28
+  ouro:     { level: [26, 34], wins: [280, 620], patrimony: [1_800_000, 5_000_000] },    // pos 29-42
+  prata:    { level: [22, 28], wins: [140, 360], patrimony: [700_000, 2_500_000] },      // pos 43-56
+  bronze:   { level: [20, 24], wins: [50, 200], patrimony: [250_000, 900_000] },         // pos 57-70
 };
+
 
 function mulberry32(seed: number) {
   let a = seed >>> 0;
@@ -50,11 +53,14 @@ export async function seedWorldAcademiesIfNeeded(supabase: any) {
   for (const div of DIVISION_ORDER) {
     const profile = PRO_PROFILE[div];
     for (const team of WORLD_TEAMS[div]) {
+      const level = rand(rng, profile.level[0], profile.level[1]);
       rows.push({
+
         academy_name: `Academia ${team.name}`,
         trainer_name: syntheticTrainerName(rng),
         division: div,
-        level: rand(rng, profile.level[0], profile.level[1]),
+        level,
+        xp: xpForLevel(level),
         wins: rand(rng, profile.wins[0], profile.wins[1]),
         patrimony: rand(rng, profile.patrimony[0], profile.patrimony[1]),
         primary_color: team.primary,
@@ -64,24 +70,57 @@ export async function seedWorldAcademiesIfNeeded(supabase: any) {
     }
   }
 
+  // Faixas de nível por posição para os ~1130 amadores (posições 71..1200).
+  // 71-150 → 20-27 · 151-300 → 15-19 · 301-600 → 10-14 · 601-900 → 5-9 · 901-1200 → 1-4
+  const AMATEUR_BANDS: Array<{ count: number; min: number; max: number }> = [
+    { count: 80,  min: 20, max: 27 }, // pos 71-150
+    { count: 150, min: 15, max: 19 }, // pos 151-300
+    { count: 300, min: 10, max: 14 }, // pos 301-600
+    { count: 300, min: 5,  max: 9  }, // pos 601-900
+    { count: 300, min: 1,  max: 4  }, // pos 901-1200
+  ];
+
   const amateurs = generateAmateurAcademies(AMATEUR_COUNT, 20260722);
-  amateurs.forEach((a, idx) => {
-    const t = idx / AMATEUR_COUNT;
-    const baseLevel = Math.max(1, Math.round(18 - t * 17 + (rng() * 4 - 2)));
-    const baseWins = Math.max(0, Math.round((1 - t) * 180 + rng() * 40 - 15));
-    const basePat = Math.max(30_000, Math.round((1 - t) * 700_000 + rng() * 120_000 + 40_000));
+  let idx = 0;
+  for (const band of AMATEUR_BANDS) {
+    for (let k = 0; k < band.count && idx < amateurs.length; k++, idx++) {
+      const a = amateurs[idx];
+      const level = rand(rng, band.min, band.max);
+      // patrimônio/vitórias escalam com o nível
+      const wins = Math.max(0, Math.round(level * rand(rng, 4, 9) + rand(rng, 0, 20)));
+      const patrimony = Math.max(30_000, Math.round(level * rand(rng, 25_000, 55_000) + rand(rng, 20_000, 90_000)));
+      rows.push({
+        academy_name: a.academy_name,
+        trainer_name: a.trainer_name,
+        division: "amador",
+        level,
+        xp: xpForLevel(level),
+        wins,
+        patrimony,
+        primary_color: a.primary_color,
+        secondary_color: a.secondary_color,
+        is_player: false,
+      });
+    }
+  }
+  // remanescentes (arredondamento) vão para a faixa mais baixa
+  for (; idx < amateurs.length; idx++) {
+    const a = amateurs[idx];
+    const level = rand(rng, 1, 3);
     rows.push({
       academy_name: a.academy_name,
       trainer_name: a.trainer_name,
       division: "amador",
-      level: baseLevel,
-      wins: baseWins,
-      patrimony: basePat,
+      level,
+      xp: xpForLevel(level),
+      wins: rand(rng, 0, 30),
+      patrimony: rand(rng, 30_000, 100_000),
       primary_color: a.primary_color,
       secondary_color: a.secondary_color,
       is_player: false,
     });
-  });
+  }
+
 
   const CHUNK = 300;
   for (let i = 0; i < rows.length; i += CHUNK) {
@@ -93,7 +132,7 @@ export async function seedWorldAcademiesIfNeeded(supabase: any) {
 export async function upsertPlayerAcademy(supabase: any, trainerId: string) {
   const { data: trainer } = await supabase
     .from("trainers")
-    .select("id, trainer_name, academy_name, level")
+    .select("id, trainer_name, academy_name, level, xp")
     .eq("id", trainerId)
     .maybeSingle();
   if (!trainer) return null;
@@ -145,12 +184,14 @@ export async function upsertPlayerAcademy(supabase: any, trainerId: string) {
     trainer_name: trainer.trainer_name ?? "Treinador",
     division,
     level: trainer.level ?? 1,
+    xp: trainer.xp ?? 0,
     wins: totalWins,
     patrimony,
     primary_color: primary,
     secondary_color: secondary,
     is_player: true,
   };
+
 
   if (existing) {
     await supabase.from("world_academies").update(payload).eq("id", existing.id);
@@ -186,7 +227,7 @@ export async function recomputePositionsBy(supabase: any, sort: SortKey) {
 export async function evolveCpuAcademies(supabase: any) {
   const { data: all } = await supabase
     .from("world_academies")
-    .select("id, division, current_position, level, wins, patrimony, is_player");
+    .select("id, division, current_position, level, xp, wins, patrimony, is_player");
   if (!all) return 0;
   const rng = mulberry32(Date.now() >>> 0);
   const updates: any[] = [];
@@ -196,16 +237,18 @@ export async function evolveCpuAcademies(supabase: any) {
       continue;
     }
     const div = row.division as Div;
-    let dL = 0, dW = 0, dP = 0;
-    if (div === "lendaria") { dL = rand(rng, 0, 2); dW = rand(rng, 18, 30); dP = rand(rng, 800_000, 1_800_000); }
-    else if (div === "diamante") { dL = rand(rng, 0, 2); dW = rand(rng, 14, 24); dP = rand(rng, 300_000, 900_000); }
-    else if (div === "ouro") { dL = rand(rng, 0, 2); dW = rand(rng, 10, 20); dP = rand(rng, 120_000, 400_000); }
-    else if (div === "prata") { dL = rand(rng, 0, 1); dW = rand(rng, 8, 16); dP = rand(rng, 60_000, 200_000); }
-    else if (div === "bronze") { dL = rand(rng, 0, 1); dW = rand(rng, 6, 14); dP = rand(rng, 30_000, 120_000); }
-    else { dL = rand(rng, 0, 1); dW = rand(rng, 0, 8); dP = rand(rng, 5_000, 40_000); }
+    let dXp = 0, dW = 0, dP = 0;
+    if (div === "lendaria") { dXp = rand(rng, 4000, 9000); dW = rand(rng, 18, 30); dP = rand(rng, 800_000, 1_800_000); }
+    else if (div === "diamante") { dXp = rand(rng, 2500, 5500); dW = rand(rng, 14, 24); dP = rand(rng, 300_000, 900_000); }
+    else if (div === "ouro") { dXp = rand(rng, 1500, 3500); dW = rand(rng, 10, 20); dP = rand(rng, 120_000, 400_000); }
+    else if (div === "prata") { dXp = rand(rng, 800, 2000); dW = rand(rng, 8, 16); dP = rand(rng, 60_000, 200_000); }
+    else if (div === "bronze") { dXp = rand(rng, 400, 1200); dW = rand(rng, 6, 14); dP = rand(rng, 30_000, 120_000); }
+    else { dXp = rand(rng, 100, 700); dW = rand(rng, 0, 8); dP = rand(rng, 5_000, 40_000); }
+    const newXp = (row.xp ?? xpForLevel(row.level ?? 1)) + dXp;
     updates.push({
       id: row.id,
-      level: (row.level ?? 1) + dL,
+      xp: newXp,
+      level: levelFromXp(newXp),
       wins: (row.wins ?? 0) + dW,
       patrimony: (row.patrimony ?? 0) + dP,
       last_position: row.current_position,
@@ -216,4 +259,5 @@ export async function evolveCpuAcademies(supabase: any) {
     await supabase.from("world_academies").upsert(updates.slice(i, i + CHUNK), { onConflict: "id" });
   }
   return updates.length;
+
 }

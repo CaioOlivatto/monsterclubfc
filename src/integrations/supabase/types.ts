@@ -909,6 +909,8 @@ export type Database = {
           id: string
           last_weekly_gems_at: string | null
           level: number
+          pending_level_ups: number
+          season_xp_breakdown: Json
           trainer_name: string
           updated_at: string
           user_id: string
@@ -923,6 +925,8 @@ export type Database = {
           id?: string
           last_weekly_gems_at?: string | null
           level?: number
+          pending_level_ups?: number
+          season_xp_breakdown?: Json
           trainer_name: string
           updated_at?: string
           user_id: string
@@ -937,6 +941,8 @@ export type Database = {
           id?: string
           last_weekly_gems_at?: string | null
           level?: number
+          pending_level_ups?: number
+          season_xp_breakdown?: Json
           trainer_name?: string
           updated_at?: string
           user_id?: string
@@ -1007,6 +1013,7 @@ export type Database = {
           trainer_name: string
           updated_at: string
           wins: number
+          xp: number
         }
         Insert: {
           academy_name: string
@@ -1025,6 +1032,7 @@ export type Database = {
           trainer_name: string
           updated_at?: string
           wins?: number
+          xp?: number
         }
         Update: {
           academy_name?: string
@@ -1043,6 +1051,7 @@ export type Database = {
           trainer_name?: string
           updated_at?: string
           wins?: number
+          xp?: number
         }
         Relationships: [
           {

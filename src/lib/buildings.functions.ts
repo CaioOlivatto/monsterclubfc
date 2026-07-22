@@ -2,6 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { BUILDINGS, BUILDING_TYPES, MAX_LEVEL, type BuildingType } from "./buildings.server";
+import { awardTrainerXp } from "./trainer-xp.server";
+
 
 async function getTrainer(supabase: any, userId: string) {
   const { data, error } = await supabase
@@ -30,8 +32,10 @@ async function finalizeCompletedUpgrades(supabase: any, trainerId: string) {
       .from("buildings")
       .update({ level: (b.level ?? 0) + 1, upgrade_completes_at: null })
       .eq("id", b.id);
+    await awardTrainerXp(supabase, trainerId, "building", 1);
   }
 }
+
 
 export const getBuildings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -188,6 +192,7 @@ export const finishNowWithGems = createServerFn({ method: "POST" })
         .from("buildings")
         .update({ level: (b.level ?? 0) + 1, upgrade_completes_at: null })
         .eq("id", b.id);
+      await awardTrainerXp(supabase, trainer.id, "building", 1);
       return { spent: 0 };
     }
     // Balanceamento §5.3: 1 gema a cada 10 minutos restantes (mínimo 1).
@@ -210,8 +215,11 @@ export const finishNowWithGems = createServerFn({ method: "POST" })
       description: `Obra acelerada com ${cost} 💎`,
     });
 
+    await awardTrainerXp(supabase, trainer.id, "building", 1);
+
     return { spent: cost };
   });
+
 
 export const getFinancials = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

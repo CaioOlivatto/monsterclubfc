@@ -1,3 +1,4 @@
+import * as React from "react";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -86,6 +87,23 @@ function Dashboard() {
     (c: any) => ageStatus(c.age) === "last_season",
   ).length;
 
+  // Toast comemorativo quando o treinador subir de nível
+  const notifiedRef = React.useRef(false);
+  React.useEffect(() => {
+    const pending = (data as any)?.trainer?.pendingLevelUps ?? 0;
+    if (pending > 0 && !notifiedRef.current) {
+      notifiedRef.current = true;
+      const level = (data as any).trainer.level;
+      if (pending === 1) {
+        toast.success(`⭐ Nível ${level} alcançado!`, {
+          description: "Sua jornada como treinador avançou.",
+        });
+      } else {
+        toast.success(`⭐ ${pending} níveis alcançados! Agora é nível ${level}.`);
+      }
+    }
+  }, [data]);
+
   const friendlyMut = useMutation({
     mutationFn: () => startFriendly(),
     onSuccess: (res) => nav({ to: "/match/$id", params: { id: res.match_id } }),
@@ -106,6 +124,7 @@ function Dashboard() {
     await supabase.auth.signOut();
     nav({ to: "/auth", replace: true });
   }
+
 
   if (isLoading || !data) {
     return (
@@ -131,6 +150,7 @@ function Dashboard() {
             <p className="truncate text-xs text-muted-foreground sm:text-sm">
               Treinador: {trainer.trainer_name} · Nível {trainer.level}
             </p>
+            <TrainerLevelBar trainer={trainer as any} />
           </div>
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <Button
@@ -148,6 +168,7 @@ function Dashboard() {
               <span className="hidden sm:inline">Sair</span>
             </Button>
           </div>
+
         </div>
 
         {academy && (
@@ -442,3 +463,41 @@ function Shortcut({
   if (disabled || !to) return inner;
   return <Link to={to}>{inner}</Link>;
 }
+
+function TrainerLevelBar({
+  trainer,
+}: {
+  trainer: {
+    level: number;
+    xpIntoLevel?: number;
+    xpForNextLevel?: number;
+    xp?: number;
+    xpTotalForNext?: number;
+    isMaxLevel?: boolean;
+  };
+}) {
+  const into = trainer.xpIntoLevel ?? 0;
+  const need = trainer.xpForNextLevel ?? 1;
+  const pct = trainer.isMaxLevel ? 100 : Math.max(2, Math.round((into / need) * 100));
+  const totalXp = (trainer.xp ?? 0).toLocaleString("pt-BR");
+  const totalNext = (trainer.xpTotalForNext ?? 0).toLocaleString("pt-BR");
+  const tip = trainer.isMaxLevel
+    ? "Nível máximo alcançado"
+    : `${totalXp} / ${totalNext} XP para o nível ${trainer.level + 1}`;
+  return (
+    <div className="mt-1.5 max-w-[240px]" title={tip}>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full bg-gradient-to-r from-amber-400 to-primary transition-all"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <p className="mt-0.5 text-[10px] text-muted-foreground">
+        {trainer.isMaxLevel
+          ? "Nível máximo"
+          : `${into.toLocaleString("pt-BR")} / ${need.toLocaleString("pt-BR")} XP → nível ${trainer.level + 1}`}
+      </p>
+    </div>
+  );
+}
+
