@@ -68,14 +68,16 @@ export const recomputeWorldRanking = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    await seedWorldAcademiesIfNeeded(supabase);
-    const updated = await evolveCpuAcademies(supabase);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await seedWorldAcademiesIfNeeded(supabaseAdmin);
+    const updated = await evolveCpuAcademies(supabaseAdmin);
     const { data: trainer } = await supabase
       .from("trainers")
       .select("id")
       .eq("user_id", userId)
       .maybeSingle();
-    if (trainer?.id) await upsertPlayerAcademy(supabase, trainer.id);
-    await recomputePositionsBy(supabase, "level");
+    if (trainer?.id) await upsertPlayerAcademy(supabaseAdmin, trainer.id);
+    await recomputePositionsBy(supabaseAdmin, "level");
     return { updated };
+
   });
