@@ -635,20 +635,20 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
 
     const divBonus = newDivIdx * 8;
     const avg = await playerAverage(supabase, trainer.id);
-    const cpuNames = pickCpuTeamNames(7, Date.now() & 0xffffffff);
+    const cpuNames = pickCpuTeamNames(CPU_COUNT, Date.now() & 0xffffffff);
     const cpuRows = cpuNames.map((name, i) => ({
       competition_id: newComp.id,
       trainer_id: null,
       is_player: false,
       name,
-      cpu_strength: Math.max(20, Math.min(95, avg + (i - 3) * 4 + divBonus)),
+      cpu_strength: Math.max(20, Math.min(95, avg + (i - Math.floor(CPU_COUNT / 2)) * 3 + divBonus)),
     }));
     const { data: cpuTeams } = await supabase.from("teams").insert(cpuRows).select("id");
     const teamIds = [playerTeamNew!.id, ...(cpuTeams ?? []).map((t: any) => t.id)];
     await supabase
       .from("standings")
       .insert(teamIds.map((tid) => ({ competition_id: newComp.id, team_id: tid })));
-    const schedule = generateSchedule(8, true);
+    const schedule = generateSchedule(LEAGUE_SIZE, true);
     const matchesRows: any[] = [];
     schedule.forEach((round, rIdx) => {
       round.forEach(([h, a]) => {
