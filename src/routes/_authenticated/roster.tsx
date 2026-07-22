@@ -272,9 +272,9 @@ function renderCard(c: any) {
             </div>
           )}
           {status === "last_season" && (
-            <div className="mt-2 flex items-center gap-1.5 rounded-md border border-orange-500/60 bg-orange-500/15 px-2 py-1 text-[11px] text-orange-200">
+            <div className="mt-2 flex items-center gap-1.5 rounded-md border border-orange-400 bg-orange-500 px-2 py-1 text-[11px] font-bold text-white shadow-sm">
               <Hourglass className="h-3 w-3" />
-              <span className="font-medium">Última temporada</span>
+              <span>Última temporada</span>
             </div>
           )}
 
