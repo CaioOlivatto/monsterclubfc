@@ -16,9 +16,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { ArrowLeft, Save, Shield, Swords, Scale, Wand2, AlertTriangle, HeartPulse } from "lucide-react";
+import { ArrowLeft, Save, Shield, Swords, Scale, Wand2, AlertTriangle, HeartPulse, BedDouble } from "lucide-react";
 import { fatigueState, FATIGUE_LABEL, FATIGUE_CLASS, effectiveOverall, energyMultiplier } from "@/lib/fatigue";
+
 
 export const Route = createFileRoute("/_authenticated/lineup")({
   head: () => ({
