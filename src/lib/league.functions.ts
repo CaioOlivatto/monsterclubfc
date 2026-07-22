@@ -437,7 +437,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       console.error("xp/message error", e);
     }
 
-    // Simula outras partidas da mesma rodada
+    // Simula outras partidas da mesma rodada (dentro da própria divisão do jogador)
     const { data: sameRound } = await supabase
       .from("matches")
       .select("id, home_team_id, away_team_id")
