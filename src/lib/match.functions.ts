@@ -127,6 +127,7 @@ export const createFriendlyMatch = createServerFn({ method: "POST" })
       actor_creature_id:
         e.actor_creature_id && !e.actor_creature_id.startsWith("cpu-") ? e.actor_creature_id : null,
       actor_team_id: e.actor_team_id,
+      meta: (e.meta ?? null) as any,
     }));
     if (eventsToInsert.length) {
       await supabase.from("match_events").insert(eventsToInsert);
@@ -180,7 +181,7 @@ export const getMatch = createServerFn({ method: "GET" })
     const [{ data: events }, { data: academy }] = await Promise.all([
       supabase
         .from("match_events")
-        .select("minute, event_type, description, actor_creature_id, actor_team_id")
+        .select("minute, event_type, description, actor_creature_id, actor_team_id, meta")
         .eq("match_id", match.id)
         .order("minute", { ascending: true })
         .order("created_at", { ascending: true }),
