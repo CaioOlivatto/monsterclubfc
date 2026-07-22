@@ -132,7 +132,7 @@ export async function seedWorldAcademiesIfNeeded(supabase: any) {
 export async function upsertPlayerAcademy(supabase: any, trainerId: string) {
   const { data: trainer } = await supabase
     .from("trainers")
-    .select("id, trainer_name, academy_name, level")
+    .select("id, trainer_name, academy_name, level, xp")
     .eq("id", trainerId)
     .maybeSingle();
   if (!trainer) return null;
@@ -184,12 +184,14 @@ export async function upsertPlayerAcademy(supabase: any, trainerId: string) {
     trainer_name: trainer.trainer_name ?? "Treinador",
     division,
     level: trainer.level ?? 1,
+    xp: trainer.xp ?? 0,
     wins: totalWins,
     patrimony,
     primary_color: primary,
     secondary_color: secondary,
     is_player: true,
   };
+
 
   if (existing) {
     await supabase.from("world_academies").update(payload).eq("id", existing.id);
