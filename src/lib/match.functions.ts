@@ -127,7 +127,7 @@ export const createFriendlyMatch = createServerFn({ method: "POST" })
       actor_creature_id:
         e.actor_creature_id && !e.actor_creature_id.startsWith("cpu-") ? e.actor_creature_id : null,
       actor_team_id: e.actor_team_id,
-      meta: e.meta ?? null,
+      meta: (e.meta ?? null) as any,
     }));
     if (eventsToInsert.length) {
       await supabase.from("match_events").insert(eventsToInsert);
