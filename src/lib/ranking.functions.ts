@@ -15,17 +15,19 @@ export const getWorldRanking = createServerFn({ method: "POST" })
   .inputValidator((v: { sort?: SortKey }) => ({ sort: (v?.sort ?? "level") as SortKey }))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const sort = data.sort;
 
-    await seedWorldAcademiesIfNeeded(supabase);
+    await seedWorldAcademiesIfNeeded(supabaseAdmin);
     const { data: trainer } = await supabase
       .from("trainers")
       .select("id")
       .eq("user_id", userId)
       .maybeSingle();
-    if (trainer?.id) await upsertPlayerAcademy(supabase, trainer.id);
+    if (trainer?.id) await upsertPlayerAcademy(supabaseAdmin, trainer.id);
 
-    await recomputePositionsBy(supabase, sort);
+    await recomputePositionsBy(supabaseAdmin, sort);
+
 
     const { count: total } = await supabase
       .from("world_academies")
