@@ -354,7 +354,8 @@ function MarketPage() {
                       </span>
                       <span>
                         <span className="text-muted-foreground">Salário:</span>{" "}
-                        <span className="font-semibold">{formatMoney(salary)}/temporada</span>
+                        <span className="font-semibold">{formatMoney(l.salary_per_match ?? Math.round(salary / 26))}/partida</span>
+                        <span className="ml-1 text-muted-foreground">({formatMoney(salary)}/temp)</span>
                       </span>
                     </div>
                     <p className={`text-[11px] ${overCap ? "text-red-400" : "text-muted-foreground"}`}>
