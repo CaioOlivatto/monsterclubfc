@@ -2,22 +2,23 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { generateMarketListings, findListing } from "./market.server";
+import {
+  DIVISION_MAX_BAND,
+  DIVISION_SALARY_CAP,
+  refusalChance,
+  seasonSalary,
+  type Division,
+} from "./economy";
 
-async function getTrainerWithAcademy(
-  supabase: any,
-  userId: string,
-): Promise<{ id: string; money: number; roster_slots: number; season_number: number }> {
-  const { data: trainer, error } = await supabase
-    .from("trainers")
-    .select("id, academies(money, roster_slots)")
-    .eq("user_id", userId)
+async function currentDivision(supabase: any, trainerId: string): Promise<Division> {
+  const { data } = await supabase
+    .from("competitions")
+    .select("division")
+    .eq("trainer_id", trainerId)
+    .eq("type", "league")
+    .eq("status", "active")
     .maybeSingle();
-  if (error) throw error;
-  if (!trainer) throw new Error("Treinador não encontrado.");
-  const academy = Array.isArray(trainer.academies) ? trainer.academies[0] : trainer.academies;
-  if (!academy) throw new Error("Academia não encontrada.");
-  const seasonNumber = await currentSeasonNumber(supabase, trainer.id);
-  return { id: trainer.id, money: academy.money, roster_slots: academy.roster_slots, season_number: seasonNumber };
+  return ((data?.division as Division) ?? "bronze") as Division;
 }
 
 async function currentSeasonNumber(supabase: any, trainerId: string): Promise<number> {
@@ -28,6 +29,40 @@ async function currentSeasonNumber(supabase: any, trainerId: string): Promise<nu
     .eq("is_current", true)
     .maybeSingle();
   return data?.season_number ?? 1;
+}
+
+async function getTrainerWithAcademy(
+  supabase: any,
+  userId: string,
+): Promise<{ id: string; money: number; roster_slots: number; season_number: number; division: Division }> {
+  const { data: trainer, error } = await supabase
+    .from("trainers")
+    .select("id, academies(money, roster_slots)")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!trainer) throw new Error("Treinador não encontrado.");
+  const academy = Array.isArray(trainer.academies) ? trainer.academies[0] : trainer.academies;
+  if (!academy) throw new Error("Academia não encontrada.");
+  const [seasonNumber, division] = await Promise.all([
+    currentSeasonNumber(supabase, trainer.id),
+    currentDivision(supabase, trainer.id),
+  ]);
+  return {
+    id: trainer.id,
+    money: academy.money,
+    roster_slots: academy.roster_slots,
+    season_number: seasonNumber,
+    division,
+  };
+}
+
+async function currentPayroll(supabase: any, trainerId: string): Promise<number> {
+  const { data } = await supabase
+    .from("creatures")
+    .select("overall")
+    .eq("owner_trainer_id", trainerId);
+  return (data ?? []).reduce((acc: number, c: any) => acc + seasonSalary(c.overall ?? 40), 0);
 }
 
 export const getMarket = createServerFn({ method: "GET" })
@@ -42,7 +77,10 @@ export const getMarket = createServerFn({ method: "GET" })
       .maybeSingle();
     if (!trainer) throw new Error("Treinador não encontrado.");
     const academy = Array.isArray(trainer.academies) ? trainer.academies[0] : trainer.academies;
-    const seasonNumber = await currentSeasonNumber(supabase, trainer.id);
+    const [seasonNumber, division] = await Promise.all([
+      currentSeasonNumber(supabase, trainer.id),
+      currentDivision(supabase, trainer.id),
+    ]);
 
     const { data: creatures } = await supabase
       .from("creatures")
@@ -50,8 +88,9 @@ export const getMarket = createServerFn({ method: "GET" })
       .eq("owner_trainer_id", trainer.id)
       .order("overall", { ascending: false });
 
-    const listings = generateMarketListings(trainer.id, seasonNumber);
+    const listings = generateMarketListings(trainer.id, seasonNumber, division);
     const rosterCount = creatures?.length ?? 0;
+    const payroll = await currentPayroll(supabase, trainer.id);
 
     return {
       money: academy?.money ?? 0,
@@ -61,6 +100,10 @@ export const getMarket = createServerFn({ method: "GET" })
       my_creatures: creatures ?? [],
       listings,
       season_number: seasonNumber,
+      division,
+      max_band: DIVISION_MAX_BAND[division],
+      salary_cap: DIVISION_SALARY_CAP[division],
+      payroll,
       rotation_label: "Próxima renovação: início da próxima temporada",
     };
   });
@@ -83,8 +126,32 @@ export const buyCreature = createServerFn({ method: "POST" })
       );
     }
 
-    const listing = findListing(trainer.id, trainer.season_number, data.listing_id);
+    const listing = findListing(trainer.id, trainer.season_number, trainer.division, data.listing_id);
     if (!listing) throw new Error("Oferta não encontrada ou já expirou.");
+
+    // §8.1 — Calibre por divisão
+    const maxBand = DIVISION_MAX_BAND[trainer.division];
+    if (listing.half_star_band > maxBand) {
+      throw new Error(
+        `Sua divisão só pode contratar até ${Math.ceil(maxBand / 2)}★. Essa criatura tem ${(listing.half_star_band / 2).toFixed(1)}★.`,
+      );
+    }
+
+    // Chance de recusa em contratações no limite (§8.1)
+    const refuse = refusalChance(trainer.division, listing.half_star_band);
+    if (refuse > 0 && Math.random() < refuse) {
+      throw new Error(`${listing.name} recusou a proposta — sua divisão ainda é pequena demais.`);
+    }
+
+    // §8.2 — Teto de folha salarial
+    const payroll = await currentPayroll(supabase, trainer.id);
+    const addSalary = seasonSalary(listing.overall);
+    const cap = DIVISION_SALARY_CAP[trainer.division];
+    if (payroll + addSalary > cap) {
+      throw new Error(
+        `Teto de folha estourado: $${(payroll + addSalary).toLocaleString("pt-BR")} > $${cap.toLocaleString("pt-BR")}. Venda alguém antes.`,
+      );
+    }
 
     if (trainer.money < listing.price) {
       throw new Error("Dinheiro insuficiente para essa contratação.");
