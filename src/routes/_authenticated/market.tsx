@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ArrowLeft, Coins, Store, Users, Star } from "lucide-react";
+import { StarRating, overallToStars, halfStarsToStars } from "@/components/StarRating";
 
 export const Route = createFileRoute("/_authenticated/market")({
   head: () => ({
