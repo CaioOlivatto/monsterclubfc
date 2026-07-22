@@ -55,6 +55,12 @@ function RosterPage() {
   const [elem, setElem] = useState<string | null>(null);
   const [pos, setPos] = useState<string | null>(null);
   const [sort, setSort] = useState<SortKey>("overall");
+  const [ageFilter, setAgeFilter] = useState<AgeFilter>("all");
+
+  const lastSeasonCount = useMemo(
+    () => (data ?? []).filter((c) => ageStatus((c as any).age) === "last_season").length,
+    [data],
+  );
 
   const filtered = useMemo(() => {
     let list = (data ?? []).slice();
@@ -64,15 +70,19 @@ function RosterPage() {
     }
     if (elem) list = list.filter((c) => c.element === elem);
     if (pos) list = list.filter((c) => c.suggested_position === pos);
+    if (ageFilter !== "all") {
+      list = list.filter((c) => ageStatus((c as any).age) === ageFilter);
+    }
     list.sort((a, b) => {
       if (sort === "name") return a.name.localeCompare(b.name);
       if (sort === "energy") return (b.energy ?? 0) - (a.energy ?? 0);
+      if (sort === "age") return ((b as any).age ?? 0) - ((a as any).age ?? 0);
       if (sort === "market_value")
         return (b.market_value ?? 0) - (a.market_value ?? 0);
       return (b.overall ?? 0) - (a.overall ?? 0);
     });
     return list;
-  }, [data, q, elem, pos, sort]);
+  }, [data, q, elem, pos, sort, ageFilter]);
 
   return (
     <div className="min-h-screen bg-background">
