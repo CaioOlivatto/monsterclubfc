@@ -1,7 +1,7 @@
-// Catálogo dos 6 times iniciais + gerador determinístico usando o Bestiário Mitológico.
+// Catálogo dos 6 times iniciais + gerador determinístico usando o Bestiário.
+// O bestiário vem do banco — as funções recebem o objeto `LoadedBestiary`.
 
 import {
-  BESTIARY,
   rollCreature,
   bestiaryByPosition,
   bestiaryByElement,
@@ -11,6 +11,7 @@ import {
   type RolledCreature,
   type SpeciesBase,
 } from "./bestiary";
+import type { LoadedBestiary } from "./bestiary.server";
 
 export type StarterKey =
   | "titas_pedra"
@@ -84,16 +85,21 @@ function pickElementForTeam(team: StarterTeamDef, rng: () => number): Element {
   return others[Math.floor(rng() * others.length)];
 }
 
-// Escolhe espécie compatível com posição+elemento; se não achar, cai para posição.
-function pickSpecies(pos: Position, el: Element, used: Set<string>, rng: () => number): SpeciesBase {
-  const byPosEl = BESTIARY.filter((s) => s.position === pos && s.element === el && !used.has(s.species));
+function pickSpecies(
+  list: SpeciesBase[],
+  pos: Position,
+  el: Element,
+  used: Set<string>,
+  rng: () => number,
+): SpeciesBase {
+  const byPosEl = list.filter((s) => s.position === pos && s.element === el && !used.has(s.species));
   if (byPosEl.length) return byPosEl[Math.floor(rng() * byPosEl.length)];
-  const byPos = bestiaryByPosition(pos).filter((s) => !used.has(s.species));
+  const byPos = bestiaryByPosition(list, pos).filter((s) => !used.has(s.species));
   if (byPos.length) return byPos[Math.floor(rng() * byPos.length)];
-  const byEl = bestiaryByElement(el).filter((s) => !used.has(s.species));
+  const byEl = bestiaryByElement(list, el).filter((s) => !used.has(s.species));
   if (byEl.length) return byEl[Math.floor(rng() * byEl.length)];
-  const any = BESTIARY.filter((s) => !used.has(s.species));
-  return any[Math.floor(rng() * any.length)] ?? BESTIARY[Math.floor(rng() * BESTIARY.length)];
+  const any = list.filter((s) => !used.has(s.species));
+  return any[Math.floor(rng() * any.length)] ?? list[Math.floor(rng() * list.length)];
 }
 
 // Composição: 3 GOL, 8 DEF, 8 MEI, 7 ATA — 26 criaturas (§9 novo balanceamento)
@@ -113,7 +119,7 @@ const AGE_PLAN: number[] = [
   ...Array(4).fill(30),
 ];
 
-export function generateStarterRoster(teamKey: StarterKey): RolledCreature[] {
+export function generateStarterRoster(teamKey: StarterKey, bestiary: LoadedBestiary): RolledCreature[] {
   const team = getStarterTeam(teamKey);
   if (!team) throw new Error("Time inicial inválido.");
   const rng = mulberry32(hashSeed(teamKey));
@@ -122,18 +128,17 @@ export function generateStarterRoster(teamKey: StarterKey): RolledCreature[] {
 
   for (const pos of ROSTER_PLAN) {
     const el = pickElementForTeam(team, rng);
-    const spBase = pickSpecies(pos, el, usedSpecies, rng);
-    // permite repetir espécie se acabar variedade (ex.: 5º Goleiro do mesmo elemento)
-    if (usedSpecies.size < BESTIARY.length) usedSpecies.add(spBase.species);
-    const c = rollCreature(spBase, rng, { variation: 8 });
+    const spBase = pickSpecies(bestiary.species, pos, el, usedSpecies, rng);
+    if (usedSpecies.size < bestiary.species.length) usedSpecies.add(spBase.species);
+    const c = rollCreature(spBase, bestiary.epithets[spBase.element] ?? [], rng, { variation: 8 });
     roster.push(c);
   }
 
   return roster;
 }
 
-export function starterTeamSummary(teamKey: StarterKey) {
-  const roster = generateStarterRoster(teamKey);
+export function starterTeamSummary(teamKey: StarterKey, bestiary: LoadedBestiary) {
+  const roster = generateStarterRoster(teamKey, bestiary);
   const halfStars = roster.reduce((s, c) => s + Math.max(0, Math.min(10, Math.round(c.overall / 10))), 0);
   const totalStars = halfStars / 2;
   const avgAttack = Math.round(
