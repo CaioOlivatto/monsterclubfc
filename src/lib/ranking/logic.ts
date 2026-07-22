@@ -227,7 +227,7 @@ export async function recomputePositionsBy(supabase: any, sort: SortKey) {
 export async function evolveCpuAcademies(supabase: any) {
   const { data: all } = await supabase
     .from("world_academies")
-    .select("id, division, current_position, level, wins, patrimony, is_player");
+    .select("id, division, current_position, level, xp, wins, patrimony, is_player");
   if (!all) return 0;
   const rng = mulberry32(Date.now() >>> 0);
   const updates: any[] = [];
@@ -237,16 +237,18 @@ export async function evolveCpuAcademies(supabase: any) {
       continue;
     }
     const div = row.division as Div;
-    let dL = 0, dW = 0, dP = 0;
-    if (div === "lendaria") { dL = rand(rng, 0, 2); dW = rand(rng, 18, 30); dP = rand(rng, 800_000, 1_800_000); }
-    else if (div === "diamante") { dL = rand(rng, 0, 2); dW = rand(rng, 14, 24); dP = rand(rng, 300_000, 900_000); }
-    else if (div === "ouro") { dL = rand(rng, 0, 2); dW = rand(rng, 10, 20); dP = rand(rng, 120_000, 400_000); }
-    else if (div === "prata") { dL = rand(rng, 0, 1); dW = rand(rng, 8, 16); dP = rand(rng, 60_000, 200_000); }
-    else if (div === "bronze") { dL = rand(rng, 0, 1); dW = rand(rng, 6, 14); dP = rand(rng, 30_000, 120_000); }
-    else { dL = rand(rng, 0, 1); dW = rand(rng, 0, 8); dP = rand(rng, 5_000, 40_000); }
+    let dXp = 0, dW = 0, dP = 0;
+    if (div === "lendaria") { dXp = rand(rng, 4000, 9000); dW = rand(rng, 18, 30); dP = rand(rng, 800_000, 1_800_000); }
+    else if (div === "diamante") { dXp = rand(rng, 2500, 5500); dW = rand(rng, 14, 24); dP = rand(rng, 300_000, 900_000); }
+    else if (div === "ouro") { dXp = rand(rng, 1500, 3500); dW = rand(rng, 10, 20); dP = rand(rng, 120_000, 400_000); }
+    else if (div === "prata") { dXp = rand(rng, 800, 2000); dW = rand(rng, 8, 16); dP = rand(rng, 60_000, 200_000); }
+    else if (div === "bronze") { dXp = rand(rng, 400, 1200); dW = rand(rng, 6, 14); dP = rand(rng, 30_000, 120_000); }
+    else { dXp = rand(rng, 100, 700); dW = rand(rng, 0, 8); dP = rand(rng, 5_000, 40_000); }
+    const newXp = (row.xp ?? xpForLevel(row.level ?? 1)) + dXp;
     updates.push({
       id: row.id,
-      level: (row.level ?? 1) + dL,
+      xp: newXp,
+      level: levelFromXp(newXp),
       wins: (row.wins ?? 0) + dW,
       patrimony: (row.patrimony ?? 0) + dP,
       last_position: row.current_position,
@@ -257,4 +259,5 @@ export async function evolveCpuAcademies(supabase: any) {
     await supabase.from("world_academies").upsert(updates.slice(i, i + CHUNK), { onConflict: "id" });
   }
   return updates.length;
+
 }
