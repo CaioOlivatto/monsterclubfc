@@ -490,7 +490,7 @@ export const acceptOffer = createServerFn({ method: "POST" })
     return {
       ok: true,
       new_team_name: newTeam.name,
-      new_division: newTeam.division,
+      new_division: newTeam.division ?? "bronze",
       signing_bonus: offer.signing_bonus,
       brought_creatures: 2,
     };
