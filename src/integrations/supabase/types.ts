@@ -300,6 +300,7 @@ export type Database = {
       financial_transactions: {
         Row: {
           amount: number
+          category: string | null
           created_at: string
           description: string
           id: string
@@ -308,6 +309,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          category?: string | null
           created_at?: string
           description: string
           id?: string
@@ -316,6 +318,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          category?: string | null
           created_at?: string
           description?: string
           id?: string
@@ -542,6 +545,7 @@ export type Database = {
           competition_id: string | null
           created_at: string
           division: Database["public"]["Enums"]["division_type"] | null
+          finance_summary: Json | null
           home_score: number | null
           home_team_id: string
           id: string
@@ -559,6 +563,7 @@ export type Database = {
           competition_id?: string | null
           created_at?: string
           division?: Database["public"]["Enums"]["division_type"] | null
+          finance_summary?: Json | null
           home_score?: number | null
           home_team_id: string
           id?: string
@@ -576,6 +581,7 @@ export type Database = {
           competition_id?: string | null
           created_at?: string
           division?: Database["public"]["Enums"]["division_type"] | null
+          finance_summary?: Json | null
           home_score?: number | null
           home_team_id?: string
           id?: string
