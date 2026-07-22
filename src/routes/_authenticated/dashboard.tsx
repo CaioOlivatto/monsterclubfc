@@ -86,6 +86,23 @@ function Dashboard() {
     (c: any) => ageStatus(c.age) === "last_season",
   ).length;
 
+  // Toast comemorativo quando o treinador subir de nível
+  const notifiedRef = React.useRef(false);
+  React.useEffect(() => {
+    const pending = (data as any)?.trainer?.pendingLevelUps ?? 0;
+    if (pending > 0 && !notifiedRef.current) {
+      notifiedRef.current = true;
+      const level = (data as any).trainer.level;
+      if (pending === 1) {
+        toast.success(`⭐ Nível ${level} alcançado!`, {
+          description: "Sua jornada como treinador avançou.",
+        });
+      } else {
+        toast.success(`⭐ ${pending} níveis alcançados! Agora é nível ${level}.`);
+      }
+    }
+  }, [data]);
+
   const friendlyMut = useMutation({
     mutationFn: () => startFriendly(),
     onSuccess: (res) => nav({ to: "/match/$id", params: { id: res.match_id } }),
@@ -106,6 +123,7 @@ function Dashboard() {
     await supabase.auth.signOut();
     nav({ to: "/auth", replace: true });
   }
+
 
   if (isLoading || !data) {
     return (
