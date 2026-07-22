@@ -492,6 +492,8 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
           unusedReserveIds,
           outcome: outcomeXp,
           energy_loss: result.energy_loss,
+          injuries: result.injuries.filter((i) => i.team_id === playerTeam.id),
+          isOfficial: true,
         });
       }
       const opponentName = isHome ? away.name : home.name;

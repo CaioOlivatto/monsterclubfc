@@ -493,7 +493,7 @@ export const listMyCreatures = createServerFn({ method: "GET" })
     const { data, error } = await supabase
       .from("creatures")
       .select(
-        "id, name, species, epithet, element, suggested_position, is_goalkeeper, power_key, overall, energy, xp, half_stars_earned, market_value, age",
+        "id, name, species, epithet, element, suggested_position, is_goalkeeper, power_key, overall, energy, xp, half_stars_earned, market_value, age, injury_matches_remaining, injury_severity",
       )
       .eq("owner_trainer_id", trainer.id)
       .order("overall", { ascending: false });
@@ -521,4 +521,43 @@ export const getCreature = createServerFn({ method: "GET" })
     if (error) throw error;
     if (!creature) throw new Error("Criatura não encontrada.");
     return creature;
+  });
+
+// Cura acelerada com gemas (§Lesões): 40 gemas por partida restante.
+export const HEAL_GEMS_PER_MATCH = 40;
+
+export const healCreatureWithGems = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((raw: unknown) => z.object({ id: z.string().uuid() }).parse(raw))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: trainer } = await supabase
+      .from("trainers")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!trainer) throw new Error("Treinador não encontrado.");
+    const { data: c } = await supabase
+      .from("creatures")
+      .select("id, name, injury_matches_remaining")
+      .eq("id", data.id)
+      .eq("owner_trainer_id", trainer.id)
+      .maybeSingle();
+    if (!c) throw new Error("Criatura não encontrada.");
+    const remaining = c.injury_matches_remaining ?? 0;
+    if (remaining <= 0) throw new Error(`${c.name} não está lesionada.`);
+    const cost = remaining * HEAL_GEMS_PER_MATCH;
+    const { data: academy } = await supabase
+      .from("academies")
+      .select("id, gems")
+      .eq("trainer_id", trainer.id)
+      .maybeSingle();
+    if (!academy) throw new Error("Academia não encontrada.");
+    if ((academy.gems ?? 0) < cost) throw new Error(`Gemas insuficientes (precisa ${cost} 💎).`);
+    await supabase.from("academies").update({ gems: academy.gems - cost }).eq("id", academy.id);
+    await supabase
+      .from("creatures")
+      .update({ injury_matches_remaining: 0, injury_severity: null })
+      .eq("id", c.id);
+    return { ok: true, spent: cost };
   });

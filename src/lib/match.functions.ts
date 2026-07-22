@@ -177,6 +177,8 @@ export const createFriendlyMatch = createServerFn({ method: "POST" })
       unusedReserveIds,
       outcome,
       energy_loss: result.energy_loss,
+      injuries: result.injuries.filter((i) => i.team_id === homeTeamId),
+      isOfficial: false,
     });
 
     return { match_id: match.id };

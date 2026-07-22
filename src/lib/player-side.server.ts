@@ -28,7 +28,7 @@ export async function buildPlayerSideFromDb(
   const { data: creatures, error } = await supabase
     .from("creatures")
     .select(
-      "id, name, element, suggested_position, overall, is_goalkeeper, attr_pique, attr_forca, energy, aff_fogo, aff_agua, aff_terra, aff_ar, aff_gelo",
+      "id, name, element, suggested_position, overall, is_goalkeeper, attr_pique, attr_forca, energy, aff_fogo, aff_agua, aff_terra, aff_ar, aff_gelo, injury_matches_remaining",
     )
     .in("id", allIds);
   if (error) throw error;
@@ -56,6 +56,9 @@ export async function buildPlayerSideFromDb(
     const saved = savedStarters.find((x) => x.slot === s.index);
     const c = saved?.creature_id ? byId.get(saved.creature_id) : null;
     if (!c) throw new Error("Escalação inválida — recomponha os titulares.");
+    if ((c.injury_matches_remaining ?? 0) > 0) {
+      throw new Error(`${c.name} está lesionada e não pode jogar. Ajuste a escalação.`);
+    }
     return toEngine(c, s.role);
   });
 
@@ -68,7 +71,7 @@ export async function buildPlayerSideFromDb(
 
   const bench: EngineSlot[] = benchIds
     .map((id) => byId.get(id))
-    .filter(Boolean)
+    .filter((c: any) => c && (c.injury_matches_remaining ?? 0) === 0)
     .map((c: any) => toEngine(c, posToRole(c.suggested_position)));
 
   const tactics: Tactics = (lineup.default_tactics as Tactics | null) ?? NEUTRAL_TACTICS;

@@ -171,6 +171,8 @@ export type Database = {
           epithet: string
           half_stars_earned: number
           id: string
+          injury_matches_remaining: number
+          injury_severity: string | null
           is_goalkeeper: boolean
           market_value: number
           name: string
@@ -208,6 +210,8 @@ export type Database = {
           epithet?: string
           half_stars_earned?: number
           id?: string
+          injury_matches_remaining?: number
+          injury_severity?: string | null
           is_goalkeeper?: boolean
           market_value?: number
           name: string
@@ -245,6 +249,8 @@ export type Database = {
           epithet?: string
           half_stars_earned?: number
           id?: string
+          injury_matches_remaining?: number
+          injury_severity?: string | null
           is_goalkeeper?: boolean
           market_value?: number
           name?: string

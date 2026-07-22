@@ -9,7 +9,7 @@ import { createFriendlyMatch } from "@/lib/match.functions";
 import { claimWeeklyGems } from "@/lib/progression.functions";
 import { getMyLineup } from "@/lib/lineup.functions";
 import { ageStatus } from "@/lib/age";
-import { BatteryLow } from "lucide-react";
+import { BatteryLow, HeartPulse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -87,6 +87,9 @@ function Dashboard() {
   });
   const lastSeasonCount = (rosterList ?? []).filter(
     (c: any) => ageStatus(c.age) === "last_season",
+  ).length;
+  const injuredCount = (rosterList ?? []).filter(
+    (c: any) => (c.injury_matches_remaining ?? 0) > 0,
   ).length;
 
   const fetchLineup = useServerFn(getMyLineup);
@@ -225,6 +228,26 @@ function Dashboard() {
                   </p>
                 </div>
                 <span className="shrink-0 text-xs text-orange-300">Ver elenco →</span>
+              </CardContent>
+            </Card>
+          </Link>
+        )}
+        {injuredCount > 0 && (
+          <Link to="/roster" className="block">
+            <Card className="border-red-500/60 bg-red-500/5 transition-colors hover:bg-red-500/10">
+              <CardContent className="flex items-center gap-3 py-3">
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-red-500/20 text-red-300">
+                  <HeartPulse className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-red-200">
+                    {injuredCount} {injuredCount === 1 ? "criatura lesionada" : "criaturas lesionadas"}
+                  </p>
+                  <p className="text-xs text-red-200/80">
+                    Não podem ser escaladas. Acelere a recuperação com gemas se necessário.
+                  </p>
+                </div>
+                <span className="shrink-0 text-xs text-red-300">Ver elenco →</span>
               </CardContent>
             </Card>
           </Link>

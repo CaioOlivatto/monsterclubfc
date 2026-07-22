@@ -53,6 +53,8 @@ export type EngineEventType =
   | "fulltime"
   | "weather";
 
+export type InjurySeverity = "leve" | "moderada" | "grave";
+
 export interface EngineEventMeta {
   attacker?: string;
   defender?: string;
@@ -64,6 +66,8 @@ export interface EngineEventMeta {
   long_shot?: boolean;
   is_danger?: boolean;
   outcome?: "goal" | "save" | "miss" | "block";
+  injury_severity?: InjurySeverity;
+  injury_matches?: number;
 }
 
 export interface EngineEvent {
@@ -73,6 +77,13 @@ export interface EngineEvent {
   actor_creature_id: string | null;
   actor_team_id: string | null;
   meta?: EngineEventMeta;
+}
+
+export interface EngineInjury {
+  creature_id: string;
+  team_id: string;
+  severity: InjurySeverity;
+  matches: number;
 }
 
 const BEATS: Record<Element, Element> = {
@@ -264,11 +275,15 @@ export interface SimulationResult {
   starter_ids: string[];
   // Criaturas do banco que foram utilizadas (subs)
   used_bench_ids: string[];
+  // Lesões ocorridas nesta partida
+  injuries: EngineInjury[];
 }
 
 export function simulate(home: EngineSide, away: EngineSide, seed: number): SimulationResult {
   const rand = mulberry32(seed);
   const events: EngineEvent[] = [];
+  const injuries: EngineInjury[] = [];
+
 
   const weathers: Weather[] = ["sol", "chuva", "vento", "neve", "nublado"];
   const weather = weathers[Math.floor(rand() * weathers.length)];
@@ -348,12 +363,22 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
       const perMinute = 0.004 * mul * injuryFatigueMult(outSlot.creature.energy);
       if (rand() >= perMinute) continue;
       const actor = outSlot.creature;
+      // Sortear gravidade (§Lesões): 45% leve, 40% moderada, 15% grave.
+      const rr = rand();
+      let severity: InjurySeverity;
+      let matches: number;
+      if (rr < 0.45) { severity = "leve"; matches = 1; }
+      else if (rr < 0.85) { severity = "moderada"; matches = 2 + Math.floor(rand() * 2); }
+      else { severity = "grave"; matches = 4 + Math.floor(rand() * 2); }
+      const sevLabel = severity === "leve" ? "leve" : severity === "moderada" ? "moderada" : "GRAVE";
+      injuries.push({ creature_id: actor.id, team_id: live.side.team_id, severity, matches });
       events.push({
         minute,
         event_type: "injury",
-        description: `${actor.name} sente uma lesão (${live.side.team_name}).`,
+        description: `${actor.name} sofreu lesão ${sevLabel} (${matches} ${matches === 1 ? "partida" : "partidas"}) — ${live.side.team_name}.`,
         actor_creature_id: actor.id,
         actor_team_id: live.side.team_id,
+        meta: { injury_severity: severity, injury_matches: matches },
       });
       const i = live.starters.indexOf(outSlot);
       if (i >= 0) live.starters.splice(i, 1);
@@ -428,6 +453,7 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
     energy_loss,
     starter_ids: [...initialHomeIds, ...initialAwayIds],
     used_bench_ids: [...used_home_bench, ...used_away_bench],
+    injuries,
   };
 }
 
