@@ -300,40 +300,68 @@ function MarketPage() {
                 </CardContent>
               </Card>
             )}
-            {filteredListings.map((l) => {
+            {filteredListings.map((l: any) => {
               const canAfford = (data?.money ?? 0) >= l.price;
               const rosterFull = (data?.roster_count ?? 0) >= (data?.roster_slots ?? 0);
-              const disabled = !canAfford || rosterFull || buyMut.isPending;
+              const salary = l.salary ?? 0;
+              const currentPayroll = data?.payroll ?? 0;
+              const cap = data?.salary_cap ?? 0;
+              const newPayroll = currentPayroll + salary;
+              const overCap = newPayroll > cap;
+              const disabled = !canAfford || rosterFull || overCap || buyMut.isPending;
+              const btnLabel = rosterFull
+                ? "Cheio"
+                : overCap
+                ? "Folha"
+                : !canAfford
+                ? "Sem $"
+                : "Comprar";
               return (
                 <Card key={l.id}>
-                  <CardContent className="flex items-center gap-3 py-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold truncate">{l.name}</p>
-                        <Badge variant="outline" className={ELEMENT_COLORS[l.element]}>
-                          {ELEMENT_LABEL[l.element]}
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          {l.suggested_position}
-                        </Badge>
+                  <CardContent className="space-y-2 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold truncate">{l.name}</p>
+                          <Badge variant="outline" className={ELEMENT_COLORS[l.element]}>
+                            {ELEMENT_LABEL[l.element]}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {l.suggested_position}
+                          </Badge>
+                        </div>
+                        <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                          <Stars overall={l.overall} />
+                          <span>OVR {l.overall}</span>
+                          <span className="truncate">de {l.seller}</span>
+                        </div>
                       </div>
-                      <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                        <Stars overall={l.overall} />
-                        <span>OVR {l.overall}</span>
-                        <span className="truncate">de {l.seller}</span>
+                      <div className="shrink-0 text-right">
+                        <Button
+                          size="sm"
+                          className="h-8"
+                          disabled={disabled}
+                          onClick={() => buyMut.mutate(l.id)}
+                        >
+                          {btnLabel}
+                        </Button>
                       </div>
                     </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-sm font-bold text-amber-300">{formatMoney(l.price)}</p>
-                      <Button
-                        size="sm"
-                        className="mt-1 h-7"
-                        disabled={disabled}
-                        onClick={() => buyMut.mutate(l.id)}
-                      >
-                        {rosterFull ? "Cheio" : !canAfford ? "Sem $" : "Comprar"}
-                      </Button>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-2 text-xs">
+                      <span>
+                        <span className="text-muted-foreground">Preço:</span>{" "}
+                        <span className="font-semibold text-amber-300">{formatMoney(l.price)}</span>
+                      </span>
+                      <span>
+                        <span className="text-muted-foreground">Salário:</span>{" "}
+                        <span className="font-semibold">{formatMoney(salary)}/temporada</span>
+                      </span>
                     </div>
+                    <p className={`text-[11px] ${overCap ? "text-red-400" : "text-muted-foreground"}`}>
+                      Folha passaria de {formatMoney(currentPayroll)} para {formatMoney(newPayroll)}
+                      {" "}(limite: {formatMoney(cap)})
+                      {overCap && " — teto de folha estourado."}
+                    </p>
                   </CardContent>
                 </Card>
               );
