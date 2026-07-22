@@ -346,6 +346,10 @@ function MatchPage() {
 
         <EventsPanel events={revealed} />
 
+        {isFinal && (data.match as any).finance_summary && (
+          <FinanceSummaryCard summary={(data.match as any).finance_summary} />
+        )}
+
         {isFinal && (
           <Card>
             <CardContent className="py-4 text-center">
