@@ -3,12 +3,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Trophy, Play, Calendar, ArrowUp, ArrowDown } from "lucide-react";
+import { ArrowLeft, Trophy, Play, Calendar, ArrowUp, ArrowDown, Crown, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { getLeague, startLeague, playNextLeagueMatch, finishSeasonAndAdvance } from "@/lib/league.functions";
 
 const DIV_LABEL: Record<string, string> = {
