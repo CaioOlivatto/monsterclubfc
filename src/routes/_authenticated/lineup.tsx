@@ -147,7 +147,8 @@ function LineupPage() {
   const ROLE_LABEL: Record<SlotRole, string> = { GOL: "GOL", DEF: "DEF", MEI: "MEI", ATA: "ATA" };
 
   const sortByEff = (a: any, b: any) =>
-    effectiveOverall(b.overall ?? 0, b.energy ?? 100) - effectiveOverall(a.overall ?? 0, a.energy ?? 100);
+    effectiveOverall(b.overall ?? 0, b.energy ?? 100, b.morale) -
+    effectiveOverall(a.overall ?? 0, a.energy ?? 100, a.morale);
 
   const availableFor = (currentId: string | null) =>
     creatures.filter((c: any) => c.id === currentId || !usedIds.has(c.id));
