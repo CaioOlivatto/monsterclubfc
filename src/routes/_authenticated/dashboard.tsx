@@ -463,3 +463,41 @@ function Shortcut({
   if (disabled || !to) return inner;
   return <Link to={to}>{inner}</Link>;
 }
+
+function TrainerLevelBar({
+  trainer,
+}: {
+  trainer: {
+    level: number;
+    xpIntoLevel?: number;
+    xpForNextLevel?: number;
+    xp?: number;
+    xpTotalForNext?: number;
+    isMaxLevel?: boolean;
+  };
+}) {
+  const into = trainer.xpIntoLevel ?? 0;
+  const need = trainer.xpForNextLevel ?? 1;
+  const pct = trainer.isMaxLevel ? 100 : Math.max(2, Math.round((into / need) * 100));
+  const totalXp = (trainer.xp ?? 0).toLocaleString("pt-BR");
+  const totalNext = (trainer.xpTotalForNext ?? 0).toLocaleString("pt-BR");
+  const tip = trainer.isMaxLevel
+    ? "Nível máximo alcançado"
+    : `${totalXp} / ${totalNext} XP para o nível ${trainer.level + 1}`;
+  return (
+    <div className="mt-1.5 max-w-[240px]" title={tip}>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full bg-gradient-to-r from-amber-400 to-primary transition-all"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <p className="mt-0.5 text-[10px] text-muted-foreground">
+        {trainer.isMaxLevel
+          ? "Nível máximo"
+          : `${into.toLocaleString("pt-BR")} / ${need.toLocaleString("pt-BR")} XP → nível ${trainer.level + 1}`}
+      </p>
+    </div>
+  );
+}
+
