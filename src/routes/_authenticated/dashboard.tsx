@@ -100,6 +100,11 @@ function Dashboard() {
     queryKey: ["my-lineup"],
     queryFn: () => fetchLineup(),
   });
+  const fetchConfidence = useServerFn(getConfidence);
+  const { data: confidence } = useQuery<ConfidenceInfo>({
+    queryKey: ["confidence"],
+    queryFn: () => fetchConfidence(),
+  });
   const tiredStarters = React.useMemo(() => {
     const starters: any[] = (lineupData as any)?.lineup?.starters ?? [];
     const creatures: any[] = (lineupData as any)?.creatures ?? [];
