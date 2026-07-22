@@ -64,15 +64,11 @@ function LeaguePage() {
   });
 
   const finishSeasonFn = useServerFn(finishSeasonAndAdvance);
+  const [summary, setSummary] = useState<any | null>(null);
   const finishMut = useMutation({
     mutationFn: () => finishSeasonFn(),
     onSuccess: (res: any) => {
-      const parts = [
-        `${res.position}º lugar`,
-        res.promoted ? `Promoção → ${res.newDivision}` : res.relegated ? `Rebaixamento → ${res.newDivision}` : `Continua em ${res.newDivision}`,
-        `+$${res.prize.toLocaleString()}`,
-      ];
-      toast.success(`Temporada ${res.newSeasonNumber - 1} encerrada: ${parts.join(" • ")}`);
+      setSummary(res);
       qc.invalidateQueries({ queryKey: ["league"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
