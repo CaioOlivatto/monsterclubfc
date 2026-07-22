@@ -313,7 +313,7 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
           .filter((s) => s.creature.energy < 40)
           .sort((a, b) => a.creature.energy - b.creature.energy);
         for (const outSlot of tired) {
-          if (live.subsUsed >= 3 || !live.bench.length) break;
+          if (live.subsUsed >= 5 || !live.bench.length) break;
           const idx = live.starters.indexOf(outSlot);
           if (idx < 0) continue;
           live.starters.splice(idx, 1);
