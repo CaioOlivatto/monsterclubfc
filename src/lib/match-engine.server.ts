@@ -301,6 +301,7 @@ function resolveChance(
   isHome: boolean, minute: number,
   own: SideView, opp: SideView,
   live: LiveSide, oppTact: ReturnType<typeof tacticsMod>,
+  oppMod: ReturnType<typeof strategyMod>,
   rand: () => number, events: EngineEvent[], weather: Weather,
 ) {
   if (!own.attackers.length || !opp.defenders.length) return;
@@ -315,8 +316,9 @@ function resolveChance(
 
   // DUELO 1 — finalizador vs zagueiro
   const finVsDef = ratingVs(finisher, defender) * weatherMul;
-  const defRating = ratingBase(defender) + oppTact.def;
+  const defRating = ratingBase(defender) + oppTact.def + oppMod.def;
   const pPass = logistic(finVsDef - defRating);
+
 
   const elementalAdv = BEATS[finisher.element] === defender.element;
   const longShot = rand() < 0.2;
