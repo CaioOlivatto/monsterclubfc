@@ -393,7 +393,9 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
     }
 
     // 1. Elenco do jogador (26 criaturas, via Bestiário)
-    const roster = generateStarterRoster(data.key as StarterKey);
+    const { loadBestiary } = await import("./bestiary.server");
+    const bestiary = await loadBestiary(supabase);
+    const roster = generateStarterRoster(data.key as StarterKey, bestiary);
     const creatureRows = rosterToDbRows(trainer.id, roster);
     // Insere criaturas sem owner_team_id ainda (será atualizado depois)
     const { data: createdCreatures, error: cErr } = await supabase
