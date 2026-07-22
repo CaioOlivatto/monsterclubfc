@@ -325,7 +325,7 @@ function LineupPage() {
                       .filter((c) => !usedIds.has(c.id))
                       .map((c) => (
                         <SelectItem key={c.id} value={c.id}>
-                          {c.name} · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}
+                          {c.name} · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall} · {(c.overall / 20).toFixed(1)}★
                         </SelectItem>
                       ))}
                   </SelectContent>
