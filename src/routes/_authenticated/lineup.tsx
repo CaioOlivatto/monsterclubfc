@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Save, Shield, Swords, Scale, Wand2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Save, Shield, Swords, Scale, Wand2, AlertTriangle, HeartPulse } from "lucide-react";
 import { fatigueState, FATIGUE_LABEL, FATIGUE_CLASS, effectiveOverall, energyMultiplier } from "@/lib/fatigue";
 
 export const Route = createFileRoute("/_authenticated/lineup")({
