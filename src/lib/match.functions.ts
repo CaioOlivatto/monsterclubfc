@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { simulate, generateCpuSide, type EngineSide, type EngineBestiary } from "./match-engine.server";
+import { simulate, persistableSimulationEvents, generateCpuSide, type EngineSide, type EngineBestiary } from "./match-engine.server";
 import { loadBestiary } from "./bestiary.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
@@ -148,7 +148,7 @@ export const createFriendlyMatch = createServerFn({ method: "POST" })
       .single();
     if (mErr) throw mErr;
 
-    const eventsToInsert = result.events.map((e) => ({
+    const eventsToInsert = persistableSimulationEvents(result).map((e) => ({
       match_id: match.id,
       minute: e.minute,
       event_type: e.event_type,

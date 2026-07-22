@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { simulate, generateCpuSideFor, type EngineSide, type EngineBestiary } from "./match-engine.server";
+import { simulate, persistableSimulationEvents, generateCpuSideFor, type EngineSide, type EngineBestiary } from "./match-engine.server";
 
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
@@ -269,7 +269,7 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
         played_at: new Date().toISOString(),
       })
       .eq("id", next.id);
-    const events = result.events.map((e: any) => ({
+    const events = persistableSimulationEvents(result).map((e: any) => ({
       match_id: next.id,
       minute: e.minute,
       event_type: e.event_type,
