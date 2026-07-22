@@ -66,12 +66,12 @@ function pickElement(team: WorldTeam, rng: () => number): Element {
   return others[Math.floor(rng() * others.length)];
 }
 
-function pickSpecies(pos: Position, el: Element, rng: () => number): SpeciesBase {
-  const posEl = BESTIARY.filter((s) => s.position === pos && s.element === el);
+function pickSpecies(bestiary: LoadedBestiary, pos: Position, el: Element, rng: () => number): SpeciesBase {
+  const posEl = bestiary.species.filter((s) => s.position === pos && s.element === el);
   if (posEl.length) return posEl[Math.floor(rng() * posEl.length)];
-  const byPos = bestiaryByPosition(pos);
+  const byPos = bestiaryByPosition(bestiary.species, pos);
   if (byPos.length) return byPos[Math.floor(rng() * byPos.length)];
-  return bestiaryByElement(el)[0] ?? BESTIARY[0];
+  return bestiaryByElement(bestiary.species, el)[0] ?? bestiary.species[0];
 }
 
 // ---------- Ajuste de overall para alvo de estrelas ----------
