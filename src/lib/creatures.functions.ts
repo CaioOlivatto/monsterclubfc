@@ -337,10 +337,13 @@ const starterKeySchema = z.object({
 });
 
 export const getStarterTeamDetail = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((raw: unknown) => starterKeySchema.parse(raw))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    const { loadBestiary } = await import("./bestiary.server");
+    const bestiary = await loadBestiary(context.supabase);
     const team = getStarterTeam(data.key)!;
-    const roster = generateStarterRoster(data.key as StarterKey);
+    const roster = generateStarterRoster(data.key as StarterKey, bestiary);
     return {
       team: {
         key: team.key,
