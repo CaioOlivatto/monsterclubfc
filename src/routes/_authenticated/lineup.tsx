@@ -271,6 +271,10 @@ function LineupPage() {
           </CardContent>
         </Card>
 
+        <PrognosticCard state={prog} />
+
+
+
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Titulares</CardTitle>
