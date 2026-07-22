@@ -126,16 +126,54 @@ export function generateStarterRoster(teamKey: StarterKey, bestiary: LoadedBesti
   const usedSpecies = new Set<string>();
   const roster: RolledCreature[] = [];
 
+  // Distribuição da 5ª Divisão (Bronze) — Balanceamento §7.1
+  // meia-estrelas: [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]
+  const BRONZE_WEIGHTS = [5, 20, 33, 27, 12, 3, 0, 0, 0, 0];
+  const pickBand = (): number => {
+    const total = BRONZE_WEIGHTS.reduce((a, b) => a + b, 0);
+    let r = rng() * total;
+    for (let i = 0; i < BRONZE_WEIGHTS.length; i++) {
+      r -= BRONZE_WEIGHTS[i];
+      if (r <= 0) return i + 1; // 1..10
+    }
+    return 10;
+  };
+
+  const scaleAttrs = (c: RolledCreature, target: number): RolledCreature => {
+    const current = c.overall || 40;
+    if (current <= 0) return { ...c, overall: target };
+    const factor = target / current;
+    const scl = (n: number) => Math.max(5, Math.min(99, Math.round(n * factor)));
+    return {
+      ...c,
+      attr_defender: scl(c.attr_defender),
+      attr_passar: scl(c.attr_passar),
+      attr_atacar: scl(c.attr_atacar),
+      attr_tecnica: scl(c.attr_tecnica),
+      attr_forca: scl(c.attr_forca),
+      attr_pique: scl(c.attr_pique),
+      attr_maos: scl(c.attr_maos),
+      attr_concentracao: scl(c.attr_concentracao),
+      attr_elasticidade: scl(c.attr_elasticidade),
+      overall: target,
+      market_value: Math.max(1000, target * target * 20),
+    };
+  };
+
   for (const pos of ROSTER_PLAN) {
     const el = pickElementForTeam(team, rng);
     const spBase = pickSpecies(bestiary.species, pos, el, usedSpecies, rng);
     if (usedSpecies.size < bestiary.species.length) usedSpecies.add(spBase.species);
-    const c = rollCreature(spBase, bestiary.epithets[spBase.element] ?? [], rng, { variation: 8 });
-    roster.push(c);
+    const c = rollCreature(spBase, bestiary.epithets[spBase.element] ?? [], rng, { variation: 6 });
+    // Aplica banda da distribuição Bronze
+    const band = pickBand();
+    const target = Math.max(5, Math.min(99, band * 10 + Math.round((rng() * 2 - 1) * 4)));
+    roster.push(scaleAttrs(c, target));
   }
 
   return roster;
 }
+
 
 export function starterTeamSummary(teamKey: StarterKey, bestiary: LoadedBestiary) {
   const roster = generateStarterRoster(teamKey, bestiary);
