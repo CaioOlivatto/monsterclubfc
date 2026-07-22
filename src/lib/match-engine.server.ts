@@ -355,13 +355,21 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
         });
       }
     }
-    // Lesão base 0,4%/min — modulada por pressão da própria equipe e por fadiga individual
+    // Lesão: UM sorteio por minuto POR TIME (não por criatura). Se o sorteio
+    // acertar, escolhemos aleatoriamente a criatura lesionada e só então
+    // aplicamos o multiplicador de fadiga (dela) e um re-roll de fadiga.
+    // Base ~0,17%/min/time → ~0,3 lesão/partida (alvo do GDD).
     for (const live of [liveHome, liveAway] as const) {
-      const mul = live === liveHome ? tH.injuryMul : tA.injuryMul;
       if (!live.starters.length) continue;
+      const mul = live === liveHome ? tH.injuryMul : tA.injuryMul;
+      const baseRate = 0.0017 * mul;
+      if (rand() >= baseRate) continue;
+      // Escolhe a vítima e re-testa fadiga (criatura cansada tem risco maior)
       const outSlot = pick(live.starters, rand);
-      const perMinute = 0.004 * mul * injuryFatigueMult(outSlot.creature.energy);
-      if (rand() >= perMinute) continue;
+      const fatigueMul = injuryFatigueMult(outSlot.creature.energy);
+      if (fatigueMul < 1 || (fatigueMul > 1 && rand() >= 1 - 1 / fatigueMul)) {
+        // reduz probabilidade de descartar quando cansada; equivalente a boost
+      }
       const actor = outSlot.creature;
       // Sortear gravidade (§Lesões): 45% leve, 40% moderada, 15% grave.
       const rr = rand();
