@@ -129,8 +129,8 @@ function pickSpeciesForBand(bestiary: LoadedBestiary, band: number, rng: () => n
   return pick(rng, pool);
 }
 
-function generateOne(bestiary: LoadedBestiary, rng: () => number, division: Division): MarketListing {
-  const band = rollHalfStarBand(rng, division);
+function generateOne(bestiary: LoadedBestiary, rng: () => number, division: Division, forcedBand?: number): MarketListing {
+  const band = forcedBand ?? rollHalfStarBand(rng, division);
   const targetOverall = band * 10; // 10..100
   const spBase = pickSpeciesForBand(bestiary, band, rng);
   const c = rollCreature(spBase, bestiary.epithets[spBase.element] ?? [], rng, { variation: 6 });
