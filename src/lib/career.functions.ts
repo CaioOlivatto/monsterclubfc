@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { generateStarterRoster, rosterToDbRows, type StarterKey } from "./starter-teams";
+
 
 export interface CareerEntry {
   id: string;
