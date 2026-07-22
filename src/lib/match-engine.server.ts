@@ -375,13 +375,11 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
       if (teamInjuries >= MAX_INJURIES_PER_TEAM) continue;
       const candidates = live.starters;
       if (!candidates.length) continue;
-      if (rand() >= P_LESAO) continue;
-
       const outSlot = pick(candidates, rand);
       const actor = outSlot.creature;
       const tacticsInjuryMul = live === liveHome ? tH.injuryMul : tA.injuryMul;
       const fatigueMul = injuryFatigueMult(actor.energy);
-      if (rand() >= Math.min(1, (fatigueMul * tacticsInjuryMul) / 3)) continue;
+      if (rand() >= Math.min(1, P_LESAO * fatigueMul * tacticsInjuryMul)) continue;
       // Sortear gravidade (§Lesões): 45% leve, 40% moderada, 15% grave.
       const rr = rand();
       let severity: InjurySeverity;
