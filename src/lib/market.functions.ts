@@ -240,6 +240,7 @@ export const buyCreature = createServerFn({ method: "POST" })
       name: listing.name,
       price: listing.price,
       salary: addSalary,
+      salary_per_match: matchSalary(listing.overall),
       element: listing.element,
       position: listing.suggested_position,
       overall: listing.overall,
