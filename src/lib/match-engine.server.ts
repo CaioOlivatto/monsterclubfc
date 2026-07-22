@@ -109,10 +109,42 @@ function strategyMod(s: EngineSide["strategy"]): { atk: number; def: number } {
   return { atk: 0, def: 0 };
 }
 
+/**
+ * GDD §4.6 — Fadiga aplicada como multiplicador sobre o overall efetivo.
+ * A energia registrada NO INÍCIO da partida define a faixa; o motor não
+ * degrada essa faixa durante os 90min (fadiga acumula entre partidas).
+ *   70-100 → x1,00 (Pleno)
+ *   50-69  → x0,95 (Levemente cansado)
+ *   30-49  → x0,85 (Cansado)
+ *   15-29  → x0,70 (Exausto)
+ *    0-14  → x0,50 (Esgotado)
+ */
+export function energyMultiplier(energy: number): number {
+  if (energy >= 70) return 1.0;
+  if (energy >= 50) return 0.95;
+  if (energy >= 30) return 0.85;
+  if (energy >= 15) return 0.7;
+  return 0.5;
+}
+
+export type FatigueState = "pleno" | "leve" | "cansado" | "exausto" | "esgotado";
+export function fatigueState(energy: number): FatigueState {
+  if (energy >= 70) return "pleno";
+  if (energy >= 50) return "leve";
+  if (energy >= 30) return "cansado";
+  if (energy >= 15) return "exausto";
+  return "esgotado";
+}
+
 function energyAdjusted(c: EngineCreature): number {
-  // GDD §4.6: energia baixa penaliza overall efetivo
-  const penalty = Math.max(0, (60 - c.energy)) * 0.25;
-  return Math.max(10, c.overall - penalty);
+  return Math.max(10, Math.round(c.overall * energyMultiplier(c.energy)));
+}
+
+// Multiplicador de risco de lesão por fadiga (GDD §Fadiga).
+function injuryFatigueMult(energy: number): number {
+  if (energy >= 30) return 1.0;
+  if (energy >= 15) return 2.0;
+  return 3.0;
 }
 
 function avg(nums: number[]): number {
