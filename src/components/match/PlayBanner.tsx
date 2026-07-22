@@ -1,0 +1,101 @@
+import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
+import type { NarrationParts } from "@/lib/narration/session";
+
+interface Props {
+  parts: NarrationParts;
+  teamColor: string; // hsl or css color
+  outcome: "goal" | "save" | "miss" | "block";
+  elementalAdvantage?: boolean;
+  onFinished: () => void;
+}
+
+/**
+ * Tarja de 3 tempos. Revela p1, p2, p3 com pausa entre elas.
+ * Em gol, pisca ao mostrar p3.
+ */
+export function PlayBanner({ parts, teamColor, outcome, elementalAdvantage, onFinished }: Props) {
+  const [step, setStep] = useState<0 | 1 | 2 | 3>(0);
+  const step2Delay = parts.fast_beat ? 500 : 900;
+  const step3Delay = parts.fast_beat ? 500 : 900;
+  const holdMs = outcome === "goal" ? 1900 : 1400;
+
+  useEffect(() => {
+    const t1 = window.setTimeout(() => setStep(1), 50);
+    const t2 = window.setTimeout(() => setStep(2), 50 + step2Delay);
+    const t3 = window.setTimeout(() => setStep(3), 50 + step2Delay + step3Delay);
+    const t4 = window.setTimeout(() => onFinished(), 50 + step2Delay + step3Delay + holdMs);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.clearTimeout(t3);
+      window.clearTimeout(t4);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const isGoal = outcome === "goal";
+  const showFlash = isGoal && step === 3;
+
+  return (
+    <div className="fixed inset-x-0 top-0 z-50 flex justify-center px-2 pt-2 animate-fade-in">
+      <div
+        className={cn(
+          "w-full max-w-2xl rounded-2xl border-2 p-4 shadow-2xl backdrop-blur",
+          showFlash && "animate-pulse",
+        )}
+        style={{
+          borderColor: teamColor,
+          background: `linear-gradient(180deg, ${teamColor}22, hsl(var(--card) / 0.95))`,
+          boxShadow: `0 0 40px ${teamColor}66`,
+        }}
+      >
+        <ol className="space-y-2 text-left">
+          {step >= 1 && (
+            <li
+              className={cn(
+                "text-base font-medium leading-snug text-foreground/80 transition-opacity",
+                step === 1 && "text-foreground",
+              )}
+            >
+              {parts.p1}
+            </li>
+          )}
+          {step >= 2 && (
+            <li
+              className={cn(
+                "text-base font-medium leading-snug text-foreground/80 transition-opacity animate-fade-in",
+                step === 2 && "text-foreground",
+              )}
+            >
+              {parts.p2}
+            </li>
+          )}
+          {step >= 3 && (
+            <li
+              className={cn(
+                "font-bold leading-tight animate-fade-in",
+                isGoal
+                  ? "text-3xl uppercase tracking-tight text-primary"
+                  : "text-lg text-foreground",
+              )}
+              style={isGoal ? { color: teamColor, textShadow: `0 0 20px ${teamColor}` } : undefined}
+            >
+              {parts.p3}
+            </li>
+          )}
+          {step >= 3 && parts.callbacks.length > 0 && (
+            <li className="text-sm italic text-muted-foreground animate-fade-in">
+              {parts.callbacks[0]}
+            </li>
+          )}
+          {step >= 3 && isGoal && elementalAdvantage && (
+            <li className="mt-1 inline-block rounded-full bg-primary/20 px-2 py-0.5 text-xs font-semibold text-primary animate-fade-in">
+              ⚡ Vantagem elemental!
+            </li>
+          )}
+        </ol>
+      </div>
+    </div>
+  );
+}
