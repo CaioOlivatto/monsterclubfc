@@ -8,6 +8,7 @@ import { getDashboard, listMyCreatures } from "@/lib/creatures.functions";
 import { createFriendlyMatch } from "@/lib/match.functions";
 import { claimWeeklyGems } from "@/lib/progression.functions";
 import { getMyLineup } from "@/lib/lineup.functions";
+import { getConfidence, type ConfidenceInfo } from "@/lib/career.functions";
 import { ageStatus } from "@/lib/age";
 import { BatteryLow, HeartPulse } from "lucide-react";
 import { Button } from "@/components/ui/button";
