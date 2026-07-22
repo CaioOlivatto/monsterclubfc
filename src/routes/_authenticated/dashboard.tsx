@@ -150,6 +150,7 @@ function Dashboard() {
             <p className="truncate text-xs text-muted-foreground sm:text-sm">
               Treinador: {trainer.trainer_name} · Nível {trainer.level}
             </p>
+            <TrainerLevelBar trainer={trainer as any} />
           </div>
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <Button
@@ -167,6 +168,7 @@ function Dashboard() {
               <span className="hidden sm:inline">Sair</span>
             </Button>
           </div>
+
         </div>
 
         {academy && (
