@@ -38,10 +38,13 @@ function LeaguePage() {
   const start = useServerFn(startLeague);
   const playNext = useServerFn(playNextLeagueMatch);
 
+  const [division, setDivision] = useState<string | undefined>(undefined);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["league"],
-    queryFn: () => fetchLeague(),
+    queryKey: ["league", division ?? "auto"],
+    queryFn: () => fetchLeague({ data: division ? { division } : {} } as any),
   });
+
 
   const startMut = useMutation({
     mutationFn: () => start(),
