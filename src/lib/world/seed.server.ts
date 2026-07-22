@@ -158,7 +158,7 @@ export interface GeneratedCreature {
   aff_gelo: number;
 }
 
-export function generateTeamRoster(team: WorldTeam, division: DivisionSlug, seed: number): GeneratedCreature[] {
+export function generateTeamRoster(bestiary: LoadedBestiary, team: WorldTeam, division: DivisionSlug, seed: number): GeneratedCreature[] {
   const rng = mulberry32(seed);
   const ages = buildAgeList(rng);
   const out: GeneratedCreature[] = [];
@@ -166,8 +166,8 @@ export function generateTeamRoster(team: WorldTeam, division: DivisionSlug, seed
   for (let i = 0; i < ROSTER_PLAN.length; i++) {
     const pos = ROSTER_PLAN[i];
     const el = pickElement(team, rng);
-    const spBase = pickSpecies(pos, el, rng);
-    const rolled = rollCreature(spBase, rng, { variation: 6 });
+    const spBase = pickSpecies(bestiary, pos, el, rng);
+    const rolled = rollCreature(spBase, bestiary.epithets[spBase.element] ?? [], rng, { variation: 6 });
 
     // Ajuste ao alvo de estrelas da divisão
     const half = pickHalfStars(division, rng);
