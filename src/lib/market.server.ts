@@ -106,8 +106,8 @@ function pickSpeciesForBand(band: number, rng: () => number): SpeciesBase {
   return pick(rng, pool);
 }
 
-function generateOne(rng: () => number): MarketListing {
-  const band = rollHalfStarBand(rng);
+function generateOne(rng: () => number, division: Division): MarketListing {
+  const band = rollHalfStarBand(rng, division);
   const targetOverall = band * 10; // 10..100
   const spBase = pickSpeciesForBand(band, rng);
   // Rola a criatura, depois ajusta atributos proporcionalmente para bater a banda
