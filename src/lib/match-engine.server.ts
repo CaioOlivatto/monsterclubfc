@@ -519,21 +519,30 @@ function processTeamChance(
 
 // ---------- gerador CPU ----------
 
-const CPU_PREFIXES = ["Falcão", "Lobo", "Trovão", "Sombra", "Fúria", "Cometa", "Chama", "Vaga", "Rocha", "Nevasca"];
-const CPU_SUFFIXES = ["FC", "Atlético", "United", "Sporting", "Real", "Racing", "Selvagem", "Elemental"];
 const ELS: Element[] = ["fogo", "agua", "terra", "ar", "gelo"];
 
 // Bestiário mínimo necessário para nomes (species + epithets por elemento).
+// `is_goalkeeper` permite restringir espécies de goleiro ao slot GOL e mantê-las
+// fora de posições de linha (DEF/MEI/ATA) — evita "Alicanto atacante".
 export interface EngineBestiary {
-  species: { species: string; element: Element }[];
+  species: { species: string; element: Element; is_goalkeeper: boolean }[];
   epithets: Record<Element, string[]>;
 }
 
-export function generateCpuSide(seed: number, playerOverall: number, bestiary?: EngineBestiary): EngineSide {
+/**
+ * Gera um lado da CPU com um NOME DE TIME EXPLÍCITO. Não há mais fallback de
+ * nomes aleatórios ("Sombra United" etc.) — o chamador deve escolher um time
+ * real do catálogo (WORLD_TEAMS) para amistoso/liga/copa.
+ */
+export function generateCpuSide(
+  seed: number,
+  playerOverall: number,
+  teamName: string,
+  bestiary?: EngineBestiary,
+): EngineSide {
   const rand = mulberry32(seed ^ 0x5f3759df);
-  const name = `${pick(CPU_PREFIXES, rand)} ${pick(CPU_SUFFIXES, rand)}`;
   const target = Math.max(15, Math.min(95, playerOverall + Math.floor((rand() - 0.5) * 20)));
-  return buildCpuSideCore(seed, target, name, `cpu-${seed}`, bestiary);
+  return buildCpuSideCore(seed, target, teamName, `cpu-${seed}`, bestiary);
 }
 
 export function generateCpuSideFor(
@@ -542,16 +551,27 @@ export function generateCpuSideFor(
   return buildCpuSideCore(seed, strength, teamName, teamId, bestiary);
 }
 
-function creatureName(el: Element, rand: () => number, bestiary?: EngineBestiary): string {
+function creatureName(
+  el: Element,
+  role: SlotRole,
+  rand: () => number,
+  bestiary?: EngineBestiary,
+): string {
   if (bestiary && bestiary.species.length) {
-    const pool = bestiary.species.filter((s) => s.element === el);
-    const list = pool.length ? pool : bestiary.species;
+    // GOL usa apenas espécies de goleiro; linha exclui goleiros.
+    const isGk = role === "GOL";
+    const roleFiltered = bestiary.species.filter((s) => s.is_goalkeeper === isGk);
+    const roleList = roleFiltered.length ? roleFiltered : bestiary.species;
+    const pool = roleList.filter((s) => s.element === el);
+    const list = pool.length ? pool : roleList;
     const sp = list[Math.floor(rand() * list.length)];
     const eps = bestiary.epithets[sp.element] ?? [];
     const ep = eps.length ? eps[Math.floor(rand() * eps.length)] : "";
     return ep ? `${sp.species} ${ep}` : sp.species;
   }
-  return `${pick(CPU_PREFIXES, rand)} ${pick(CPU_SUFFIXES, rand)}`;
+  // Sem bestiário: nome neutro por role (nunca inventa "clube").
+  const tag = role === "GOL" ? "Goleiro" : role === "DEF" ? "Zagueiro" : role === "MEI" ? "Meia" : "Atacante";
+  return `${tag} ${Math.floor(rand() * 900 + 100)}`;
 }
 
 function buildCpuSideCore(
@@ -567,7 +587,7 @@ function buildCpuSideCore(
       role,
       creature: {
         id: `cpu-${teamId}-${tag}-${i}`,
-        name: creatureName(element, rand, bestiary),
+        name: creatureName(element, role, rand, bestiary),
         element,
         overall,
         physical: overall,
@@ -584,4 +604,5 @@ function buildCpuSideCore(
   const bench = benchRoles.map((r, i) => buildSlot(r, i, "b"));
   return { team_id: teamId, team_name: teamName, starters, bench, strategy: "equilibrada" };
 }
+
 
