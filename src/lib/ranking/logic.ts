@@ -1,5 +1,6 @@
 import { generateAmateurAcademies } from "./names";
 import { WORLD_TEAMS, DIVISION_ORDER } from "../world/catalog";
+import { levelFromXp, xpForLevel } from "../trainer-xp.server";
 
 export type SortKey = "level" | "wins" | "patrimony";
 export type Div = "lendaria" | "diamante" | "ouro" | "prata" | "bronze" | "amador";
@@ -7,13 +8,15 @@ export type Div = "lendaria" | "diamante" | "ouro" | "prata" | "bronze" | "amado
 export const TOTAL_ACADEMIES = 1200;
 export const AMATEUR_COUNT = TOTAL_ACADEMIES - 70;
 
+// Distribuição de nível por faixa de posição (do prompt do SISTEMA DE NÍVEL)
 const PRO_PROFILE: Record<Exclude<Div, "amador">, { level: [number, number]; wins: [number, number]; patrimony: [number, number] }> = {
-  lendaria: { level: [40, 55], wins: [800, 1600], patrimony: [8_000_000, 20_000_000] },
-  diamante: { level: [30, 42], wins: [500, 950], patrimony: [4_000_000, 10_000_000] },
-  ouro:     { level: [22, 34], wins: [280, 620], patrimony: [1_800_000, 5_000_000] },
-  prata:    { level: [15, 26], wins: [140, 360], patrimony: [700_000, 2_500_000] },
-  bronze:   { level: [10, 18], wins: [50, 200], patrimony: [250_000, 900_000] },
+  lendaria: { level: [40, 50], wins: [800, 1600], patrimony: [8_000_000, 20_000_000] },  // pos 1-14
+  diamante: { level: [32, 42], wins: [500, 950], patrimony: [4_000_000, 10_000_000] },   // pos 15-28
+  ouro:     { level: [26, 34], wins: [280, 620], patrimony: [1_800_000, 5_000_000] },    // pos 29-42
+  prata:    { level: [22, 28], wins: [140, 360], patrimony: [700_000, 2_500_000] },      // pos 43-56
+  bronze:   { level: [20, 24], wins: [50, 200], patrimony: [250_000, 900_000] },         // pos 57-70
 };
+
 
 function mulberry32(seed: number) {
   let a = seed >>> 0;
