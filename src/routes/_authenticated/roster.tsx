@@ -56,7 +56,7 @@ function RosterPage() {
   const [q, setQ] = useState("");
   const [elem, setElem] = useState<string | null>(null);
   const [pos, setPos] = useState<string | null>(null);
-  const [sort, setSort] = useState<SortKey>("overall");
+  const [sort, setSort] = useState<SortKey>("position");
   const [ageFilter, setAgeFilter] = useState<AgeFilter>("all");
 
   const lastSeasonCount = useMemo(
