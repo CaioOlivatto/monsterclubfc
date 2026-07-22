@@ -102,14 +102,16 @@ function LineupPage() {
     });
   }, [slots]);
 
-  const creatures = data?.creatures ?? [];
+  const allCreatures = data?.creatures ?? [];
+  const creatures = allCreatures.filter((c: any) => (c.injury_matches_remaining ?? 0) === 0);
+  const injuredList = allCreatures.filter((c: any) => (c.injury_matches_remaining ?? 0) > 0);
   const usedIds = new Set<string>([
     ...starters.map((s) => s.creature_id).filter(Boolean) as string[],
     ...bench,
   ]);
 
   const availableFor = (currentId: string | null) =>
-    creatures.filter((c) => c.id === currentId || !usedIds.has(c.id));
+    creatures.filter((c: any) => c.id === currentId || !usedIds.has(c.id));
 
   const setSlotCreature = (slotIdx: number, creatureId: string | null) => {
     setStarters((prev) =>
