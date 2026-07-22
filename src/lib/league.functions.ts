@@ -15,6 +15,7 @@ import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { awardTrainerXp, resetSeasonBreakdown } from "./trainer-xp.server";
 import { MATCH_REVENUE, MAINTENANCE_PER_MATCH, matchSalary } from "./economy";
 import { loadBestiary } from "./bestiary.server";
+import { applySeasonOutcome } from "./career-transition.server";
 
 async function loadEngineBestiary(supabase: any): Promise<EngineBestiary> {
   const b = await loadBestiary(supabase);
