@@ -151,19 +151,35 @@ function LineupPage() {
     effectiveOverall(b.overall ?? 0, b.energy ?? 100, b.morale) -
     effectiveOverall(a.overall ?? 0, a.energy ?? 100, a.morale);
 
-  const availableFor = (currentId: string | null) =>
-    creatures.filter((c: any) => c.id === currentId || !usedIds.has(c.id));
+  // Antes da partida, o dropdown mostra TODAS as criaturas do elenco na posição correta,
+  // exceto lesionadas. A troca com quem já está escalado é resolvida no onChange (swap).
+  const availableFor = (_currentId: string | null) => creatures;
 
 
   const setSlotCreature = (slotIdx: number, creatureId: string | null) => {
-    setStarters((prev) =>
-      prev.map((s) => (s.slot === slotIdx ? { ...s, creature_id: creatureId } : s)),
-    );
+    if (creatureId) {
+      // Se a criatura já está em outro slot, esvazia esse slot antes.
+      setStarters((prev) =>
+        prev.map((s) => {
+          if (s.slot === slotIdx) return { ...s, creature_id: creatureId };
+          if (s.creature_id === creatureId) return { ...s, creature_id: null };
+          return s;
+        }),
+      );
+      // Se estava no banco, remove do banco.
+      setBench((b) => b.filter((x) => x !== creatureId));
+    } else {
+      setStarters((prev) =>
+        prev.map((s) => (s.slot === slotIdx ? { ...s, creature_id: null } : s)),
+      );
+    }
   };
 
   const addToBench = (id: string) => {
     if (bench.length >= MAX_BENCH) return;
-    setBench((b) => [...b, id]);
+    // Se estava em algum slot titular, libera esse slot.
+    setStarters((prev) => prev.map((s) => (s.creature_id === id ? { ...s, creature_id: null } : s)));
+    setBench((b) => (b.includes(id) ? b : [...b, id]));
   };
   const removeFromBench = (id: string) => setBench((b) => b.filter((x) => x !== id));
 
