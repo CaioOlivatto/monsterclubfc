@@ -100,7 +100,11 @@ function FinancesPage() {
               </p>
             )}
             {data.transactions.map((t: any) => {
+              const amount = Number(t.amount);
               const isIncome = t.transaction_type === "income";
+              const isGemReward = amount === 0 && /💎|gema/i.test(t.description ?? "");
+              const gemMatch = (t.description ?? "").match(/\+?(\d+)\s*💎/);
+              const gemQty = gemMatch ? Number(gemMatch[1]) : 30;
               return (
                 <div
                   key={t.id}
@@ -112,16 +116,25 @@ function FinancesPage() {
                       {new Date(t.created_at).toLocaleString("pt-BR")}
                     </p>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className={
-                      isIncome
-                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                        : "border-red-500/40 bg-red-500/10 text-red-300"
-                    }
-                  >
-                    {isIncome ? "+" : "-"} {money(Number(t.amount))}
-                  </Badge>
+                  {isGemReward ? (
+                    <Badge
+                      variant="outline"
+                      className="border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-300"
+                    >
+                      <Gem className="mr-1 h-3 w-3" />+{gemQty} 💎
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className={
+                        isIncome
+                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                          : "border-red-500/40 bg-red-500/10 text-red-300"
+                      }
+                    >
+                      {isIncome ? "+" : "-"} {money(amount)}
+                    </Badge>
+                  )}
                 </div>
               );
             })}
