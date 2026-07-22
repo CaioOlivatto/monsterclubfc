@@ -154,22 +154,33 @@ export type Database = {
           aff_fogo: number
           aff_gelo: number
           aff_terra: number
-          attack: number
+          age: number
+          attr_atacar: number
+          attr_concentracao: number
+          attr_defender: number
+          attr_elasticidade: number
+          attr_forca: number
+          attr_maos: number
+          attr_passar: number
+          attr_pique: number
+          attr_tecnica: number
+          career_season: number
           created_at: string
-          defense: number
           element: Database["public"]["Enums"]["element_type"]
           energy: number
-          goalkeeper: number
+          epithet: string
           half_stars_earned: number
           id: string
+          is_goalkeeper: boolean
           market_value: number
           name: string
           overall: number
           owner_team_id: string | null
           owner_trainer_id: string | null
           pending_half_stars: number
-          physical: number
-          strength: number
+          power_key: string
+          retired: boolean
+          species: string
           suggested_position: string | null
           updated_at: string
           xp: number
@@ -180,22 +191,33 @@ export type Database = {
           aff_fogo?: number
           aff_gelo?: number
           aff_terra?: number
-          attack?: number
+          age?: number
+          attr_atacar?: number
+          attr_concentracao?: number
+          attr_defender?: number
+          attr_elasticidade?: number
+          attr_forca?: number
+          attr_maos?: number
+          attr_passar?: number
+          attr_pique?: number
+          attr_tecnica?: number
+          career_season?: number
           created_at?: string
-          defense?: number
           element: Database["public"]["Enums"]["element_type"]
           energy?: number
-          goalkeeper?: number
+          epithet?: string
           half_stars_earned?: number
           id?: string
+          is_goalkeeper?: boolean
           market_value?: number
           name: string
           overall?: number
           owner_team_id?: string | null
           owner_trainer_id?: string | null
           pending_half_stars?: number
-          physical?: number
-          strength?: number
+          power_key?: string
+          retired?: boolean
+          species?: string
           suggested_position?: string | null
           updated_at?: string
           xp?: number
@@ -206,22 +228,33 @@ export type Database = {
           aff_fogo?: number
           aff_gelo?: number
           aff_terra?: number
-          attack?: number
+          age?: number
+          attr_atacar?: number
+          attr_concentracao?: number
+          attr_defender?: number
+          attr_elasticidade?: number
+          attr_forca?: number
+          attr_maos?: number
+          attr_passar?: number
+          attr_pique?: number
+          attr_tecnica?: number
+          career_season?: number
           created_at?: string
-          defense?: number
           element?: Database["public"]["Enums"]["element_type"]
           energy?: number
-          goalkeeper?: number
+          epithet?: string
           half_stars_earned?: number
           id?: string
+          is_goalkeeper?: boolean
           market_value?: number
           name?: string
           overall?: number
           owner_team_id?: string | null
           owner_trainer_id?: string | null
           pending_half_stars?: number
-          physical?: number
-          strength?: number
+          power_key?: string
+          retired?: boolean
+          species?: string
           suggested_position?: string | null
           updated_at?: string
           xp?: number
