@@ -1,5 +1,6 @@
 // Gerador de listagens de mercado (server-only) usando o Bestiário Mitológico.
-// 24 criaturas por temporada, distribuição de raridade §5 do balanceamento.
+// 24 criaturas por temporada; distribuição de raridade segue o perfil da divisão
+// do treinador — Balanceamento §7.1/§7.2.
 
 import {
   BESTIARY,
@@ -9,6 +10,8 @@ import {
   type Element,
   type SpeciesBase,
 } from "./bestiary";
+import { rollBandForDivision, type Division } from "./economy";
+
 
 const STAR_VALUE = [
   15_000, 35_000, 70_000, 130_000, 240_000,
@@ -39,13 +42,10 @@ function pick<T>(rng: () => number, arr: readonly T[]): T {
   return arr[Math.floor(rng() * arr.length)];
 }
 
-function rollHalfStarBand(rng: () => number): number {
-  const r = rng();
-  if (r < 0.60) return 1 + Math.floor(rng() * 3);   // 1..3 → 0,5–1,5★
-  if (r < 0.90) return 4 + Math.floor(rng() * 2);   // 4..5 → 2–2,5★
-  if (r < 0.98) return 6 + Math.floor(rng() * 2);   // 6..7 → 3–3,5★
-  return 8 + Math.floor(rng() * 3);                 // 8..10 → 4★+
+function rollHalfStarBand(rng: () => number, division: Division): number {
+  return rollBandForDivision(division, rng);
 }
+
 
 // Para atingir uma banda alvo, precisamos que o overall bata a faixa dela.
 // A espécie tem um overall-base; aplicamos variação forçada até bater a banda.
@@ -106,8 +106,8 @@ function pickSpeciesForBand(band: number, rng: () => number): SpeciesBase {
   return pick(rng, pool);
 }
 
-function generateOne(rng: () => number): MarketListing {
-  const band = rollHalfStarBand(rng);
+function generateOne(rng: () => number, division: Division): MarketListing {
+  const band = rollHalfStarBand(rng, division);
   const targetOverall = band * 10; // 10..100
   const spBase = pickSpeciesForBand(band, rng);
   // Rola a criatura, depois ajusta atributos proporcionalmente para bater a banda
@@ -168,22 +168,24 @@ function generateOne(rng: () => number): MarketListing {
 export function generateMarketListings(
   trainerId: string,
   seasonNumber: number,
+  division: Division = "bronze",
   count = 24,
 ): MarketListing[] {
-  const seed = hashString(`${trainerId}:season:${seasonNumber}`);
+  const seed = hashString(`${trainerId}:season:${seasonNumber}:${division}`);
   const rng = mulberry32(seed);
   const listings: MarketListing[] = [];
-  for (let i = 0; i < count; i++) listings.push(generateOne(rng));
+  for (let i = 0; i < count; i++) listings.push(generateOne(rng, division));
   return listings;
 }
 
 export function findListing(
   trainerId: string,
   seasonNumber: number,
+  division: Division,
   listingId: string,
 ): MarketListing | null {
   return (
-    generateMarketListings(trainerId, seasonNumber).find((l) => l.id === listingId) ??
+    generateMarketListings(trainerId, seasonNumber, division).find((l) => l.id === listingId) ??
     null
   );
 }

@@ -166,7 +166,7 @@ function MarketPage() {
 
       <main className="mx-auto max-w-3xl space-y-4 px-4 py-4">
         <Card>
-          <CardContent className="flex items-center justify-between gap-3 py-3 text-sm">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-muted-foreground" />
               <span className="text-muted-foreground">Elenco:</span>
@@ -174,11 +174,24 @@ function MarketPage() {
                 {data?.roster_count ?? 0}/{data?.roster_slots ?? 0}
               </span>
             </div>
+            {data?.division && (
+              <div className="text-xs text-muted-foreground">
+                Divisão: <span className="font-medium capitalize">{data.division}</span>
+                {" · "}Até <span className="font-medium">{((data.max_band ?? 0) / 2).toFixed(1)}★</span>
+              </div>
+            )}
+            {typeof data?.payroll === "number" && (
+              <div className="text-xs text-muted-foreground">
+                Folha: <span className="font-medium">{formatMoney(data.payroll)}</span>
+                {" / "}{formatMoney(data.salary_cap ?? 0)}
+              </div>
+            )}
             {data?.rotation_label && (
-              <p className="text-xs text-muted-foreground">{data.rotation_label}</p>
+              <p className="w-full text-xs text-muted-foreground">{data.rotation_label}</p>
             )}
           </CardContent>
         </Card>
+
 
         <div className="grid grid-cols-2 gap-2">
           <Button
