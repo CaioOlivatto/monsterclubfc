@@ -394,34 +394,27 @@ function LineupPage() {
               const currFs = currentCreature ? fatigueState(currentCreature.energy ?? 100) : null;
               const currMult = currentCreature ? energyMultiplier(currentCreature.energy ?? 100) : 1;
               const currEff = currentCreature ? effectiveOverall(currentCreature.overall ?? 0, currentCreature.energy ?? 100, currentCreature.morale) : 0;
-              const currNaturalRole = currentCreature ? naturalRoleOf(currentCreature.suggested_position) : null;
-              const currOOP = currentCreature && currNaturalRole !== s.role;
-              const currOopOvr = currentCreature ? Math.round((currentCreature.overall ?? 0) * 0.85) : 0;
               const warn = currFs === "muito_cansado" || currFs === "exausto";
 
+              // Só criaturas da posição natural correspondente ao slot.
               const inPos = options
                 .filter((c: any) => naturalRoleOf(c.suggested_position) === s.role)
                 .sort(sortByEff);
-              const outPos = options
-                .filter((c: any) => naturalRoleOf(c.suggested_position) !== s.role)
-                .sort(sortByEff);
 
-              const renderItem = (c: any, oop: boolean) => {
-                const fs = fatigueState(c.energy ?? 100);
+              const renderItem = (c: any) => {
                 const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100, c.morale);
-                const displayOvr = oop ? Math.round((c.overall ?? 0) * 0.85) : c.overall;
-                const tag =
-                  fs === "exausto" ? " ⚠️ EXAUSTO" :
-                  fs === "muito_cansado" ? " ⚠️ Muito cansado" :
-                  fs === "cansado" ? " · cansado" :
-                  fs === "leve" ? " · leve cansaço" : "";
+                const ms = moraleState(c.morale);
                 return (
-                  <SelectItem key={c.id} value={c.id} className={oop ? "opacity-70" : ""}>
-                    {c.name} · {ELEMENT_LABEL[c.element] ?? c.element}
-                    {oop
-                      ? ` · ${ROLE_LABEL[naturalRoleOf(c.suggested_position)]} → ${s.role} · OVR ${c.overall}→${displayOvr} (-15%)`
-                      : ` · OVR ${c.overall}${eff !== c.overall ? `→${eff}` : ""}`}
-                    {" "}· {(c.overall / 20).toFixed(1)}★ · {c.energy ?? 100}%{tag}
+                  <SelectItem key={c.id} value={c.id}>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="font-medium">{c.name}</span>
+                      <span className="text-muted-foreground">
+                        · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}{eff !== c.overall ? `→${eff}` : ""}
+                      </span>
+                      <StarRating value={overallToStars(c.overall ?? 0)} size={0.75} />
+                      <span title={`Moral: ${MORALE_LABEL[ms]}`}>{MORALE_EMOJI[ms]}</span>
+                      <span className="text-muted-foreground">· {c.energy ?? 100}%</span>
+                    </span>
                   </SelectItem>
                 );
               };
@@ -436,32 +429,33 @@ function LineupPage() {
                       value={current ?? "__none"}
                       onValueChange={(v) => setSlotCreature(s.index, v === "__none" ? null : v)}
                     >
-                      <SelectTrigger className="flex-1"><SelectValue placeholder="Vazio" /></SelectTrigger>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Vazio">
+                          {currentCreature ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className="font-medium">{currentCreature.name}</span>
+                              <span className="text-muted-foreground">
+                                · {ELEMENT_LABEL[currentCreature.element] ?? currentCreature.element} · OVR {currentCreature.overall}{currEff !== currentCreature.overall ? `→${currEff}` : ""}
+                              </span>
+                              <StarRating value={overallToStars(currentCreature.overall ?? 0)} size={0.75} />
+                              <span>{MORALE_EMOJI[moraleState(currentCreature.morale)]}</span>
+                              <span className="text-muted-foreground">· {currentCreature.energy ?? 100}%</span>
+                            </span>
+                          ) : null}
+                        </SelectValue>
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__none">— Vazio —</SelectItem>
-                        {inPos.length === 0 && (
+                        {inPos.length === 0 ? (
                           <div className="px-2 py-1.5 text-xs text-muted-foreground">
                             Nenhuma criatura de {s.role} disponível.
                           </div>
+                        ) : (
+                          inPos.map((c) => renderItem(c))
                         )}
-                        {inPos.map((c) => renderItem(c, false))}
-                        {outPos.length > 0 && (
-                          <div className="mt-1 border-t px-2 py-1 text-[11px] font-semibold uppercase text-muted-foreground">
-                            Outras posições (-15%)
-                          </div>
-                        )}
-                        {outPos.map((c) => renderItem(c, true))}
                       </SelectContent>
                     </Select>
                   </div>
-                  {currentCreature && currOOP && (
-                    <div className="ml-[4.5rem] inline-flex items-center gap-1.5 rounded-md border border-amber-500/60 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-200">
-                      <AlertTriangle className="h-3 w-3" />
-                      <span>
-                        {ROLE_LABEL[currNaturalRole!]} escalado como {s.role} · OVR {currentCreature.overall}→{currOopOvr} (-15%)
-                      </span>
-                    </div>
-                  )}
                   {currentCreature && currFs && currFs !== "pleno" && (
                     <div className={"ml-[4.5rem] inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] " + FATIGUE_CLASS[currFs] + (warn ? " font-semibold" : "")}>
                       {warn && <AlertTriangle className="h-3 w-3" />}
@@ -473,15 +467,6 @@ function LineupPage() {
                       })()})</span>
                     </div>
                   )}
-                  {currentCreature && (() => {
-                    const ms = moraleState(currentCreature.morale);
-                    if (ms === "normal" || ms === "bom") return null;
-                    return (
-                      <div className="ml-[4.5rem] inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <span>{MORALE_EMOJI[ms]} Moral: {MORALE_LABEL[ms]} ({currentCreature.morale ?? 50})</span>
-                      </div>
-                    );
-                  })()}
                 </div>
               );
             })}
