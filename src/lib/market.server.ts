@@ -42,13 +42,10 @@ function pick<T>(rng: () => number, arr: readonly T[]): T {
   return arr[Math.floor(rng() * arr.length)];
 }
 
-function rollHalfStarBand(rng: () => number): number {
-  const r = rng();
-  if (r < 0.60) return 1 + Math.floor(rng() * 3);   // 1..3 → 0,5–1,5★
-  if (r < 0.90) return 4 + Math.floor(rng() * 2);   // 4..5 → 2–2,5★
-  if (r < 0.98) return 6 + Math.floor(rng() * 2);   // 6..7 → 3–3,5★
-  return 8 + Math.floor(rng() * 3);                 // 8..10 → 4★+
+function rollHalfStarBand(rng: () => number, division: Division): number {
+  return rollBandForDivision(division, rng);
 }
+
 
 // Para atingir uma banda alvo, precisamos que o overall bata a faixa dela.
 // A espécie tem um overall-base; aplicamos variação forçada até bater a banda.
