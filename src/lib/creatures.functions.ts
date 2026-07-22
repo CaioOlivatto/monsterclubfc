@@ -283,7 +283,7 @@ export const createInitialTrainer = createServerFn({ method: "POST" })
       money: 400000,
       gems: 50,
       builders: 1,
-      roster_slots: 24,
+      roster_slots: 26,
     });
     if (aErr) throw aErr;
 

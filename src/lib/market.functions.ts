@@ -90,7 +90,20 @@ export const getMarket = createServerFn({ method: "GET" })
 
     const { loadBestiary } = await import("./bestiary.server");
     const bestiary = await loadBestiary(supabase);
-    const listings = generateMarketListings(bestiary, trainer.id, seasonNumber, division);
+    const allListings = generateMarketListings(bestiary, trainer.id, seasonNumber, division);
+
+    // Remove ofertas já compradas nesta temporada/divisão
+    const { data: bought } = await supabase
+      .from("market_purchases")
+      .select("listing_id")
+      .eq("trainer_id", trainer.id)
+      .eq("season_number", seasonNumber)
+      .eq("division", division);
+    const boughtSet = new Set((bought ?? []).map((r: any) => r.listing_id));
+    const listings = allListings
+      .filter((l) => !boughtSet.has(l.id))
+      .map((l) => ({ ...l, salary: seasonSalary(l.overall) }));
+
     const rosterCount = creatures?.length ?? 0;
     const payroll = await currentPayroll(supabase, trainer.id);
 
@@ -209,8 +222,29 @@ export const buyCreature = createServerFn({ method: "POST" })
       transfer_type: "buy",
       amount: listing.price,
     });
+    await supabase.from("market_purchases").insert({
+      trainer_id: trainer.id,
+      season_number: trainer.season_number,
+      division: trainer.division,
+      listing_id: listing.id,
+    });
 
-    return { creature_id: created.id, name: listing.name, price: listing.price };
+    const newPayroll = payroll + addSalary;
+    return {
+      creature_id: created.id,
+      name: listing.name,
+      price: listing.price,
+      salary: addSalary,
+      element: listing.element,
+      position: listing.suggested_position,
+      overall: listing.overall,
+      stars: listing.overall / 20,
+      payroll_before: payroll,
+      payroll_after: newPayroll,
+      salary_cap: cap,
+      roster_slots: trainer.roster_slots,
+      roster_count_after: rosterCount + 1,
+    };
   });
 
 export const sellCreature = createServerFn({ method: "POST" })

@@ -105,8 +105,8 @@ export function extraBuilderCostFor(current: number): number | null {
 
 // Expansões de elenco em gemas.
 export const ROSTER_EXPANSIONS: Array<{ from: number; to: number; gems: number }> = [
-  { from: 24, to: 30, gems: 400 },
-  { from: 30, to: 36, gems: 900 },
+  { from: 26, to: 32, gems: 400 },
+  { from: 32, to: 38, gems: 900 },
 ];
 
 // Desbloqueio permanente de velocidade de partida.
