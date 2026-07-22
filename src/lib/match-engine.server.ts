@@ -137,7 +137,17 @@ function strategyMod(s: EngineSide["strategy"]): { atk: number; def: number } {
 // mentalidade: +atk/-def   ·   verticalidade: mais chances, menor precisão
 // pressao: +atk/+lesão/+cartão · cortes: +def/+cartão
 function tacticsMod(t: Tactics | undefined) {
-  const T = t ?? NEUTRAL_TACTICS;
+  const raw = t ?? NEUTRAL_TACTICS;
+  const axis = (value: unknown): number => {
+    const n = typeof value === "number" && Number.isFinite(value) ? value : 0;
+    return Math.max(-2, Math.min(2, n));
+  };
+  const T: Tactics = {
+    mentalidade: axis(raw.mentalidade),
+    verticalidade: axis(raw.verticalidade),
+    pressao: axis(raw.pressao),
+    cortes: axis(raw.cortes),
+  };
   return {
     atk: T.mentalidade * 2 + T.pressao * 1,
     def: -T.mentalidade * 1 + T.cortes * 2,
@@ -379,7 +389,8 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
       const actor = outSlot.creature;
       const tacticsInjuryMul = live === liveHome ? tH.injuryMul : tA.injuryMul;
       const fatigueMul = injuryFatigueMult(actor.energy);
-      if (rand() >= Math.min(1, P_LESAO * fatigueMul * tacticsInjuryMul)) continue;
+      const injuryProbability = Math.min(1, P_LESAO * fatigueMul * tacticsInjuryMul);
+      if (rand() >= injuryProbability) continue;
       // Sortear gravidade (§Lesões): 45% leve, 40% moderada, 15% grave.
       const rr = rand();
       let severity: InjurySeverity;
