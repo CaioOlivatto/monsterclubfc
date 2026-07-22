@@ -110,7 +110,7 @@ function MarketPage() {
               {" · "}{res.position}{" · "}
               <span className="text-amber-300">{res.stars.toFixed(1)}★</span>
             </p>
-            <p>Salário: <span className="font-medium">{formatMoney(res.salary)}/temporada</span></p>
+            <p>Salário: <span className="font-medium">{formatMoney((res as any).salary_per_match ?? Math.round(res.salary / 26))}/partida</span> <span className="text-muted-foreground">({formatMoney(res.salary)}/temporada)</span></p>
             <p>
               Folha: {formatMoney(res.payroll_after)} / {formatMoney(res.salary_cap)}
               {" "}<span className="text-muted-foreground">(resta {formatMoney(remainingCap)})</span>
