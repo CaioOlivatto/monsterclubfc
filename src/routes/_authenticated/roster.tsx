@@ -149,7 +149,37 @@ function RosterPage() {
             <option value="name">Ordenar: Nome</option>
             <option value="energy">Ordenar: Energia</option>
             <option value="market_value">Ordenar: Valor</option>
+            <option value="age">Ordenar: Idade (+ velhas)</option>
           </select>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {(
+            [
+              { key: "all", label: "Todas" },
+              { key: "veteran", label: "Veteranas" },
+              { key: "last_season", label: "Última temporada" },
+            ] as { key: AgeFilter; label: string }[]
+          ).map((t) => (
+            <Button
+              key={t.key}
+              size="sm"
+              variant={ageFilter === t.key ? "default" : "outline"}
+              onClick={() => setAgeFilter(t.key)}
+            >
+              {t.label}
+            </Button>
+          ))}
+          {lastSeasonCount > 0 && ageFilter !== "last_season" && (
+            <button
+              type="button"
+              onClick={() => setAgeFilter("last_season")}
+              className="ml-auto rounded-md border border-orange-500/40 bg-orange-500/10 px-3 py-1.5 text-xs text-orange-300 hover:bg-orange-500/20"
+            >
+              <Hourglass className="mr-1 inline h-3 w-3" />
+              {lastSeasonCount} na última temporada — ver
+            </button>
+          )}
         </div>
 
         {isLoading ? (
