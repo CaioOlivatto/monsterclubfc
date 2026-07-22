@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Save, Shield, Swords, Scale, Wand2, AlertTriangle, HeartPulse, BedDouble } from "lucide-react";
 import { fatigueState, FATIGUE_LABEL, FATIGUE_CLASS, effectiveOverall, energyMultiplier } from "@/lib/fatigue";
 import { moraleState, MORALE_EMOJI, MORALE_LABEL, moraleMultiplier } from "@/lib/morale";
+import { StarRating, overallToStars } from "@/components/StarRating";
 
 
 export const Route = createFileRoute("/_authenticated/lineup")({
