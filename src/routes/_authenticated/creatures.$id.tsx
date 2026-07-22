@@ -572,7 +572,7 @@ function StatChip({
   icon,
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   icon: React.ReactNode;
 }) {
   return (
@@ -584,7 +584,7 @@ function StatChip({
         <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
           {label}
         </p>
-        <p className="truncate text-sm font-semibold">{value}</p>
+        <div className="truncate text-sm font-semibold">{value}</div>
       </div>
     </div>
   );
