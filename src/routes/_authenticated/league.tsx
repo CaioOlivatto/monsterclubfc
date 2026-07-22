@@ -129,7 +129,82 @@ function LeaguePage() {
         )}
 
       </main>
+
+      <SeasonSummaryDialog summary={summary} onClose={() => setSummary(null)} />
     </div>
+  );
+}
+
+function SeasonSummaryDialog({ summary, onClose }: { summary: any | null; onClose: () => void }) {
+  if (!summary) return null;
+  const {
+    position, prize, salaries, championGems, playerIsChampion,
+    previousDivision, newDivision, promoted, relegated,
+    newSeasonNumber, worldSummary,
+  } = summary;
+  const headline = playerIsChampion
+    ? "🏆 Campeão!"
+    : promoted
+      ? "🎉 Promovido!"
+      : relegated
+        ? "⚠️ Rebaixado"
+        : "Temporada encerrada";
+  return (
+    <Dialog open={!!summary} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            Resumo da Temporada {newSeasonNumber - 1}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className={`rounded-lg p-4 ${playerIsChampion ? "bg-yellow-500/10 border border-yellow-500/40" : promoted ? "bg-emerald-500/10 border border-emerald-500/40" : relegated ? "bg-red-500/10 border border-red-500/40" : "bg-muted"}`}>
+          <p className="text-lg font-bold">{headline}</p>
+          <p className="text-sm text-muted-foreground">
+            {position}º lugar em {DIV_LABEL[previousDivision] ?? previousDivision}
+            {promoted || relegated ? ` → ${DIV_LABEL[newDivision] ?? newDivision}` : ""}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs">
+            <Badge variant="secondary">Prêmio: ${prize.toLocaleString("pt-BR")}</Badge>
+            <Badge variant="secondary">Salários: ${salaries.toLocaleString("pt-BR")}</Badge>
+            {championGems > 0 && <Badge variant="secondary">+{championGems}💎</Badge>}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <p className="text-sm font-semibold">Movimentação do mundo</p>
+          {worldSummary?.map((d: any) => (
+            <div key={d.division} className="rounded-md border p-2 text-xs">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="font-semibold">{DIV_LABEL[d.division] ?? d.division}</span>
+                {d.champion && (
+                  <span className="flex items-center gap-1 text-yellow-500">
+                    <Crown className="h-3 w-3" /> {d.champion.name}
+                  </span>
+                )}
+              </div>
+              {d.promoted?.length > 0 && (
+                <div className="text-emerald-600 dark:text-emerald-400">
+                  <ArrowUp className="mr-1 inline h-3 w-3" />
+                  Sobem: {d.promoted.map((t: any) => t.name).join(", ")}
+                </div>
+              )}
+              {d.relegated?.length > 0 && (
+                <div className="text-red-600 dark:text-red-400">
+                  <ArrowDown className="mr-1 inline h-3 w-3" />
+                  Descem: {d.relegated.map((t: any) => t.name).join(", ")}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <DialogFooter>
+          <Button onClick={onClose} className="w-full">Começar nova temporada</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
