@@ -94,6 +94,9 @@ function Dashboard() {
   const injuredCount = (rosterList ?? []).filter(
     (c: any) => (c.injury_matches_remaining ?? 0) > 0,
   ).length;
+  const lowMoraleCount = (rosterList ?? []).filter(
+    (c: any) => (c.morale ?? 50) < 40,
+  ).length;
 
   const fetchLineup = useServerFn(getMyLineup);
   const { data: lineupData } = useQuery({
