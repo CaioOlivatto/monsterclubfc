@@ -141,32 +141,34 @@ function LineupPage() {
   };
   const removeFromBench = (id: string) => setBench((b) => b.filter((x) => x !== id));
 
-  const autoFill = () => {
-    // ordena criaturas por OVERALL EFETIVO (já com multiplicador de fadiga) desc,
-    // com energia como desempate para preferir quem está mais fresco.
-    const pool = [...creatures].sort(
-      (a, b) =>
-        effectiveOverall(b.overall, b.energy ?? 100) -
-          effectiveOverall(a.overall, a.energy ?? 100) ||
-        (b.energy ?? 0) - (a.energy ?? 0),
-    );
+  const buildAuto = (mode: "best" | "rested") => {
+    // best: prioriza OVERALL EFETIVO (fadiga aplicada) — bom p/ desempenho médio.
+    // rested: prioriza ENERGIA (>=70) e usa efetivo como desempate — bom p/ preservar elenco.
+    const pool = [...creatures].sort((a, b) => {
+      const ea = a.energy ?? 100, eb = b.energy ?? 100;
+      if (mode === "rested") {
+        if (eb !== ea) return eb - ea;
+        return effectiveOverall(b.overall, eb) - effectiveOverall(a.overall, ea);
+      }
+      return (
+        effectiveOverall(b.overall, eb) - effectiveOverall(a.overall, ea) ||
+        eb - ea
+      );
+    });
 
     const used = new Set<string>();
     const newStarters: StarterSlot[] = slots.map((s) => ({ slot: s.index, role: s.role, creature_id: null }));
 
-    // 1ª passada: preencher com posição sugerida compatível
     for (const s of newStarters) {
       const hint = ROLE_HINT[s.role];
       const pick = pool.find((c) => !used.has(c.id) && hint.includes(c.suggested_position ?? ""));
       if (pick) { s.creature_id = pick.id; used.add(pick.id); }
     }
-    // 2ª passada: preencher slots vazios com melhores restantes
     for (const s of newStarters) {
       if (s.creature_id) continue;
       const pick = pool.find((c) => !used.has(c.id));
       if (pick) { s.creature_id = pick.id; used.add(pick.id); }
     }
-    // reservas: próximos melhores até MAX_BENCH
     const newBench: string[] = [];
     for (const c of pool) {
       if (newBench.length >= MAX_BENCH) break;
@@ -175,8 +177,11 @@ function LineupPage() {
 
     setStarters(newStarters);
     setBench(newBench);
-    toast.success("Escalação automática aplicada — lembre de salvar!");
+    toast.success(mode === "rested" ? "Time descansado escalado — lembre de salvar!" : "Escalação automática aplicada — lembre de salvar!");
   };
+  const autoFill = () => buildAuto("best");
+  const autoRested = () => buildAuto("rested");
+
 
   const mut = useMutation({
     mutationFn: async () => {
