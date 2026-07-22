@@ -41,7 +41,8 @@ const ELEMENT_LABEL: Record<string, string> = {
 const ELEMENTS = ["fogo", "agua", "terra", "ar", "gelo"] as const;
 const POSITIONS = ["Goleiro", "Zagueiro", "Meio-campo", "Atacante"] as const;
 
-type SortKey = "overall" | "name" | "energy" | "market_value";
+type SortKey = "overall" | "name" | "energy" | "market_value" | "age";
+type AgeFilter = "all" | "veteran" | "last_season";
 
 function RosterPage() {
   const fetchList = useServerFn(listMyCreatures);
