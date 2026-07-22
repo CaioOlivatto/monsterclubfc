@@ -492,6 +492,19 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       }
     }
 
+    // Simula o AVANÇO das OUTRAS 4 divisões na mesma rodada (versão rápida).
+    try {
+      await advanceOtherDivisionsForRound(
+        supabase,
+        trainer.id,
+        competition.season_id ?? null,
+        competition.id,
+        next.round as number,
+      );
+    } catch (e) {
+      console.error("world advance error", e);
+    }
+
     return { match_id: next.id };
   });
 
