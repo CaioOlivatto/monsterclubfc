@@ -180,6 +180,7 @@ function LineupPage() {
     onSuccess: () => {
       toast.success("Escalação salva!");
       qc.invalidateQueries({ queryKey: ["lineup"] });
+      qc.invalidateQueries({ queryKey: ["prognostic"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Erro ao salvar."),
   });
