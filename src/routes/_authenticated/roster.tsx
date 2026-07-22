@@ -328,9 +328,9 @@ function renderCard(c: any) {
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">overall</p>
             </div>
             <div className="text-right text-xs text-muted-foreground">
-              <p className="flex items-center justify-end gap-1">
-                <Star className="h-3 w-3" /> {(c.half_stars_earned / 2).toFixed(1)}★
-              </p>
+              <div className="flex items-center justify-end">
+                <StarRating value={halfStarsToStars(c.half_stars_earned ?? 0)} size={0.8} />
+              </div>
               <p className="mt-1">$ {c.market_value.toLocaleString("pt-BR")}</p>
             </div>
           </div>
