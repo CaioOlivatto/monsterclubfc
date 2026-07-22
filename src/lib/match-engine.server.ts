@@ -239,8 +239,8 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
   for (let minute = 1; minute <= 90; minute++) {
     const H = computeStrength(liveHome);
     const A = computeStrength(liveAway);
-    const chanceHome = (H.attack + 4) / 1900;
-    const chanceAway = A.attack / 2100;
+    const chanceHome = (H.attack + 4) / 600;
+    const chanceAway = A.attack / 670;
 
     processTeamChance(true, minute, liveHome, H, A, chanceHome, rand, events, weather);
     processTeamChance(false, minute, liveAway, A, H, chanceAway, rand, events, weather);
