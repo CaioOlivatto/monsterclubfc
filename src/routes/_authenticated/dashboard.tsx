@@ -400,9 +400,6 @@ function Dashboard() {
           </CardContent>
         </Card>
 
-        <p className="pt-2 text-center text-xs text-muted-foreground">
-          Mercado, liga e construções chegam nas próximas etapas.
-        </p>
       </main>
     </div>
   );
