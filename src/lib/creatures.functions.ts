@@ -6,8 +6,10 @@ import {
   generateStarterRoster,
   getStarterTeam,
   starterTeamSummary,
+  rosterToDbRows,
   type StarterKey,
 } from "./starter-teams";
+import { overallToStars } from "./bestiary";
 import { generateSchedule, pickCpuTeamNames } from "./league.server";
 
 
