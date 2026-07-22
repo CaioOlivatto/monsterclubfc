@@ -174,7 +174,7 @@ function LineupPage() {
       .sort((a: any, b: any) => {
         const ea = a.energy ?? 100, eb = b.energy ?? 100;
         return (
-          effectiveOverall(b.overall, eb) - effectiveOverall(a.overall, ea) ||
+          effectiveOverall(b.overall, eb, b.morale) - effectiveOverall(a.overall, ea, a.morale) ||
           eb - ea
         );
       });
@@ -210,7 +210,7 @@ function LineupPage() {
   // "Poupar titulares": escala o melhor XI EXCLUINDO as 5 criaturas de maior overall efetivo.
   const topFiveIds = useMemo(() => {
     return [...creatures]
-      .sort((a: any, b: any) => effectiveOverall(b.overall, b.energy ?? 100) - effectiveOverall(a.overall, a.energy ?? 100))
+      .sort((a: any, b: any) => effectiveOverall(b.overall, b.energy ?? 100, b.morale) - effectiveOverall(a.overall, a.energy ?? 100, a.morale))
       .slice(0, 5)
       .map((c: any) => c.id);
   }, [creatures]);
@@ -392,7 +392,7 @@ function LineupPage() {
               const currentCreature = current ? creatures.find((x) => x.id === current) : null;
               const currFs = currentCreature ? fatigueState(currentCreature.energy ?? 100) : null;
               const currMult = currentCreature ? energyMultiplier(currentCreature.energy ?? 100) : 1;
-              const currEff = currentCreature ? effectiveOverall(currentCreature.overall ?? 0, currentCreature.energy ?? 100) : 0;
+              const currEff = currentCreature ? effectiveOverall(currentCreature.overall ?? 0, currentCreature.energy ?? 100, currentCreature.morale) : 0;
               const currNaturalRole = currentCreature ? naturalRoleOf(currentCreature.suggested_position) : null;
               const currOOP = currentCreature && currNaturalRole !== s.role;
               const currOopOvr = currentCreature ? Math.round((currentCreature.overall ?? 0) * 0.85) : 0;
@@ -407,7 +407,7 @@ function LineupPage() {
 
               const renderItem = (c: any, oop: boolean) => {
                 const fs = fatigueState(c.energy ?? 100);
-                const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100);
+                const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100, c.morale);
                 const displayOvr = oop ? Math.round((c.overall ?? 0) * 0.85) : c.overall;
                 const tag =
                   fs === "exausto" ? " ⚠️ EXAUSTO" :
@@ -486,7 +486,7 @@ function LineupPage() {
                   const c = creatures.find((x) => x.id === id);
                   if (!c) return null;
                   const fs = fatigueState(c.energy ?? 100);
-                  const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100);
+                  const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100, c.morale);
                   return (
                     <div key={id} className="flex items-center justify-between rounded-md border p-2">
                       <div className="text-sm min-w-0">
@@ -517,7 +517,7 @@ function LineupPage() {
                       .filter((c) => !usedIds.has(c.id))
                       .sort(sortByEff)
                       .map((c) => {
-                        const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100);
+                        const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100, c.morale);
                         return (
                           <SelectItem key={c.id} value={c.id}>
                             {c.name} · {ROLE_LABEL[naturalRoleOf(c.suggested_position)]} · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}{eff !== c.overall ? `→${eff}` : ""} · {(c.overall / 20).toFixed(1)}★ · {c.energy ?? 100}%
