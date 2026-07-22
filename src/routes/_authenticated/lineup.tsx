@@ -486,16 +486,21 @@ function LineupPage() {
                   if (!c) return null;
                   const fs = fatigueState(c.energy ?? 100);
                   const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100, c.morale);
+                  const ms = moraleState(c.morale);
+                  const role = ROLE_LABEL[naturalRoleOf(c.suggested_position)];
                   return (
                     <div key={id} className="flex items-center justify-between rounded-md border p-2">
-                      <div className="text-sm min-w-0">
-                        <span className="font-medium">{c.name}</span>{" "}
+                      <div className="text-sm min-w-0 flex items-center gap-1.5 flex-wrap">
+                        <Badge variant="outline" className="w-12 shrink-0 justify-center text-[10px]">{role}</Badge>
+                        <span className="font-medium">{c.name}</span>
                         <span className="text-muted-foreground">
-                          · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}{eff !== c.overall ? `→${eff}` : ""} · {(c.overall / 20).toFixed(1)}★
+                          · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}{eff !== c.overall ? `→${eff}` : ""}
                         </span>
-                        <div className={"mt-1 inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] " + FATIGUE_CLASS[fs]}>
-                          {FATIGUE_LABEL[fs]} · {c.energy}%
-                        </div>
+                        <StarRating value={overallToStars(c.overall ?? 0)} size={0.8} />
+                        <span title={`Moral: ${MORALE_LABEL[ms]}`}>{MORALE_EMOJI[ms]}</span>
+                        <span className={"inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] " + FATIGUE_CLASS[fs]}>
+                          {c.energy}%
+                        </span>
                       </div>
                       <Button size="sm" variant="ghost" onClick={() => removeFromBench(id)}>
                         Remover
@@ -517,9 +522,21 @@ function LineupPage() {
                       .sort(sortByEff)
                       .map((c) => {
                         const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100, c.morale);
+                        const ms = moraleState(c.morale);
                         return (
                           <SelectItem key={c.id} value={c.id}>
-                            {c.name} · {ROLE_LABEL[naturalRoleOf(c.suggested_position)]} · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}{eff !== c.overall ? `→${eff}` : ""} · {(c.overall / 20).toFixed(1)}★ · {c.energy ?? 100}%
+                            <span className="inline-flex items-center gap-1.5">
+                              <Badge variant="outline" className="w-12 shrink-0 justify-center text-[10px]">
+                                {ROLE_LABEL[naturalRoleOf(c.suggested_position)]}
+                              </Badge>
+                              <span className="font-medium">{c.name}</span>
+                              <span className="text-muted-foreground">
+                                · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}{eff !== c.overall ? `→${eff}` : ""}
+                              </span>
+                              <StarRating value={overallToStars(c.overall ?? 0)} size={0.75} />
+                              <span>{MORALE_EMOJI[ms]}</span>
+                              <span className="text-muted-foreground">· {c.energy ?? 100}%</span>
+                            </span>
                           </SelectItem>
                         );
                       })}
@@ -532,7 +549,6 @@ function LineupPage() {
         </Card>
 
         <p className="pb-4 text-center text-xs text-muted-foreground">
-          Dica: criaturas com posição sugerida compatível aparecem marcadas com ★.{" "}
           <Link to="/roster" className="underline">Ver elenco completo</Link>
         </p>
       </main>
