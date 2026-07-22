@@ -989,6 +989,78 @@ export type Database = {
           },
         ]
       }
+      world_academies: {
+        Row: {
+          academy_name: string
+          created_at: string
+          current_position: number | null
+          division: string
+          id: string
+          is_player: boolean
+          last_position: number | null
+          level: number
+          patrimony: number
+          primary_color: string
+          secondary_color: string
+          team_id: string | null
+          trainer_id: string | null
+          trainer_name: string
+          updated_at: string
+          wins: number
+        }
+        Insert: {
+          academy_name: string
+          created_at?: string
+          current_position?: number | null
+          division: string
+          id?: string
+          is_player?: boolean
+          last_position?: number | null
+          level?: number
+          patrimony?: number
+          primary_color?: string
+          secondary_color?: string
+          team_id?: string | null
+          trainer_id?: string | null
+          trainer_name: string
+          updated_at?: string
+          wins?: number
+        }
+        Update: {
+          academy_name?: string
+          created_at?: string
+          current_position?: number | null
+          division?: string
+          id?: string
+          is_player?: boolean
+          last_position?: number | null
+          level?: number
+          patrimony?: number
+          primary_color?: string
+          secondary_color?: string
+          team_id?: string | null
+          trainer_id?: string | null
+          trainer_name?: string
+          updated_at?: string
+          wins?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "world_academies_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "world_academies_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "trainers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       world_state: {
         Row: {
           created_at: string
