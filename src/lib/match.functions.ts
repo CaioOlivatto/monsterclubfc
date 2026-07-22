@@ -6,6 +6,8 @@ import { loadBestiary } from "./bestiary.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { SPEED_UNLOCK_COSTS } from "./shop.server";
+import { WORLD_TEAMS, type DivisionSlug } from "./world/catalog";
+
 
 async function getTrainerCtx(supabase: any, userId: string) {
   const { data: trainer } = await supabase
@@ -96,14 +98,35 @@ export const createFriendlyMatch = createServerFn({ method: "POST" })
     const seed = Math.floor(Math.random() * 2 ** 31);
     const bestiaryRaw = await loadBestiary(supabase);
     const bestiary: EngineBestiary = {
-      species: bestiaryRaw.species.map((s) => ({ species: s.species, element: s.element })),
+      species: bestiaryRaw.species.map((s) => ({
+        species: s.species,
+        element: s.element,
+        is_goalkeeper: s.position === "Goleiro",
+      })),
       epithets: bestiaryRaw.epithets,
     };
-    const cpuSide = generateCpuSide(seed, playerOverall, bestiary);
+
+    // Adversário: sorteado entre os times reais da MESMA DIVISÃO do jogador.
+    // Nunca inventar nome de time em runtime — usar apenas WORLD_TEAMS.
+    const { data: playerLeagueTeam } = await supabase
+      .from("teams")
+      .select("division, name")
+      .eq("trainer_id", trainer.id)
+      .eq("is_player", true)
+      .not("competition_id", "is", null)
+      .maybeSingle();
+    const division = ((playerLeagueTeam?.division as DivisionSlug | undefined) ?? "bronze");
+    const pool = (WORLD_TEAMS[division] ?? WORLD_TEAMS.bronze).filter(
+      (t) => t.name !== playerLeagueTeam?.name && t.name !== trainer.academy_name,
+    );
+    const opponentName = pool[Math.floor(Math.random() * pool.length)]?.name ?? "Adversário";
+
+    const cpuSide = generateCpuSide(seed, playerOverall, opponentName, bestiary);
     const cpuOverall = Math.round(
       cpuSide.starters.reduce((a, s) => a + s.creature.overall, 0) / cpuSide.starters.length,
     );
     const awayTeamId = await ensureCpuTeam(supabase, trainer.id, cpuSide.team_name, cpuOverall);
+
 
     const finalHome: EngineSide = { ...homeSide, team_id: homeTeamId };
     const finalAway: EngineSide = { ...cpuSide, team_id: awayTeamId };
