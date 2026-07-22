@@ -41,7 +41,9 @@ const ELEMENT_LABEL: Record<string, string> = {
 const ELEMENTS = ["fogo", "agua", "terra", "ar", "gelo"] as const;
 const POSITIONS = ["Goleiro", "Zagueiro", "Meio-campo", "Atacante"] as const;
 
-type SortKey = "overall" | "name" | "energy" | "market_value" | "age";
+type SortKey = "position" | "overall" | "name" | "energy" | "market_value" | "age";
+
+const POSITION_ORDER: Record<string, number> = { GOL: 0, DEF: 1, MEI: 2, ATA: 3 };
 type AgeFilter = "all" | "veteran" | "last_season";
 
 function RosterPage() {
@@ -54,7 +56,7 @@ function RosterPage() {
   const [q, setQ] = useState("");
   const [elem, setElem] = useState<string | null>(null);
   const [pos, setPos] = useState<string | null>(null);
-  const [sort, setSort] = useState<SortKey>("overall");
+  const [sort, setSort] = useState<SortKey>("position");
   const [ageFilter, setAgeFilter] = useState<AgeFilter>("all");
 
   const lastSeasonCount = useMemo(
@@ -79,6 +81,12 @@ function RosterPage() {
       if (sort === "age") return ((b as any).age ?? 0) - ((a as any).age ?? 0);
       if (sort === "market_value")
         return (b.market_value ?? 0) - (a.market_value ?? 0);
+      if (sort === "position") {
+        const pa = POSITION_ORDER[a.suggested_position ?? ""] ?? 99;
+        const pb = POSITION_ORDER[b.suggested_position ?? ""] ?? 99;
+        if (pa !== pb) return pa - pb;
+        return (b.overall ?? 0) - (a.overall ?? 0);
+      }
       return (b.overall ?? 0) - (a.overall ?? 0);
     });
     return list;
@@ -145,6 +153,7 @@ function RosterPage() {
             onChange={(e) => setSort(e.target.value as SortKey)}
             className="rounded-md border border-border/60 bg-card/40 px-3 py-2 text-sm"
           >
+            <option value="position">Ordenar: Posição (GOL→ATA)</option>
             <option value="overall">Ordenar: Overall</option>
             <option value="name">Ordenar: Nome</option>
             <option value="energy">Ordenar: Energia</option>
