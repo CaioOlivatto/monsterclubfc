@@ -95,22 +95,27 @@ export const buyCreature = createServerFn({ method: "POST" })
       .insert({
         owner_trainer_id: trainer.id,
         name: listing.name,
+        species: listing.species,
+        epithet: listing.epithet,
         element: listing.element,
         suggested_position: listing.suggested_position,
-        attack: listing.attack,
-        defense: listing.defense,
-        goalkeeper: listing.goalkeeper,
-        physical: listing.physical,
-        strength: listing.strength,
-        aff_fogo: listing.aff_fogo,
-        aff_agua: listing.aff_agua,
-        aff_terra: listing.aff_terra,
-        aff_ar: listing.aff_ar,
-        aff_gelo: listing.aff_gelo,
+        is_goalkeeper: listing.is_goalkeeper,
+        power_key: listing.power_key,
+        attr_defender: listing.attr_defender,
+        attr_passar: listing.attr_passar,
+        attr_atacar: listing.attr_atacar,
+        attr_tecnica: listing.attr_tecnica,
+        attr_forca: listing.attr_forca,
+        attr_pique: listing.attr_pique,
+        attr_maos: listing.attr_maos,
+        attr_concentracao: listing.attr_concentracao,
+        attr_elasticidade: listing.attr_elasticidade,
         overall: listing.overall,
         energy: 100,
         market_value: listing.market_value,
-      })
+        age: listing.age,
+        aff_fogo: 0, aff_agua: 0, aff_terra: 0, aff_ar: 0, aff_gelo: 0,
+      } as any)
       .select("id")
       .single();
     if (cErr) throw cErr;
