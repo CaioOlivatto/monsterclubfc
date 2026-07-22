@@ -152,20 +152,18 @@ function LineupPage() {
   };
   const removeFromBench = (id: string) => setBench((b) => b.filter((x) => x !== id));
 
-  const buildAuto = (mode: "best" | "rested") => {
-    // best: prioriza OVERALL EFETIVO (fadiga aplicada) — bom p/ desempenho médio.
-    // rested: prioriza ENERGIA (>=70) e usa efetivo como desempate — bom p/ preservar elenco.
-    const pool = [...creatures].sort((a, b) => {
-      const ea = a.energy ?? 100, eb = b.energy ?? 100;
-      if (mode === "rested") {
-        if (eb !== ea) return eb - ea;
-        return effectiveOverall(b.overall, eb) - effectiveOverall(a.overall, ea);
-      }
-      return (
-        effectiveOverall(b.overall, eb) - effectiveOverall(a.overall, ea) ||
-        eb - ea
-      );
-    });
+  // Sempre ordena por OVERALL EFETIVO (overall × multiplicador de fadiga)
+  // e por energia como desempate. `excludeIds` permite reservar criaturas.
+  const buildBestXI = (excludeIds: Set<string> = new Set()): { starters: StarterSlot[]; bench: string[] } => {
+    const pool = creatures
+      .filter((c: any) => !excludeIds.has(c.id))
+      .sort((a: any, b: any) => {
+        const ea = a.energy ?? 100, eb = b.energy ?? 100;
+        return (
+          effectiveOverall(b.overall, eb) - effectiveOverall(a.overall, ea) ||
+          eb - ea
+        );
+      });
 
     const used = new Set<string>();
     const newStarters: StarterSlot[] = slots.map((s) => ({ slot: s.index, role: s.role, creature_id: null }));
@@ -185,26 +183,73 @@ function LineupPage() {
       if (newBench.length >= MAX_BENCH) break;
       if (!used.has(c.id)) { newBench.push(c.id); used.add(c.id); }
     }
-
-    setStarters(newStarters);
-    setBench(newBench);
-    toast.success(mode === "rested" ? "Time descansado escalado — lembre de salvar!" : "Escalação automática aplicada — lembre de salvar!");
+    return { starters: newStarters, bench: newBench };
   };
-  const autoFill = () => buildAuto("best");
-  const autoRested = () => buildAuto("rested");
+
+  const autoFill = () => {
+    const { starters: st, bench: bn } = buildBestXI();
+    setStarters(st);
+    setBench(bn);
+    toast.success("Escalação automática aplicada — lembre de salvar!");
+  };
+
+  // "Poupar titulares": escala o melhor XI EXCLUINDO as 5 criaturas de maior overall efetivo.
+  const topFiveIds = useMemo(() => {
+    return [...creatures]
+      .sort((a: any, b: any) => effectiveOverall(b.overall, b.energy ?? 100) - effectiveOverall(a.overall, a.energy ?? 100))
+      .slice(0, 5)
+      .map((c: any) => c.id);
+  }, [creatures]);
+
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmData, setConfirmData] = useState<{
+    starters: StarterSlot[];
+    bench: string[];
+    currentWin: number | null;
+    pouparWin: number | null;
+    savedNames: string[];
+  } | null>(null);
+  const [poupPending, setPoupPending] = useState(false);
+
+  const openPoupar = async () => {
+    if (creatures.length < 16) {
+      toast.error("Você precisa de pelo menos 16 criaturas saudáveis para poupar titulares.");
+      return;
+    }
+    const exclude = new Set(topFiveIds);
+    const built = buildBestXI(exclude);
+    const filled = built.starters.filter((s) => s.creature_id).length;
+    if (filled < 11) {
+      toast.error("Sem criaturas suficientes para escalar 11 titulares poupando o topo do elenco.");
+      return;
+    }
+    setPoupPending(true);
+    try {
+      const pouparDraft = { formation, strategy, starters: built.starters, bench: built.bench };
+      const [pouparProg] = await Promise.all([
+        fetchProg({ data: { draft: pouparDraft } }).catch(() => null),
+      ]);
+      const currentWin = prog.data?.analysis.odds.home_win ?? null;
+      const pouparWin = pouparProg?.analysis.odds.home_win ?? null;
+      const savedNames = topFiveIds
+        .map((id) => creatures.find((c: any) => c.id === id)?.name)
+        .filter(Boolean) as string[];
+      setConfirmData({ starters: built.starters, bench: built.bench, currentWin, pouparWin, savedNames });
+      setConfirmOpen(true);
+    } finally {
+      setPoupPending(false);
+    }
+  };
+
+  const confirmPoupar = () => {
+    if (!confirmData) return;
+    setStarters(confirmData.starters);
+    setBench(confirmData.bench);
+    setConfirmOpen(false);
+    toast.success("Titulares poupados — lembre de salvar!");
+  };
 
 
-  const mut = useMutation({
-    mutationFn: async () => {
-      await save({
-        data: {
-          formation,
-          strategy,
-          starters,
-          bench,
-        },
-      });
-    },
     onSuccess: () => {
       toast.success("Escalação salva!");
       qc.invalidateQueries({ queryKey: ["lineup"] });
