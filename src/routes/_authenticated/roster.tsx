@@ -11,6 +11,7 @@ import { ArrowLeft, Search, BatteryCharging, Star, Clock, Hourglass, HeartPulse 
 import { ageStatus, seasonsRemaining, type AgeStatus } from "@/lib/age";
 import { fatigueState, FATIGUE_LABEL, FATIGUE_CLASS, effectiveOverall, energyMultiplier } from "@/lib/fatigue";
 import { moraleState, MORALE_EMOJI, MORALE_LABEL, MORALE_CLASS, moraleMultiplier, moraleReason } from "@/lib/morale";
+import { StarRating, halfStarsToStars } from "@/components/StarRating";
 
 export const Route = createFileRoute("/_authenticated/roster")({
   head: () => ({
