@@ -301,16 +301,14 @@ export const declineOffer = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-function starterKeyForTeam(dominant: string | null, style: string | null): StarterKey {
-  switch (dominant) {
-    case "terra": return "titas_pedra";
-    case "ar":    return "furacoes_vento";
-    case "fogo":  return "chamas_rubras";
-    case "agua":  return "mares_profundas";
-    case "gelo":  return "laminas_gelo";
-    default:      return "guardioes_mistos";
-  }
-}
+const STARTING_CASH_BY_DIVISION: Record<string, number> = {
+  lendaria: 2_000_000,
+  diamante: 1_200_000,
+  ouro: 700_000,
+  prata: 400_000,
+  bronze: 200_000,
+};
+
 
 export interface AcceptOfferResult {
   ok: true;
