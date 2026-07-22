@@ -112,11 +112,14 @@ function elementalMult(attacker: Element, defender: Element): number {
   return 1.0;
 }
 
-function strategyMod(s: EngineSide["strategy"]): { atk: number; def: number } {
-  if (s === "ofensiva") return { atk: 3, def: -2 };
-  if (s === "defensiva") return { atk: -2, def: 3 };
-  return { atk: 0, def: 0 };
+// Estratégia (Mentalidade) — GDD: multiplica chance de lance (x0.70..x1.30)
+// e altera rating dos defensores adversários (+8 defensiva / -8 ofensiva).
+function strategyMod(s: EngineSide["strategy"]): { atk: number; def: number; freqMul: number } {
+  if (s === "ofensiva") return { atk: 8, def: -8, freqMul: 1.30 };
+  if (s === "defensiva") return { atk: -8, def: 8, freqMul: 0.70 };
+  return { atk: 0, def: 0, freqMul: 1.0 };
 }
+
 
 // Táticas ao vivo:
 //   mentalidade → +atk / +def (defende mais quando ofensiva)  · multiplica chance
