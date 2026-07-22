@@ -431,6 +431,7 @@ function processTeamChance(
   rand: () => number,
   events: EngineEvent[],
   weather: Weather,
+  qualityMul: number = 1,
 ) {
   if (rand() >= chance) return;
   if (!own.attackers.length || !opp.defenders.length) return;
@@ -445,7 +446,7 @@ function processTeamChance(
 
   const homeAdv = isHome ? 4 : 0;
   let chanceGoal =
-    (own.attack + homeAdv - opp.defense + 40) / 260 + bonusElem + affinityBonus + weatherBonus;
+    ((own.attack + homeAdv - opp.defense + 40) / 260 + bonusElem + affinityBonus + weatherBonus) * qualityMul;
   if (chanceGoal < 0.07) chanceGoal = 0.07;
 
   const goalieSlot = opp.defenders.find((s) => s.role === "GOL");
