@@ -63,10 +63,18 @@ function LineupPage() {
   const qc = useQueryClient();
   const fetchLineup = useServerFn(getMyLineup);
   const save = useServerFn(saveLineup);
+  const fetchProg = useServerFn(getLineupPrognostic);
 
   const { data, isLoading } = useQuery({
     queryKey: ["lineup"],
     queryFn: () => fetchLineup(),
+  });
+
+  const prog = useQuery({
+    queryKey: ["prognostic"],
+    queryFn: () => fetchProg(),
+    retry: false,
+    enabled: !!data,
   });
 
   const [formation, setFormation] = useState<Formation>("4-4-2");
