@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { getMyLineup, saveLineup } from "@/lib/lineup.functions";
 import { getLineupPrognostic } from "@/lib/odds.functions";
+import { PrognosticCard } from "@/components/PrognosticCard";
 import { buildSlots, FORMATIONS, MAX_BENCH, type Formation, type SlotRole } from "@/lib/lineup.server";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
