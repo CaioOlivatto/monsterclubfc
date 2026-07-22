@@ -90,7 +90,20 @@ export const getMarket = createServerFn({ method: "GET" })
 
     const { loadBestiary } = await import("./bestiary.server");
     const bestiary = await loadBestiary(supabase);
-    const listings = generateMarketListings(bestiary, trainer.id, seasonNumber, division);
+    const allListings = generateMarketListings(bestiary, trainer.id, seasonNumber, division);
+
+    // Remove ofertas já compradas nesta temporada/divisão
+    const { data: bought } = await supabase
+      .from("market_purchases")
+      .select("listing_id")
+      .eq("trainer_id", trainer.id)
+      .eq("season_number", seasonNumber)
+      .eq("division", division);
+    const boughtSet = new Set((bought ?? []).map((r: any) => r.listing_id));
+    const listings = allListings
+      .filter((l) => !boughtSet.has(l.id))
+      .map((l) => ({ ...l, salary: seasonSalary(l.overall) }));
+
     const rosterCount = creatures?.length ?? 0;
     const payroll = await currentPayroll(supabase, trainer.id);
 
