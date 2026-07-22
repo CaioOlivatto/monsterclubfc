@@ -478,7 +478,8 @@ export const acceptOffer = createServerFn({ method: "POST" })
       trainer_id: trainer.id,
       team_id: newTeam.id,
       team_name: newTeam.name,
-      division: newTeam.division,
+      division: newTeam.division ?? "bronze",
+
       season_start: seasonNum,
       season_end: seasonNum,
       final_position: null,
