@@ -1,5 +1,16 @@
-// Catálogo dos 6 times iniciais fixos + gerador do elenco de 22 criaturas.
-// Determinístico por `starter_key` para reprodutibilidade.
+// Catálogo dos 6 times iniciais + gerador determinístico usando o Bestiário Mitológico.
+
+import {
+  BESTIARY,
+  rollCreature,
+  bestiaryByPosition,
+  bestiaryByElement,
+  computeMarketValue,
+  type Element,
+  type Position,
+  type RolledCreature,
+  type SpeciesBase,
+} from "./bestiary";
 
 export type StarterKey =
   | "titas_pedra"
@@ -10,92 +21,38 @@ export type StarterKey =
   | "guardioes_mistos";
 
 export type StarterStyle = "defensivo" | "ofensivo" | "equilibrado";
-export type ElementKey = "fogo" | "agua" | "terra" | "ar" | "gelo";
+export type ElementKey = Element;
 
 export interface StarterTeamDef {
   key: StarterKey;
   name: string;
   emblem: string;
-  color: string; // tema (label pt-BR)
-  colorClass: string; // classes tailwind (bg + border) para o card
+  color: string;
+  colorClass: string;
   dominant: ElementKey | "mesclado";
   style: StarterStyle;
   description: string;
 }
 
 export const STARTER_TEAMS: StarterTeamDef[] = [
-  {
-    key: "titas_pedra",
-    name: "Titãs de Pedra",
-    emblem: "🗿",
-    color: "marrom/âmbar",
-    colorClass: "from-amber-900/40 to-amber-700/10 border-amber-700/40",
-    dominant: "terra",
-    style: "defensivo",
-    description: "Muralha do elemento Terra. Segura resultado, sofre pra criar.",
-  },
-  {
-    key: "furacoes_vento",
-    name: "Furacões do Vento",
-    emblem: "🌀",
-    color: "lilás/branco",
-    colorClass: "from-violet-500/30 to-violet-300/10 border-violet-400/40",
-    dominant: "ar",
-    style: "ofensivo",
-    description: "Velocidade e ataque de Ar. Placar alto, defesa frágil.",
-  },
-  {
-    key: "chamas_rubras",
-    name: "Chamas Rubras",
-    emblem: "🔥",
-    color: "vermelho/laranja",
-    colorClass: "from-red-600/40 to-orange-500/10 border-red-500/40",
-    dominant: "fogo",
-    style: "ofensivo",
-    description: "Pressão constante do Fogo. Domina times de Gelo.",
-  },
-  {
-    key: "mares_profundas",
-    name: "Marés Profundas",
-    emblem: "🌊",
-    color: "azul",
-    colorClass: "from-blue-600/40 to-blue-400/10 border-blue-500/40",
-    dominant: "agua",
-    style: "equilibrado",
-    description: "Água versátil. Vantagem elemental contra Fogo.",
-  },
-  {
-    key: "laminas_gelo",
-    name: "Lâminas de Gelo",
-    emblem: "❄️",
-    color: "ciano/branco",
-    colorClass: "from-cyan-400/30 to-sky-200/10 border-cyan-400/40",
-    dominant: "gelo",
-    style: "defensivo",
-    description: "Gelo paciente. Controla o ritmo e contra-ataca.",
-  },
-  {
-    key: "guardioes_mistos",
-    name: "Guardiões Mistos",
-    emblem: "🛡️",
-    color: "verde/dourado",
-    colorClass: "from-emerald-600/30 to-yellow-500/10 border-emerald-500/40",
-    dominant: "mesclado",
-    style: "equilibrado",
-    description: "Um pouco de cada elemento. Difícil de ler.",
-  },
+  { key: "titas_pedra",      name: "Titãs de Pedra",    emblem: "🗿", color: "marrom/âmbar", colorClass: "from-amber-900/40 to-amber-700/10 border-amber-700/40", dominant: "terra", style: "defensivo",   description: "Muralha do elemento Terra. Segura resultado, sofre pra criar." },
+  { key: "furacoes_vento",   name: "Furacões do Vento", emblem: "🌀", color: "lilás/branco",  colorClass: "from-violet-500/30 to-violet-300/10 border-violet-400/40", dominant: "ar",    style: "ofensivo",    description: "Velocidade e ataque de Ar. Placar alto, defesa frágil." },
+  { key: "chamas_rubras",    name: "Chamas Rubras",     emblem: "🔥", color: "vermelho/laranja", colorClass: "from-red-600/40 to-orange-500/10 border-red-500/40", dominant: "fogo",  style: "ofensivo",    description: "Pressão constante do Fogo. Domina times de Gelo." },
+  { key: "mares_profundas",  name: "Marés Profundas",   emblem: "🌊", color: "azul",           colorClass: "from-blue-600/40 to-blue-400/10 border-blue-500/40", dominant: "agua",  style: "equilibrado", description: "Água versátil. Vantagem elemental contra Fogo." },
+  { key: "laminas_gelo",     name: "Lâminas de Gelo",   emblem: "❄️", color: "ciano/branco",   colorClass: "from-cyan-400/30 to-sky-200/10 border-cyan-400/40",  dominant: "gelo",  style: "defensivo",   description: "Gelo paciente. Controla o ritmo e contra-ataca." },
+  { key: "guardioes_mistos", name: "Guardiões Mistos",  emblem: "🛡️", color: "verde/dourado",  colorClass: "from-emerald-600/30 to-yellow-500/10 border-emerald-500/40", dominant: "mesclado", style: "equilibrado", description: "Um pouco de cada elemento. Difícil de ler." },
 ];
 
 export function getStarterTeam(key: string): StarterTeamDef | null {
   return STARTER_TEAMS.find((t) => t.key === key) ?? null;
 }
 
-// ------- Geração determinística -------
+// ---------- geração ----------
 
-function hashSeed(str: string): number {
+function hashSeed(s: string): number {
   let h = 2166136261 >>> 0;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
     h = Math.imul(h, 16777619) >>> 0;
   }
   return h || 1;
@@ -112,198 +69,104 @@ function mulberry32(seed: number) {
   };
 }
 
-const ELEMENT_PREFIXES: Record<ElementKey, string[]> = {
-  fogo: ["Vulc", "Igni", "Pyro", "Ember", "Fulg", "Piri", "Cald"],
-  agua: ["Aqua", "Hydro", "Rio", "Onda", "Maré", "Nauti", "Undin"],
-  terra: ["Petra", "Terra", "Monte", "Rocha", "Geo", "Silva", "Cald"],
-  ar: ["Aero", "Ventus", "Aura", "Brisa", "Zeph", "Volante", "Nimbo"],
-  gelo: ["Cryo", "Glacia", "Nix", "Frost", "Neva", "Cristal", "Boreal"],
+const SUPPORT: Record<Element, Element> = {
+  fogo: "ar", agua: "gelo", terra: "agua", ar: "fogo", gelo: "terra",
 };
 
-const SUFFIXES = [
-  "ron", "lith", "dorix", "vent", "frim", "tar", "mir", "zeph",
-  "gorn", "dus", "phus", "tos", "quir", "nel", "dax", "ram",
-  "kur", "phyx", "tan", "vor", "sol", "nix", "mel", "gar",
-];
-
-const POSITIONS = ["Goleiro", "Zagueiro", "Meio-campo", "Atacante"] as const;
-
-type StarLevel = 1 | 2 | 3 | 4 | 5 | 6; // 1=0,5★ ... 6=3★
-const STAR_TO_ATTR: Record<StarLevel, number> = {
-  1: 10, 2: 20, 3: 30, 4: 40, 5: 50, 6: 60,
-};
-
-interface RosterSlot {
-  position: (typeof POSITIONS)[number];
-  stars: StarLevel;
-}
-
-// 22 criaturas: 3 GOL, 7 DEF, 7 MEI, 5 ATA.
-// Distribuição de estrelas por time (~41★ somados = 82 meia-estrelas):
-// 10 × 1  (0,5★) = 10
-// 9  × 4  (2★)   = 36
-// 3  × 6  (3★)   = 18   → 64 meia = 32★... ajusto:
-// Vamos usar (star em meia): 10 slots com 1-3 (média 2 → 1★), 9 slots com 4-5 (média ~2,25★), 3 slots com 6 (3★)
-// Soma média: 10*1 + 9*2.25 + 3*3 = 10 + 20.25 + 9 = 39.25★. Ok, próximo de 41.
-
-function buildRosterPlan(rand: () => number): RosterSlot[] {
-  const positions: (typeof POSITIONS)[number][] = [
-    ...Array(3).fill("Goleiro"),
-    ...Array(7).fill("Zagueiro"),
-    ...Array(7).fill("Meio-campo"),
-    ...Array(5).fill("Atacante"),
-  ];
-  // 10 low, 9 mid, 3 high
-  const starLevels: StarLevel[] = [
-    ...Array(4).fill(1), ...Array(4).fill(2), ...Array(2).fill(3), // 10 low
-    ...Array(5).fill(4), ...Array(4).fill(5),                       // 9 mid
-    ...Array(3).fill(6),                                            // 3 high
-  ] as StarLevel[];
-  // shuffle positions e stars independentemente e junta
-  const shuffle = <T,>(arr: T[]) => {
-    const a = [...arr];
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(rand() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  };
-  const sp = shuffle(positions);
-  const ss = shuffle(starLevels);
-  return sp.map((p, i) => ({ position: p, stars: ss[i] }));
-}
-
-// Distribuição de elementos por time
-function pickElement(
-  team: StarterTeamDef,
-  rand: () => number,
-): ElementKey {
-  const elems: ElementKey[] = ["fogo", "agua", "terra", "ar", "gelo"];
-  if (team.dominant === "mesclado") {
-    return elems[Math.floor(rand() * 5)];
-  }
-  const dom = team.dominant as ElementKey;
-  // Elemento de apoio
-  const support: Record<ElementKey, ElementKey> = {
-    fogo: "ar",
-    agua: "gelo",
-    terra: "agua",
-    ar: "fogo",
-    gelo: "terra",
-  };
-  const r = rand();
+function pickElementForTeam(team: StarterTeamDef, rng: () => number): Element {
+  const all: Element[] = ["fogo","agua","terra","ar","gelo"];
+  if (team.dominant === "mesclado") return all[Math.floor(rng() * 5)];
+  const dom = team.dominant;
+  const r = rng();
   if (r < 0.70) return dom;
-  if (r < 0.90) return support[dom];
-  // resto: qualquer outro elemento
-  const others = elems.filter((e) => e !== dom && e !== support[dom]);
-  return others[Math.floor(rand() * others.length)];
+  if (r < 0.90) return SUPPORT[dom];
+  const others = all.filter((e) => e !== dom && e !== SUPPORT[dom]);
+  return others[Math.floor(rng() * others.length)];
 }
 
-// Distribui os pontos de atributo com viés de estilo.
-function distributeAttrs(
-  base: number,
-  position: (typeof POSITIONS)[number],
-  style: StarterStyle,
-  rand: () => number,
-): { attack: number; defense: number; goalkeeper: number; physical: number; strength: number } {
-  // ± 10 de variação, alinhado em múltiplos de 10.
-  const jitter = () => (Math.floor(rand() * 3) - 1) * 10; // -10 / 0 / +10
-  const clamp = (v: number) => Math.max(10, Math.min(90, Math.round(v / 10) * 10));
-
-  let atk = base + jitter();
-  let def = base + jitter();
-  let gk = base + jitter();
-  let phy = base + jitter();
-  let str = base + jitter();
-
-  // Viés por posição
-  if (position === "Goleiro") gk += 20;
-  else gk -= 10;
-  if (position === "Zagueiro") { def += 10; str += 10; }
-  if (position === "Atacante") { atk += 10; phy += 10; }
-  if (position === "Meio-campo") { phy += 10; }
-
-  // Viés por estilo do time
-  if (style === "defensivo") { def += 10; gk += 5; str += 5; atk -= 10; }
-  if (style === "ofensivo") { atk += 15; phy += 5; def -= 10; gk -= 5; }
-  // equilibrado: sem viés
-
-  return {
-    attack: clamp(atk),
-    defense: clamp(def),
-    goalkeeper: clamp(gk),
-    physical: clamp(phy),
-    strength: clamp(str),
-  };
+// Escolhe espécie compatível com posição+elemento; se não achar, cai para posição.
+function pickSpecies(pos: Position, el: Element, used: Set<string>, rng: () => number): SpeciesBase {
+  const byPosEl = BESTIARY.filter((s) => s.position === pos && s.element === el && !used.has(s.species));
+  if (byPosEl.length) return byPosEl[Math.floor(rng() * byPosEl.length)];
+  const byPos = bestiaryByPosition(pos).filter((s) => !used.has(s.species));
+  if (byPos.length) return byPos[Math.floor(rng() * byPos.length)];
+  const byEl = bestiaryByElement(el).filter((s) => !used.has(s.species));
+  if (byEl.length) return byEl[Math.floor(rng() * byEl.length)];
+  const any = BESTIARY.filter((s) => !used.has(s.species));
+  return any[Math.floor(rng() * any.length)] ?? BESTIARY[Math.floor(rng() * BESTIARY.length)];
 }
 
-export interface GeneratedCreature {
-  name: string;
-  element: ElementKey;
-  suggested_position: string;
-  attack: number;
-  defense: number;
-  goalkeeper: number;
-  physical: number;
-  strength: number;
-  aff_fogo: number;
-  aff_agua: number;
-  aff_terra: number;
-  aff_ar: number;
-  aff_gelo: number;
-  overall: number;
-  xp: number;
-  half_stars_earned: number;
-  energy: number;
-  market_value: number;
-  stars: number; // meia-estrelas (para UI de preview)
-}
+// Composição: 3 GOL, 7 DEF, 7 MEI, 5 ATA — 22 criaturas
+const ROSTER_PLAN: Position[] = [
+  ...Array(3).fill("Goleiro"),
+  ...Array(7).fill("Zagueiro"),
+  ...Array(7).fill("Meio-campo"),
+  ...Array(5).fill("Atacante"),
+] as Position[];
 
-export function generateStarterRoster(teamKey: StarterKey): GeneratedCreature[] {
+export function generateStarterRoster(teamKey: StarterKey): RolledCreature[] {
   const team = getStarterTeam(teamKey);
   if (!team) throw new Error("Time inicial inválido.");
-  const rand = mulberry32(hashSeed(teamKey));
-  const plan = buildRosterPlan(rand);
+  const rng = mulberry32(hashSeed(teamKey));
+  const usedSpecies = new Set<string>();
+  const roster: RolledCreature[] = [];
 
-  const creatures: GeneratedCreature[] = plan.map((slot) => {
-    const element = pickElement(team, rand);
-    const prefix = ELEMENT_PREFIXES[element][
-      Math.floor(rand() * ELEMENT_PREFIXES[element].length)
-    ];
-    const suffix = SUFFIXES[Math.floor(rand() * SUFFIXES.length)];
-    const base = STAR_TO_ATTR[slot.stars];
-    const attrs = distributeAttrs(base, slot.position, team.style, rand);
-    const overall = Math.round(
-      (attrs.attack + attrs.defense + attrs.goalkeeper + attrs.physical + attrs.strength) / 5,
-    );
-    // Afinidade inicial: 3 no elemento dominante do time p/ criaturas Fogo do time ofensivo (Chamas)
-    // Demais times: 0 para todos (§2.3).
-    const aff = { aff_fogo: 0, aff_agua: 0, aff_terra: 0, aff_ar: 0, aff_gelo: 0 };
-    if (team.key === "chamas_rubras" && element === "fogo") {
-      aff.aff_fogo = 3;
-    }
-    return {
-      name: prefix + suffix,
-      element,
-      suggested_position: slot.position,
-      ...attrs,
-      ...aff,
-      overall,
-      xp: 0,
-      half_stars_earned: slot.stars,
-      energy: 100,
-      market_value: overall * 800,
-      stars: slot.stars,
-    };
-  });
+  for (const pos of ROSTER_PLAN) {
+    const el = pickElementForTeam(team, rng);
+    const spBase = pickSpecies(pos, el, usedSpecies, rng);
+    // permite repetir espécie se acabar variedade (ex.: 5º Goleiro do mesmo elemento)
+    if (usedSpecies.size < BESTIARY.length) usedSpecies.add(spBase.species);
+    const c = rollCreature(spBase, rng, { variation: 8 });
+    roster.push(c);
+  }
 
-  return creatures;
+  return roster;
 }
 
 export function starterTeamSummary(teamKey: StarterKey) {
   const roster = generateStarterRoster(teamKey);
-  const totalStars = roster.reduce((s, c) => s + c.stars, 0) / 2; // meia → estrela
-  const avgAttack = Math.round(roster.reduce((s, c) => s + c.attack, 0) / roster.length);
-  const avgDefense = Math.round(roster.reduce((s, c) => s + c.defense, 0) / roster.length);
+  const halfStars = roster.reduce((s, c) => s + Math.max(0, Math.min(10, Math.round(c.overall / 10))), 0);
+  const totalStars = halfStars / 2;
+  const avgAttack = Math.round(
+    roster.reduce((s, c) => s + (c.attr_atacar || c.attr_elasticidade), 0) / roster.length,
+  );
+  const avgDefense = Math.round(
+    roster.reduce((s, c) => s + (c.attr_defender || c.attr_maos), 0) / roster.length,
+  );
   return { totalStars, avgAttack, avgDefense };
 }
+
+// Helper para inserts no banco (formata linhas prontas)
+export function rosterToDbRows(trainerId: string, roster: RolledCreature[]) {
+  return roster.map((c) => ({
+    owner_trainer_id: trainerId,
+    name: c.name,
+    species: c.species,
+    epithet: c.epithet,
+    element: c.element,
+    suggested_position: c.position,
+    is_goalkeeper: c.is_goalkeeper,
+    power_key: c.power_key,
+    attr_defender: c.attr_defender,
+    attr_passar: c.attr_passar,
+    attr_atacar: c.attr_atacar,
+    attr_tecnica: c.attr_tecnica,
+    attr_forca: c.attr_forca,
+    attr_pique: c.attr_pique,
+    attr_maos: c.attr_maos,
+    attr_concentracao: c.attr_concentracao,
+    attr_elasticidade: c.attr_elasticidade,
+    overall: c.overall,
+    xp: 0,
+    half_stars_earned: Math.max(0, Math.min(10, Math.round(c.overall / 10))),
+    pending_half_stars: 0,
+    energy: 100,
+    market_value: c.market_value,
+    age: 18,
+    career_season: 1,
+    retired: false,
+    aff_fogo: 0, aff_agua: 0, aff_terra: 0, aff_ar: 0, aff_gelo: 0,
+  }));
+}
+
+export { computeMarketValue };

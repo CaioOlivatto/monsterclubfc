@@ -117,13 +117,31 @@ function CreatureDetail() {
     );
   }
 
-  const attrs: [string, number][] = [
-    ["Ataque", c.attack],
-    ["Defesa", c.defense],
-    ["Goleiro", c.goalkeeper],
-    ["Físico", c.physical],
-    ["Força", c.strength],
+  const isGk = (c as any).is_goalkeeper ?? c.suggested_position === "Goleiro";
+  const LINE_ATTRS: [string, string][] = [
+    ["Defender", "attr_defender"],
+    ["Passar", "attr_passar"],
+    ["Atacar", "attr_atacar"],
+    ["Técnica", "attr_tecnica"],
+    ["Força", "attr_forca"],
+    ["Pique", "attr_pique"],
   ];
+  const GK_ATTRS: [string, string][] = [
+    ["Mãos", "attr_maos"],
+    ["Concentração", "attr_concentracao"],
+    ["Elasticidade", "attr_elasticidade"],
+  ];
+  const attrs: [string, number][] = (isGk ? GK_ATTRS : LINE_ATTRS).map(
+    ([label, col]) => [label, ((c as any)[col] as number) ?? 0],
+  );
+  const ATTR_KEYS = isGk
+    ? (["maos", "concentracao", "elasticidade"] as const)
+    : (["defender", "passar", "atacar", "tecnica", "forca", "pique"] as const);
+  const ATTR_LABELS: Record<string, string> = {
+    defender: "Defender", passar: "Passar", atacar: "Atacar",
+    tecnica: "Técnica", forca: "Força", pique: "Pique",
+    maos: "Mãos", concentracao: "Concentração", elasticidade: "Elasticidade",
+  };
 
   const affinities: [string, number, string][] = [
     ["Fogo", c.aff_fogo, "fogo"],
@@ -189,15 +207,15 @@ function CreatureDetail() {
               </p>
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Atributo (+5)</p>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                  {(["attack", "defense", "goalkeeper", "physical", "strength"] as const).map((k) => (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {ATTR_KEYS.map((k) => (
                     <Button
                       key={k}
                       size="sm"
                       disabled={spendMut.isPending}
                       onClick={() => spendMut.mutate({ kind: "attribute", key: k })}
                     >
-                      {({ attack: "Ataque", defense: "Defesa", goalkeeper: "Goleiro", physical: "Físico", strength: "Força" } as const)[k]}
+                      {ATTR_LABELS[k]}
                     </Button>
                   ))}
                 </div>
@@ -278,8 +296,8 @@ function CreatureDetail() {
 
             <div>
               <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Atributos</p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                {(["attack", "defense", "goalkeeper", "physical", "strength"] as const).map((k) => (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {ATTR_KEYS.map((k) => (
                   <Button
                     key={k}
                     size="sm"
@@ -287,7 +305,7 @@ function CreatureDetail() {
                     disabled={trainMut.isPending || c.energy < 20}
                     onClick={() => trainMut.mutate({ kind: "attribute", key: k })}
                   >
-                    {({ attack: "Ataque", defense: "Defesa", goalkeeper: "Goleiro", physical: "Físico", strength: "Força" } as const)[k]}
+                    {ATTR_LABELS[k]}
                   </Button>
                 ))}
               </div>

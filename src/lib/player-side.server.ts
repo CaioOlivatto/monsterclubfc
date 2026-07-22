@@ -2,7 +2,6 @@ import { buildSlots } from "./lineup.server";
 import type { EngineSide, EngineSlot, SlotRole, Element } from "./match-engine.server";
 
 // Constrói o lado do jogador a partir da escalação salva.
-// Inclui energy (para simulação e penalidade) e reservas (bench) para substituições em jogo.
 export async function buildPlayerSideFromDb(
   supabase: any,
   trainerId: string,
@@ -16,9 +15,7 @@ export async function buildPlayerSideFromDb(
     .maybeSingle();
   if (!lineup) throw new Error("Você ainda não tem escalação salva. Vá em Escalação primeiro.");
   const savedStarters = (lineup.starters ?? []) as {
-    slot: number;
-    role: SlotRole;
-    creature_id: string | null;
+    slot: number; role: SlotRole; creature_id: string | null;
   }[];
   const benchIds = (lineup.bench ?? []) as string[];
   const starterIds = savedStarters.map((s) => s.creature_id).filter(Boolean) as string[];
@@ -28,7 +25,7 @@ export async function buildPlayerSideFromDb(
   const { data: creatures, error } = await supabase
     .from("creatures")
     .select(
-      "id, name, element, suggested_position, overall, physical, energy, aff_fogo, aff_agua, aff_terra, aff_ar, aff_gelo",
+      "id, name, element, suggested_position, overall, is_goalkeeper, attr_pique, attr_forca, energy, aff_fogo, aff_agua, aff_terra, aff_ar, aff_gelo",
     )
     .in("id", allIds);
   if (error) throw error;
@@ -41,7 +38,7 @@ export async function buildPlayerSideFromDb(
       name: c.name,
       element: c.element as Element,
       overall: c.overall,
-      physical: c.physical,
+      physical: Math.round(((c.attr_pique ?? 40) + (c.attr_forca ?? 40)) / 2),
       energy: c.energy ?? 100,
       affinity_fogo: c.aff_fogo ?? 0,
       affinity_agua: c.aff_agua ?? 0,
@@ -71,11 +68,5 @@ export async function buildPlayerSideFromDb(
     .filter(Boolean)
     .map((c: any) => toEngine(c, posToRole(c.suggested_position)));
 
-  return {
-    team_id: teamId,
-    team_name: teamName,
-    starters,
-    bench,
-    strategy: lineup.strategy,
-  };
+  return { team_id: teamId, team_name: teamName, starters, bench, strategy: lineup.strategy };
 }

@@ -1,36 +1,18 @@
-// Gerador de listagens de mercado (server-only) — Tabela de Balanceamento §6.
-// Rotaciona uma vez por temporada; 24 criaturas por lista.
-// Preço base por estrelas (raridade cresce forte).
+// Gerador de listagens de mercado (server-only) usando o Bestiário Mitológico.
+// 24 criaturas por temporada, distribuição de raridade §5 do balanceamento.
 
-const ELEMENTS = ["fogo", "agua", "terra", "ar", "gelo"] as const;
-export type MarketElement = (typeof ELEMENTS)[number];
+import {
+  BESTIARY,
+  rollCreature,
+  overallToStars,
+  computeMarketValue,
+  type Element,
+  type SpeciesBase,
+} from "./bestiary";
 
-const POSITIONS = ["Goleiro", "Zagueiro", "Meio-campo", "Atacante"] as const;
-
-const PREFIXES = [
-  "Vulc", "Aqua", "Petra", "Aero", "Cryo", "Igni", "Hydro", "Terra",
-  "Ventus", "Glacia", "Pyro", "Nix", "Silva", "Nimbo", "Frost", "Ember",
-  "Rio", "Monte", "Aura", "Neva", "Fulg", "Onda", "Rocha", "Brisa",
-  "Draco", "Grifo", "Salaman", "Ondino", "Golem", "Sylph",
-];
-const SUFFIXES = [
-  "ron", "lith", "dorix", "vent", "frim", "tar", "mir", "zeph",
-  "gorn", "dus", "phus", "tos", "quir", "nel", "dax", "ram",
-  "kur", "phyx", "tan", "vor", "sol", "nix", "mel", "gar",
-];
-
-// Preço base por meia-estrela (índice 1..10 → 0,5★..5★)
 const STAR_VALUE = [
-  15_000,   //  0,5★
-  35_000,   //  1,0★
-  70_000,   //  1,5★
-  130_000,  //  2,0★
-  240_000,  //  2,5★
-  430_000,  //  3,0★
-  780_000,  //  3,5★
-  1_400_000,// 4,0★
-  2_500_000,// 4,5★
-  4_500_000,// 5,0★
+  15_000, 35_000, 70_000, 130_000, 240_000,
+  430_000, 780_000, 1_400_000, 2_500_000, 4_500_000,
 ];
 
 function mulberry32(seed: number) {
@@ -57,109 +39,132 @@ function pick<T>(rng: () => number, arr: readonly T[]): T {
   return arr[Math.floor(rng() * arr.length)];
 }
 
-// Sorteia a "faixa" de meia-estrela do jogador (1..10) com distribuição:
-// 60% 0,5–1,5★ (1..3) · 30% 2–2,5★ (4..5) · 8% 3–3,5★ (6..7) · 2% 4★+ (8..10)
 function rollHalfStarBand(rng: () => number): number {
   const r = rng();
-  if (r < 0.60) return 1 + Math.floor(rng() * 3);       // 1..3
-  if (r < 0.90) return 4 + Math.floor(rng() * 2);       // 4..5
-  if (r < 0.98) return 6 + Math.floor(rng() * 2);       // 6..7
-  return 8 + Math.floor(rng() * 3);                     // 8..10
+  if (r < 0.60) return 1 + Math.floor(rng() * 3);   // 1..3 → 0,5–1,5★
+  if (r < 0.90) return 4 + Math.floor(rng() * 2);   // 4..5 → 2–2,5★
+  if (r < 0.98) return 6 + Math.floor(rng() * 2);   // 6..7 → 3–3,5★
+  return 8 + Math.floor(rng() * 3);                 // 8..10 → 4★+
 }
 
-// Atributo em pontos (0..100), alinhado à faixa de estrelas do jogador.
-function attrFromBand(rng: () => number, band: number): number {
-  const center = band * 10;                             // 10..100
-  const jitter = Math.round((rng() - 0.5) * 20);        // ±10
-  return Math.max(10, Math.min(100, center + jitter));
+// Para atingir uma banda alvo, precisamos que o overall bata a faixa dela.
+// A espécie tem um overall-base; aplicamos variação forçada até bater a banda.
+function speciesBaseOverall(s: SpeciesBase): number {
+  if (s.gk) return Math.round(s.gk.maos*0.4 + s.gk.concentracao*0.3 + s.gk.elasticidade*0.3);
+  if (s.line) {
+    const l = s.line;
+    // Aproximação: média simples (a ponderada exigiria a posição)
+    return Math.round((l.defender + l.passar + l.atacar + l.tecnica + l.forca + l.pique) / 6);
+  }
+  return 40;
 }
 
 const SELLERS = [
-  "Academia Aurora", "Casa dos Elementais", "Cavernas de Ignis",
-  "Ilha Nébula", "Guilda do Vento", "Torre Cristalina",
-  "Oráculo de Fenris", "Colina dos Golems",
+  "Academia Aurora","Casa dos Elementais","Cavernas de Ignis","Ilha Nébula",
+  "Guilda do Vento","Torre Cristalina","Oráculo de Fenris","Colina dos Golems",
 ];
 
 export interface MarketListing {
   id: string;
+  species: string;
+  epithet: string;
   name: string;
-  element: MarketElement;
+  element: Element;
   suggested_position: string;
-  attack: number;
-  defense: number;
-  goalkeeper: number;
-  physical: number;
-  strength: number;
-  aff_fogo: number;
-  aff_agua: number;
-  aff_terra: number;
-  aff_ar: number;
-  aff_gelo: number;
+  is_goalkeeper: boolean;
+  power_key: string;
+  power_name: string;
+  power_desc: string;
+  attr_defender: number;
+  attr_passar: number;
+  attr_atacar: number;
+  attr_tecnica: number;
+  attr_forca: number;
+  attr_pique: number;
+  attr_maos: number;
+  attr_concentracao: number;
+  attr_elasticidade: number;
   overall: number;
   energy: number;
   market_value: number;
   price: number;
   seller: string;
-  half_star_band: number; // 1..10 (raridade dominante)
+  half_star_band: number;
+  age: number;
+}
+
+function pickSpeciesForBand(band: number, rng: () => number): SpeciesBase {
+  // Bandas altas (>=8): favorece espécies com overall base >=70
+  // Bandas baixas (<=3): favorece espécies com base <=45
+  const scored = BESTIARY.map((s) => ({ s, o: speciesBaseOverall(s) }));
+  let pool: SpeciesBase[];
+  if (band >= 8) pool = scored.filter((x) => x.o >= 68).map((x) => x.s);
+  else if (band >= 6) pool = scored.filter((x) => x.o >= 55).map((x) => x.s);
+  else if (band <= 3) pool = scored.filter((x) => x.o <= 55).map((x) => x.s);
+  else pool = BESTIARY;
+  if (!pool.length) pool = BESTIARY;
+  return pick(rng, pool);
 }
 
 function generateOne(rng: () => number): MarketListing {
   const band = rollHalfStarBand(rng);
-  const element = pick(rng, ELEMENTS);
-  const position = pick(rng, POSITIONS);
-  const name = pick(rng, PREFIXES) + pick(rng, SUFFIXES);
+  const targetOverall = band * 10; // 10..100
+  const spBase = pickSpeciesForBand(band, rng);
+  // Rola a criatura, depois ajusta atributos proporcionalmente para bater a banda
+  const c = rollCreature(spBase, rng, { variation: 6 });
+  const currOverall = c.overall || 40;
+  const scale = Math.max(0.3, Math.min(2.5, targetOverall / currOverall));
+  const scl = (n: number) => Math.max(5, Math.min(100, Math.round(n * scale)));
+  const adjusted = {
+    ...c,
+    attr_defender: scl(c.attr_defender),
+    attr_passar:   scl(c.attr_passar),
+    attr_atacar:   scl(c.attr_atacar),
+    attr_tecnica:  scl(c.attr_tecnica),
+    attr_forca:    scl(c.attr_forca),
+    attr_pique:    scl(c.attr_pique),
+    attr_maos:     scl(c.attr_maos),
+    attr_concentracao: scl(c.attr_concentracao),
+    attr_elasticidade: scl(c.attr_elasticidade),
+    overall: targetOverall,
+  };
 
-  const attack = attrFromBand(rng, band);
-  const defense = attrFromBand(rng, band);
-  const goalkeeper =
-    position === "Goleiro"
-      ? Math.max(attrFromBand(rng, band), band * 10)
-      : attrFromBand(rng, band);
-  const physical = attrFromBand(rng, band);
-  const strength = attrFromBand(rng, band);
-  const overall = Math.round(
-    (attack + defense + goalkeeper + physical + strength) / 5,
-  );
-
-  const affinities = { aff_fogo: 0, aff_agua: 0, aff_terra: 0, aff_ar: 0, aff_gelo: 0 };
-  const affKey = `aff_${element}` as keyof typeof affinities;
-  affinities[affKey] = Math.min(15, Math.max(1, Math.round(band * 1.2 + rng() * 3)));
-
-  // mod_elemento = 1.0 no MVP
   const market_value = STAR_VALUE[band - 1];
-  // Preço listado: 90%–130% do valor de mercado
   const priceMultiplier = 0.9 + rng() * 0.4;
-  const price = Math.max(
-    1_000,
-    Math.round((market_value * priceMultiplier) / 1_000) * 1_000,
-  );
-
+  const price = Math.max(1000, Math.round((market_value * priceMultiplier) / 1000) * 1000);
   const idSeed = Math.floor(rng() * 1e9).toString(16);
+  const age = 18 + Math.floor(rng() * 6); // 18..23
 
   return {
     id: `market_${idSeed}`,
-    name,
-    element,
-    suggested_position: position,
-    attack,
-    defense,
-    goalkeeper,
-    physical,
-    strength,
-    ...affinities,
-    overall,
+    species: adjusted.species,
+    epithet: adjusted.epithet,
+    name: adjusted.name,
+    element: adjusted.element,
+    suggested_position: adjusted.position,
+    is_goalkeeper: adjusted.is_goalkeeper,
+    power_key: adjusted.power_key,
+    power_name: adjusted.power_name,
+    power_desc: adjusted.power_desc,
+    attr_defender: adjusted.attr_defender,
+    attr_passar: adjusted.attr_passar,
+    attr_atacar: adjusted.attr_atacar,
+    attr_tecnica: adjusted.attr_tecnica,
+    attr_forca: adjusted.attr_forca,
+    attr_pique: adjusted.attr_pique,
+    attr_maos: adjusted.attr_maos,
+    attr_concentracao: adjusted.attr_concentracao,
+    attr_elasticidade: adjusted.attr_elasticidade,
+    overall: adjusted.overall,
     energy: 100,
     market_value,
     price,
     seller: pick(rng, SELLERS),
     half_star_band: band,
+    age,
   };
 }
 
-/**
- * Gera N listagens determinísticas para o treinador na temporada `seasonNumber`.
- * A lista inteira troca ao início de cada nova temporada.
- */
 export function generateMarketListings(
   trainerId: string,
   seasonNumber: number,
@@ -182,3 +187,5 @@ export function findListing(
     null
   );
 }
+
+export { overallToStars, computeMarketValue };

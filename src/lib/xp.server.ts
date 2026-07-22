@@ -1,10 +1,9 @@
-// Distribuição de XP pós-partida (GDD §6.1 + Tabela de Balanceamento §1).
-// Curva de meia-estrela crescente: custo(n) = round(850 * 1.35^(n-1), 10)
-// CT de Treinamento: +5% por nível.
-// Burst de XP: multiplicador variável (1.05/1.10/1.15) por N partidas.
+// Distribuição de XP pós-partida (GDD §6.1) + curva de meia-estrela ajustada à carreira (§10.3):
+//   custo(n) = round(800 * 1.25^(n-1))
+// CT de Treinamento: +5% por nível.  Burst de XP: multiplicador variável.
 
 const HALF_STAR_COSTS: number[] = Array.from({ length: 10 }, (_, i) =>
-  Math.round((850 * Math.pow(1.35, i)) / 10) * 10,
+  Math.round(800 * Math.pow(1.25, i)),
 );
 
 /** Custo em XP para atingir a próxima meia-estrela (n = 1..10). */
@@ -23,20 +22,26 @@ export function halfStarsFromXp(xp: number): number {
   return 10;
 }
 
+/** Soma total de XP para chegar em N meia-estrelas (0..10). */
+export function xpForHalfStars(n: number): number {
+  let acc = 0;
+  for (let i = 0; i < Math.min(10, Math.max(0, n)); i++) acc += HALF_STAR_COSTS[i];
+  return acc;
+}
+
 export async function applyPostMatchXp(
   supabase: any,
   trainerId: string,
   opts: {
-    starterIds: string[];                    // titulares que começaram a partida
-    enteredReserveIds: string[];             // reservas que entraram em jogo
-    unusedReserveIds: string[];              // reservas do banco que não entraram
+    starterIds: string[];
+    enteredReserveIds: string[];
+    unusedReserveIds: string[];
     outcome: "W" | "D" | "L";
     energy_loss: Record<string, number>;
   },
 ) {
   const base = opts.outcome === "W" ? 100 : opts.outcome === "D" ? 50 : 0;
 
-  // CT Treinamento: +5% por nível
   const { data: buildings } = await supabase
     .from("buildings")
     .select("building_type, level")
@@ -45,7 +50,6 @@ export async function applyPostMatchXp(
     (buildings ?? []).find((b: any) => b.building_type === "ct_treino")?.level ?? 0;
   const ctBonus = 1 + ctLevel * 0.05;
 
-  // Burst XP baseado em contador de partidas
   const { data: trainer } = await supabase
     .from("trainers")
     .select("xp_burst_multiplier, xp_burst_matches_left")
@@ -56,7 +60,6 @@ export async function applyPostMatchXp(
 
   const starterXp = Math.round(base * ctBonus * burstMult);
   const enteredXp = Math.round(base * 0.5 * ctBonus * burstMult);
-  // Reserva que não entrou: 25 XP fixo só em vitória
   const benchXp = opts.outcome === "W" ? Math.round(25 * ctBonus * burstMult) : 0;
 
   const targets: Array<{ id: string; add: number }> = [];
@@ -64,7 +67,6 @@ export async function applyPostMatchXp(
   for (const id of opts.enteredReserveIds) targets.push({ id, add: enteredXp });
   for (const id of opts.unusedReserveIds) targets.push({ id, add: benchXp });
 
-  // Aplica energia mesmo quando XP for zero (derrota)
   const allIds = Array.from(new Set(targets.map((t) => t.id).concat(Object.keys(opts.energy_loss))));
   if (!allIds.length) {
     await tickBurst(supabase, trainerId, burstLeft);
@@ -87,11 +89,7 @@ export async function applyPostMatchXp(
     const newEnergy = Math.max(0, (c.energy ?? 100) - loss);
     await supabase
       .from("creatures")
-      .update({
-        xp: newXp,
-        pending_half_stars: pending,
-        energy: newEnergy,
-      })
+      .update({ xp: newXp, pending_half_stars: pending, energy: newEnergy })
       .eq("id", c.id);
   }
 
@@ -114,12 +112,7 @@ export async function insertMessage(
   body: string,
 ) {
   try {
-    await supabase.from("messages").insert({
-      trainer_id: trainerId,
-      kind,
-      title,
-      body,
-    });
+    await supabase.from("messages").insert({ trainer_id: trainerId, kind, title, body });
   } catch (e) {
     console.error("insertMessage error", e);
   }
