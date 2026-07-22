@@ -120,7 +120,7 @@ function RosterPage() {
             <h1 className="truncate text-xl font-bold sm:text-2xl">Elenco</h1>
           </div>
           <div className="ml-auto text-sm text-muted-foreground">
-            {isLoading ? "..." : `${filtered.length} / ${data?.length ?? 0}`}
+            {isLoading ? "..." : `${filtered.length} / 26`}
           </div>
         </div>
       </header>
