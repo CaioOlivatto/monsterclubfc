@@ -859,7 +859,7 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
       position,
       prize,
       championGems,
-      salaries,
+      salaries: 0,
       previousDivision,
       newDivision,
       promoted,
