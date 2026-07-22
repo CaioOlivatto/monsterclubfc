@@ -385,13 +385,17 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
       throw new Error("Você já escolheu um time inicial.");
     }
 
-    // 1. Insere as 22 criaturas do time escolhido (usando o Bestiário Mitológico)
+    // 1. Elenco do jogador (26 criaturas, via Bestiário)
     const roster = generateStarterRoster(data.key as StarterKey);
     const creatureRows = rosterToDbRows(trainer.id, roster);
-    const { error: cErr } = await supabase.from("creatures").insert(creatureRows as any);
+    // Insere criaturas sem owner_team_id ainda (será atualizado depois)
+    const { data: createdCreatures, error: cErr } = await supabase
+      .from("creatures")
+      .insert(creatureRows as any)
+      .select("id");
     if (cErr) throw cErr;
 
-    // 2. Cria temporada + competição (5ª Divisão – Liga Bronze)
+    // 2. Temporada corrente
     let seasonId: string;
     const { data: existingSeason } = await supabase
       .from("game_seasons")
@@ -411,119 +415,39 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
       seasonId = s.id;
     }
 
-    // Evita liga duplicada
-    const { data: existingComp } = await supabase
-      .from("competitions")
-      .select("id")
-      .eq("trainer_id", trainer.id)
-      .eq("type", "league")
-      .eq("status", "active")
-      .maybeSingle();
-    if (existingComp) {
-      return { trainerId: trainer.id, competitionId: existingComp.id, teamKey: data.key };
+    // 3. Popular o MUNDO (70 times, 5 divisões, 1820 criaturas, 5 calendários)
+    const { seedWorldForTrainer } = await import("./world/seed.server");
+    // Buscamos os rows para passar ao seeder (com IDs para vincular ao time do jogador)
+    const playerCreatureFullRows = creatureRows.map((r, i) => ({
+      ...r,
+      // id não vai ser reutilizado — o seeder ignora, mas mantém o shape
+    }));
+    // O seeder recebe o elenco do jogador só para "reservar" o slot e vincular owner_team_id.
+    // Como as criaturas já existem, vamos ATUALIZAR seu owner_team_id ao invés de inserir de novo.
+    const { competitionsByDiv, playerTeamId } = await seedWorldForTrainer({
+      supabase,
+      trainerId: trainer.id,
+      seasonId,
+      playerStarterKey: data.key,
+      // passa lista vazia: o seeder cria os slots dos outros 69 times e nós vinculamos as criaturas do jogador manualmente logo abaixo
+      playerRoster: [],
+    });
+
+    // Vincula as criaturas do jogador ao seu time recém-criado
+    if (createdCreatures && createdCreatures.length) {
+      const ids = createdCreatures.map((c: any) => c.id);
+      const { error: linkErr } = await supabase
+        .from("creatures")
+        .update({ owner_team_id: playerTeamId })
+        .in("id", ids);
+      if (linkErr) throw linkErr;
     }
 
-    const { data: competition, error: compErr } = await supabase
-      .from("competitions")
-      .insert({
-        trainer_id: trainer.id,
-        season_id: seasonId,
-        division: "bronze",
-        type: "league",
-        status: "active",
-      })
-      .select("id")
-      .single();
-    if (compErr) throw compErr;
-
-    // 3. Time do jogador
-    const playerAvg = Math.round(
-      roster.reduce((s, c) => s + c.overall, 0) / roster.length,
-    );
-    const { data: playerTeam, error: ptErr } = await supabase
-      .from("teams")
-      .insert({
-        competition_id: competition.id,
-        trainer_id: trainer.id,
-        is_player: true,
-        name: teamDef.name,
-        color: teamDef.color,
-        emblem: teamDef.emblem,
-        dominant_element: teamDef.dominant === "mesclado" ? null : teamDef.dominant,
-        style: teamDef.style,
-        starter_key: teamDef.key,
-        cpu_strength: playerAvg,
-      })
-      .select("id")
-      .single();
-    if (ptErr) throw ptErr;
-
-    // 4. Os outros 5 times fixos como adversários da divisão
-    const rivals = STARTER_TEAMS.filter((t) => t.key !== data.key);
-    const rivalRows = rivals.map((t) => {
-      const sum = starterTeamSummary(t.key);
-      // Força CPU aproximada pelo overall médio (avg atk+def sobre 2 é grosseiro; usa overall reconstruído)
-      const avg = Math.round((sum.avgAttack + sum.avgDefense) / 2);
-      return {
-        competition_id: competition.id,
-        trainer_id: null,
-        is_player: false,
-        name: t.name,
-        color: t.color,
-        emblem: t.emblem,
-        dominant_element: t.dominant === "mesclado" ? null : t.dominant,
-        style: t.style,
-        starter_key: t.key,
-        cpu_strength: Math.max(30, Math.min(80, avg)),
-      };
-    });
-
-    // 5. Mais 2 CPUs genéricos pra fechar 8
-    const extraNames = pickCpuTeamNames(2, Date.now() & 0xffffffff);
-    const extraRows = extraNames.map((name) => ({
-      competition_id: competition.id,
-      trainer_id: null,
-      is_player: false,
-      name,
-      cpu_strength: Math.max(30, Math.min(80, playerAvg + (Math.random() > 0.5 ? 3 : -3))),
-    }));
-
-    const { data: cpuTeams, error: ctErr } = await supabase
-      .from("teams")
-      .insert([...rivalRows, ...extraRows])
-      .select("id");
-    if (ctErr) throw ctErr;
-
-    const teamIds = [playerTeam.id, ...cpuTeams.map((t: any) => t.id)] as string[];
-
-    // 6. Standings
-    const standingsRows = teamIds.map((tid) => ({
-      competition_id: competition.id,
-      team_id: tid,
-      points: 0, wins: 0, draws: 0, losses: 0, goals_for: 0, goals_against: 0,
-    }));
-    const { error: stErr } = await supabase.from("standings").insert(standingsRows);
-    if (stErr) throw stErr;
-
-    // 7. Calendário round-robin duplo (14 rodadas)
-    const schedule = generateSchedule(8, true);
-    const matchesRows: any[] = [];
-    schedule.forEach((round, rIdx) => {
-      round.forEach(([h, a]) => {
-        matchesRows.push({
-          competition_id: competition.id,
-          round: rIdx + 1,
-          home_team_id: teamIds[h],
-          away_team_id: teamIds[a],
-          status: "scheduled",
-          is_friendly: false,
-        });
-      });
-    });
-    const { error: mErr } = await supabase.from("matches").insert(matchesRows);
-    if (mErr) throw mErr;
-
-    return { trainerId: trainer.id, competitionId: competition.id, teamKey: data.key };
+    return {
+      trainerId: trainer.id,
+      competitionId: competitionsByDiv.bronze,
+      teamKey: data.key,
+    };
   });
 
 

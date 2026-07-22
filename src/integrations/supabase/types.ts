@@ -488,10 +488,12 @@ export type Database = {
           clima: string | null
           competition_id: string | null
           created_at: string
+          division: Database["public"]["Enums"]["division_type"] | null
           home_score: number | null
           home_team_id: string
           id: string
           is_friendly: boolean
+          is_summary: boolean
           played_at: string | null
           round: number | null
           speed_paid: Json
@@ -503,10 +505,12 @@ export type Database = {
           clima?: string | null
           competition_id?: string | null
           created_at?: string
+          division?: Database["public"]["Enums"]["division_type"] | null
           home_score?: number | null
           home_team_id: string
           id?: string
           is_friendly?: boolean
+          is_summary?: boolean
           played_at?: string | null
           round?: number | null
           speed_paid?: Json
@@ -518,10 +522,12 @@ export type Database = {
           clima?: string | null
           competition_id?: string | null
           created_at?: string
+          division?: Database["public"]["Enums"]["division_type"] | null
           home_score?: number | null
           home_team_id?: string
           id?: string
           is_friendly?: boolean
+          is_summary?: boolean
           played_at?: string | null
           round?: number | null
           speed_paid?: Json
@@ -613,6 +619,7 @@ export type Database = {
       standings: {
         Row: {
           competition_id: string
+          division: Database["public"]["Enums"]["division_type"] | null
           draws: number
           goals_against: number
           goals_for: number
@@ -624,6 +631,7 @@ export type Database = {
         }
         Insert: {
           competition_id: string
+          division?: Database["public"]["Enums"]["division_type"] | null
           draws?: number
           goals_against?: number
           goals_for?: number
@@ -635,6 +643,7 @@ export type Database = {
         }
         Update: {
           competition_id?: string
+          division?: Database["public"]["Enums"]["division_type"] | null
           draws?: number
           goals_against?: number
           goals_for?: number
@@ -705,12 +714,15 @@ export type Database = {
       teams: {
         Row: {
           color: string | null
+          colors: Json
           competition_id: string | null
           cpu_strength: number | null
           created_at: string
+          division: Database["public"]["Enums"]["division_type"] | null
           dominant_element: Database["public"]["Enums"]["element_type"] | null
           emblem: string | null
           id: string
+          is_cpu: boolean
           is_player: boolean
           name: string
           starter_key: string | null
@@ -719,12 +731,15 @@ export type Database = {
         }
         Insert: {
           color?: string | null
+          colors?: Json
           competition_id?: string | null
           cpu_strength?: number | null
           created_at?: string
+          division?: Database["public"]["Enums"]["division_type"] | null
           dominant_element?: Database["public"]["Enums"]["element_type"] | null
           emblem?: string | null
           id?: string
+          is_cpu?: boolean
           is_player?: boolean
           name: string
           starter_key?: string | null
@@ -733,12 +748,15 @@ export type Database = {
         }
         Update: {
           color?: string | null
+          colors?: Json
           competition_id?: string | null
           cpu_strength?: number | null
           created_at?: string
+          division?: Database["public"]["Enums"]["division_type"] | null
           dominant_element?: Database["public"]["Enums"]["element_type"] | null
           emblem?: string | null
           id?: string
+          is_cpu?: boolean
           is_player?: boolean
           name?: string
           starter_key?: string | null
@@ -844,6 +862,48 @@ export type Database = {
             foreignKeyName: "transfers_trainer_id_fkey"
             columns: ["trainer_id"]
             isOneToOne: false
+            referencedRelation: "trainers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      world_state: {
+        Row: {
+          created_at: string
+          current_round: number
+          season_id: string
+          seeded: boolean
+          trainer_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_round?: number
+          season_id: string
+          seeded?: boolean
+          trainer_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_round?: number
+          season_id?: string
+          seeded?: boolean
+          trainer_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "world_state_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "game_seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "world_state_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: true
             referencedRelation: "trainers"
             referencedColumns: ["id"]
           },

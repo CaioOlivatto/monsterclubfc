@@ -1,13 +1,25 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Trophy, Play, Calendar } from "lucide-react";
+import { ArrowLeft, Trophy, Play, Calendar, ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getLeague, startLeague, playNextLeagueMatch, finishSeasonAndAdvance } from "@/lib/league.functions";
+
+const DIV_LABEL: Record<string, string> = {
+  lendaria: "1ª — Lendária",
+  diamante: "2ª — Diamante",
+  ouro: "3ª — Ouro",
+  prata: "4ª — Prata",
+  bronze: "5ª — Bronze",
+};
+const DIVS = ["lendaria", "diamante", "ouro", "prata", "bronze"] as const;
+
 
 export const Route = createFileRoute("/_authenticated/league")({
   head: () => ({
@@ -26,10 +38,13 @@ function LeaguePage() {
   const start = useServerFn(startLeague);
   const playNext = useServerFn(playNextLeagueMatch);
 
+  const [division, setDivision] = useState<string | undefined>(undefined);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["league"],
-    queryFn: () => fetchLeague(),
+    queryKey: ["league", division ?? "auto"],
+    queryFn: () => fetchLeague({ data: division ? { division } : {} } as any),
   });
+
 
   const startMut = useMutation({
     mutationFn: () => start(),
@@ -107,6 +122,8 @@ function LeaguePage() {
         {comp && data && (
           <LeagueBody
             data={data}
+            division={division ?? (data as any).selectedDivision ?? "bronze"}
+            setDivision={setDivision}
             onPlayNext={() => playMut.mutate()}
             isPlaying={playMut.isPending}
             onFinishSeason={() => finishMut.mutate()}
@@ -121,12 +138,16 @@ function LeaguePage() {
 
 function LeagueBody({
   data,
+  division,
+  setDivision,
   onPlayNext,
   isPlaying,
   onFinishSeason,
   isFinishing,
 }: {
   data: any;
+  division: string;
+  setDivision: (v: string) => void;
   onPlayNext: () => void;
   isPlaying: boolean;
   onFinishSeason: () => void;
@@ -151,29 +172,51 @@ function LeagueBody({
   const roundNumbers = [...rounds.keys()].sort((a, b) => a - b);
   const nextRound = roundNumbers.find((r) => rounds.get(r)!.some((m) => m.status === "scheduled"));
 
-  const division = data.competition?.division ?? "bronze";
+  const playerDivision = (data as any).playerDivision ?? "bronze";
+  const isPlayerDivision = division === playerDivision;
   const leagueDone = !nextRound;
 
   return (
     <>
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 py-4">
-          <div>
-            <CardTitle className="text-base capitalize">Divisão {division}</CardTitle>
+        <CardHeader className="flex flex-col gap-3 space-y-0 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 space-y-2">
+            <div className="flex items-center gap-2">
+              <Select value={division} onValueChange={setDivision}>
+                <SelectTrigger className="h-8 w-[190px]">
+                  <SelectValue placeholder="Divisão" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DIVS.map((d) => (
+                    <SelectItem key={d} value={d}>
+                      {DIV_LABEL[d]}
+                      {d === playerDivision ? " · sua" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {isPlayerDivision && <Badge variant="secondary" className="text-[10px]">Sua divisão</Badge>}
+            </div>
             <p className="text-xs text-muted-foreground">
-              {leagueDone ? "Temporada concluída — encerre para promoção/rebaixamento." : `Rodada ${nextRound} de ${roundNumbers.length}`}
+              {leagueDone
+                ? isPlayerDivision
+                  ? "Temporada concluída — encerre para promoção/rebaixamento."
+                  : "Temporada concluída nesta divisão."
+                : `Rodada ${nextRound} de ${roundNumbers.length}`}
             </p>
           </div>
-          {leagueDone ? (
-            <Button onClick={onFinishSeason} disabled={isFinishing} variant="default">
-              <Trophy className="mr-2 h-4 w-4" />
-              {isFinishing ? "Encerrando..." : "Encerrar temporada"}
-            </Button>
-          ) : (
-            <Button onClick={onPlayNext} disabled={isPlaying}>
-              <Play className="mr-2 h-4 w-4" />
-              {isPlaying ? "Jogando..." : "Jogar próxima"}
-            </Button>
+          {isPlayerDivision && (
+            leagueDone ? (
+              <Button onClick={onFinishSeason} disabled={isFinishing} variant="default">
+                <Trophy className="mr-2 h-4 w-4" />
+                {isFinishing ? "Encerrando..." : "Encerrar temporada"}
+              </Button>
+            ) : (
+              <Button onClick={onPlayNext} disabled={isPlaying}>
+                <Play className="mr-2 h-4 w-4" />
+                {isPlaying ? "Jogando..." : "Jogar próxima"}
+              </Button>
+            )
           )}
         </CardHeader>
         {nextRound && (
@@ -214,12 +257,27 @@ function LeagueBody({
                 {standings.map((s: any, i: number) => {
                   const team = teamsById.get(s.team_id);
                   const isPlayer = team?.is_player;
+                  const pos = i + 1;
+                  const total = standings.length;
+                  const isPromo = pos <= 3 && division !== "lendaria";
+                  const isReleg = pos >= total - 2 && division !== "bronze";
+                  const rowCls = [
+                    isPlayer ? "bg-primary/10 font-semibold" : "",
+                    !isPlayer && isPromo ? "bg-emerald-500/5" : "",
+                    !isPlayer && isReleg ? "bg-red-500/5" : "",
+                  ].join(" ");
                   return (
-                    <tr key={s.team_id} className={isPlayer ? "bg-primary/5 font-semibold" : ""}>
-                      <td className="px-3 py-2">{i + 1}</td>
+                    <tr key={s.team_id} className={rowCls}>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-1">
+                          <span>{pos}</span>
+                          {isPromo && <ArrowUp className="h-3 w-3 text-emerald-500" />}
+                          {isReleg && <ArrowDown className="h-3 w-3 text-red-500" />}
+                        </div>
+                      </td>
                       <td className="px-2 py-2">
                         <div className="flex items-center gap-2">
-                          <span>{team?.name ?? "—"}</span>
+                          <span className="truncate">{team?.name ?? "—"}</span>
                           {isPlayer && <Badge variant="secondary" className="text-[10px]">Você</Badge>}
                         </div>
                       </td>
