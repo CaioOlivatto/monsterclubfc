@@ -2,6 +2,17 @@ import { buildSlots } from "./lineup.server";
 import type { EngineSide, EngineSlot, SlotRole, Element, Tactics } from "./match-engine.server";
 import { NEUTRAL_TACTICS } from "./match-engine.server";
 
+async function fetchMedicalLevel(supabase: any, trainerId: string): Promise<number> {
+  const { data } = await supabase
+    .from("buildings")
+    .select("level")
+    .eq("trainer_id", trainerId)
+    .eq("building_type", "centro_medico")
+    .maybeSingle();
+  return Math.max(1, Math.min(5, data?.level ?? 1));
+}
+
+
 
 // Constrói o lado do jogador a partir da escalação salva.
 export async function buildPlayerSideFromDb(
@@ -16,6 +27,8 @@ export async function buildPlayerSideFromDb(
     .eq("trainer_id", trainerId)
     .maybeSingle();
   if (!lineup) throw new Error("Você ainda não tem escalação salva. Vá em Escalação primeiro.");
+  const medicalLevel = await fetchMedicalLevel(supabase, trainerId);
+
 
   const savedStarters = (lineup.starters ?? []) as {
     slot: number; role: SlotRole; creature_id: string | null;
@@ -75,7 +88,7 @@ export async function buildPlayerSideFromDb(
     .map((c: any) => toEngine(c, posToRole(c.suggested_position)));
 
   const tactics: Tactics = (lineup.default_tactics as Tactics | null) ?? NEUTRAL_TACTICS;
-  return { team_id: teamId, team_name: teamName, starters, bench, strategy: lineup.strategy, tactics };
+  return { team_id: teamId, team_name: teamName, starters, bench, strategy: lineup.strategy, tactics, medical_level: medicalLevel };
 }
 
 /** Constrói o lado do jogador a partir de um DRAFT enviado pela UI (sem salvar). */
@@ -142,11 +155,14 @@ export async function buildPlayerSideFromDraft(
     .filter((c: any) => c && (c.injury_matches_remaining ?? 0) === 0)
     .map((c: any) => toEngine(c, posToRole(c.suggested_position)));
 
+  const medicalLevel = await fetchMedicalLevel(supabase, trainerId);
   return {
     team_id: teamId, team_name: teamName, starters, bench,
     strategy: draft.strategy,
     tactics: (draft.tactics as Tactics | null) ?? NEUTRAL_TACTICS,
+    medical_level: medicalLevel,
   };
+
 }
 
 

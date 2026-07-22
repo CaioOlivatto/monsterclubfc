@@ -44,7 +44,16 @@ export interface EngineSide {
   bench: EngineSlot[];
   strategy: "ofensiva" | "equilibrada" | "defensiva";
   tactics?: Tactics;
+  /** Nível do Centro Médico (1–5). Reduz chance de lesão. Default 1. */
+  medical_level?: number;
 }
+
+/** Multiplicador de CHANCE de lesão pelo Centro Médico. Nível 1 = 1.00 … Nível 5 = 0.50. */
+export function medicalInjuryMult(level: number | undefined | null): number {
+  const l = Math.max(1, Math.min(5, level ?? 1));
+  return [1.0, 0.85, 0.70, 0.60, 0.50][l - 1];
+}
+
 
 export type EngineEventType =
   | "kickoff" | "goal" | "shot_saved" | "yellow_card" | "red_card"
@@ -484,8 +493,10 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
       const actor = outSlot.creature;
       const tMul = live === liveHome ? tH.injuryMul : tA.injuryMul;
       const fMul = injuryFatigueMult(actor.energy);
-      const p = Math.min(1, P_LESAO * fMul * tMul);
+      const mMul = medicalInjuryMult(live.side.medical_level);
+      const p = Math.min(1, P_LESAO * fMul * tMul * mMul);
       if (rand() >= p) continue;
+
       const rr = rand();
       let severity: InjurySeverity; let matches: number;
       if (rr < 0.45) { severity = "leve"; matches = 1; }
