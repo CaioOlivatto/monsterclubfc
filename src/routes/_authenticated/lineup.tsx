@@ -534,7 +534,7 @@ function LineupPage() {
                   <SelectTrigger><SelectValue placeholder="Escolher criatura…" /></SelectTrigger>
                   <SelectContent>
                     {creatures
-                      .filter((c) => !usedIds.has(c.id))
+                      .filter((c) => !bench.includes(c.id))
                       .sort(sortByEff)
                       .map((c) => {
                         const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100, c.morale);
