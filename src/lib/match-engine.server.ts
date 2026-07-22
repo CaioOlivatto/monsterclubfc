@@ -119,6 +119,21 @@ function strategyMod(s: EngineSide["strategy"]): { atk: number; def: number } {
   return { atk: 0, def: 0 };
 }
 
+// Táticas ao vivo: efeito matemático sobre ataque/defesa/frequência de chances.
+// mentalidade: +atk/-def   ·   verticalidade: mais chances, menor precisão
+// pressao: +atk/+lesão/+cartão · cortes: +def/+cartão
+function tacticsMod(t: Tactics | undefined) {
+  const T = t ?? NEUTRAL_TACTICS;
+  return {
+    atk: T.mentalidade * 2 + T.pressao * 1,
+    def: -T.mentalidade * 1 + T.cortes * 2,
+    freq: 1 + T.verticalidade * 0.05,      // mult. na frequência de chances
+    quality: 1 - T.verticalidade * 0.02,   // qualidade média (chute mais afoito)
+    yellowMul: 1 + T.pressao * 0.3 + T.cortes * 0.5,
+    injuryMul: 1 + Math.max(0, T.pressao) * 0.4,
+  };
+}
+
 /**
  * GDD §4.6 — Fadiga aplicada como multiplicador sobre o overall efetivo.
  * A energia registrada NO INÍCIO da partida define a faixa; o motor não
