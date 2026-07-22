@@ -374,17 +374,16 @@ export const acceptOffer = createServerFn({ method: "POST" })
       throw new Error("Criaturas aposentadas não podem ser levadas.");
     }
 
-    // 5) Gera 24 criaturas para o novo time (26 - 2 trazidas)
-    const { loadBestiary } = await import("./bestiary.server");
-    const bestiary = await loadBestiary(supabase);
-    const starterKey = starterKeyForTeam(newTeam.dominant_element, newTeam.style);
-    const fullRoster = generateStarterRoster(starterKey, bestiary);
-    // Ordena por overall e descarta os 2 mais fortes (o treinador "traz" os melhores dele)
-    const trimmed = [...fullRoster].sort((a, b) => b.overall - a.overall).slice(2);
-    const newRows = rosterToDbRows(trainer.id, trimmed).map((r) => ({
-      ...r,
-      owner_team_id: newTeam.id,
-    }));
+    // 5) Absorve o elenco EXISTENTE do novo clube (CPU): assume owner_trainer_id
+    //    e descarta as 2 criaturas mais fracas para dar espaço às 2 trazidas.
+    const { data: existingRoster } = await supabase
+      .from("creatures")
+      .select("id, overall, retired")
+      .eq("owner_team_id", newTeam.id);
+    const activeRoster = (existingRoster ?? []).filter((c: any) => !c.retired);
+    const sortedByOvr = [...activeRoster].sort((a: any, b: any) => (a.overall ?? 0) - (b.overall ?? 0));
+    const dropIds = sortedByOvr.slice(0, 2).map((c: any) => c.id);
+    const keepFromNewClubIds = sortedByOvr.slice(2).map((c: any) => c.id);
 
     // 6) Solta o elenco antigo (menos as 2 escolhidas): owner_trainer_id → null
     if (trainer.current_team_id) {
@@ -409,15 +408,25 @@ export const acceptOffer = createServerFn({ method: "POST" })
         .eq("id", trainer.current_team_id);
     }
 
-    // 7) Reassinala as 2 mantidas ao novo clube
+    // 7) Descarta os 2 mais fracos do novo clube (liberados para nada — sumiram)
+    if (dropIds.length) {
+      await supabase.from("creatures").delete().in("id", dropIds);
+    }
+
+    // 8) Assume o elenco remanescente do novo clube
+    if (keepFromNewClubIds.length) {
+      await supabase
+        .from("creatures")
+        .update({ owner_trainer_id: trainer.id })
+        .in("id", keepFromNewClubIds);
+    }
+
+    // 9) Reassinala as 2 mantidas do treinador ao novo clube
     await supabase
       .from("creatures")
       .update({ owner_team_id: newTeam.id })
       .in("id", data.keepCreatureIds);
 
-    // 8) Insere elenco novo
-    const { error: insErr } = await supabase.from("creatures").insert(newRows as any);
-    if (insErr) throw insErr;
 
     // 9) Novo clube passa a ser do jogador
     await supabase
