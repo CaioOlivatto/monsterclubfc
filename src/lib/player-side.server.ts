@@ -155,11 +155,14 @@ export async function buildPlayerSideFromDraft(
     .filter((c: any) => c && (c.injury_matches_remaining ?? 0) === 0)
     .map((c: any) => toEngine(c, posToRole(c.suggested_position)));
 
+  const medicalLevel = await fetchMedicalLevel(supabase, trainerId);
   return {
     team_id: teamId, team_name: teamName, starters, bench,
     strategy: draft.strategy,
     tactics: (draft.tactics as Tactics | null) ?? NEUTRAL_TACTICS,
+    medical_level: medicalLevel,
   };
+
 }
 
 
