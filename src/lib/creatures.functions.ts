@@ -307,19 +307,23 @@ export const createInitialTrainer = createServerFn({ method: "POST" })
 
 // ---------- Times iniciais ----------
 
-export const listStarterTeams = createServerFn({ method: "GET" }).handler(async () => {
-  return STARTER_TEAMS.map((t) => ({
-    key: t.key,
-    name: t.name,
-    emblem: t.emblem,
-    color: t.color,
-    colorClass: t.colorClass,
-    dominant: t.dominant,
-    style: t.style,
-    description: t.description,
-    ...starterTeamSummary(t.key),
-  }));
-});
+export const listStarterTeams = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { loadBestiary } = await import("./bestiary.server");
+    const bestiary = await loadBestiary(context.supabase);
+    return STARTER_TEAMS.map((t) => ({
+      key: t.key,
+      name: t.name,
+      emblem: t.emblem,
+      color: t.color,
+      colorClass: t.colorClass,
+      dominant: t.dominant,
+      style: t.style,
+      description: t.description,
+      ...starterTeamSummary(t.key, bestiary),
+    }));
+  });
 
 const starterKeySchema = z.object({
   key: z.enum([
@@ -333,10 +337,13 @@ const starterKeySchema = z.object({
 });
 
 export const getStarterTeamDetail = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((raw: unknown) => starterKeySchema.parse(raw))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    const { loadBestiary } = await import("./bestiary.server");
+    const bestiary = await loadBestiary(context.supabase);
     const team = getStarterTeam(data.key)!;
-    const roster = generateStarterRoster(data.key as StarterKey);
+    const roster = generateStarterRoster(data.key as StarterKey, bestiary);
     return {
       team: {
         key: team.key,
@@ -386,7 +393,9 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
     }
 
     // 1. Elenco do jogador (26 criaturas, via Bestiário)
-    const roster = generateStarterRoster(data.key as StarterKey);
+    const { loadBestiary } = await import("./bestiary.server");
+    const bestiary = await loadBestiary(supabase);
+    const roster = generateStarterRoster(data.key as StarterKey, bestiary);
     const creatureRows = rosterToDbRows(trainer.id, roster);
     // Insere criaturas sem owner_team_id ainda (será atualizado depois)
     const { data: createdCreatures, error: cErr } = await supabase

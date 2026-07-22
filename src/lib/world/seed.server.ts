@@ -2,7 +2,6 @@
 // Server-only: chamado por chooseStarterTeam para popular o mundo do treinador.
 
 import {
-  BESTIARY,
   bestiaryByElement,
   bestiaryByPosition,
   rollCreature,
@@ -10,6 +9,7 @@ import {
   type Position,
   type SpeciesBase,
 } from "@/lib/bestiary";
+import { loadBestiary, type LoadedBestiary } from "@/lib/bestiary.server";
 import {
   AGE_BUCKETS,
   DIVISION_ORDER,
@@ -66,12 +66,12 @@ function pickElement(team: WorldTeam, rng: () => number): Element {
   return others[Math.floor(rng() * others.length)];
 }
 
-function pickSpecies(pos: Position, el: Element, rng: () => number): SpeciesBase {
-  const posEl = BESTIARY.filter((s) => s.position === pos && s.element === el);
+function pickSpecies(bestiary: LoadedBestiary, pos: Position, el: Element, rng: () => number): SpeciesBase {
+  const posEl = bestiary.species.filter((s) => s.position === pos && s.element === el);
   if (posEl.length) return posEl[Math.floor(rng() * posEl.length)];
-  const byPos = bestiaryByPosition(pos);
+  const byPos = bestiaryByPosition(bestiary.species, pos);
   if (byPos.length) return byPos[Math.floor(rng() * byPos.length)];
-  return bestiaryByElement(el)[0] ?? BESTIARY[0];
+  return bestiaryByElement(bestiary.species, el)[0] ?? bestiary.species[0];
 }
 
 // ---------- Ajuste de overall para alvo de estrelas ----------
@@ -158,7 +158,7 @@ export interface GeneratedCreature {
   aff_gelo: number;
 }
 
-export function generateTeamRoster(team: WorldTeam, division: DivisionSlug, seed: number): GeneratedCreature[] {
+export function generateTeamRoster(bestiary: LoadedBestiary, team: WorldTeam, division: DivisionSlug, seed: number): GeneratedCreature[] {
   const rng = mulberry32(seed);
   const ages = buildAgeList(rng);
   const out: GeneratedCreature[] = [];
@@ -166,8 +166,8 @@ export function generateTeamRoster(team: WorldTeam, division: DivisionSlug, seed
   for (let i = 0; i < ROSTER_PLAN.length; i++) {
     const pos = ROSTER_PLAN[i];
     const el = pickElement(team, rng);
-    const spBase = pickSpecies(pos, el, rng);
-    const rolled = rollCreature(spBase, rng, { variation: 6 });
+    const spBase = pickSpecies(bestiary, pos, el, rng);
+    const rolled = rollCreature(spBase, bestiary.epithets[spBase.element] ?? [], rng, { variation: 6 });
 
     // Ajuste ao alvo de estrelas da divisão
     const half = pickHalfStars(division, rng);
@@ -236,6 +236,7 @@ export async function seedWorldForTrainer({
   playerStarterKey,
   playerRoster,
 }: SeedInput): Promise<{ competitionsByDiv: Record<DivisionSlug, string>; playerTeamId: string }> {
+  const bestiary = await loadBestiary(supabase);
   // 1) Cria 5 competições (uma por divisão)
   const competitionsByDiv = {} as Record<DivisionSlug, string>;
   for (const div of DIVISION_ORDER) {
@@ -306,7 +307,7 @@ export async function seedWorldForTrainer({
         continue;
       }
       const seed = hashSeed(`${trainerId}:${div}:${i}:${teams[i].name}`);
-      const roster = generateTeamRoster(teams[i], div, seed);
+      const roster = generateTeamRoster(bestiary, teams[i], div, seed);
       for (const c of roster) creatureRows.push({ ...c, owner_team_id: teamId });
     }
   }
