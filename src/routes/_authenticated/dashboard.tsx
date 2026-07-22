@@ -283,6 +283,26 @@ function Dashboard() {
             </Card>
           </Link>
         )}
+        {lowMoraleCount > 0 && (
+          <Link to="/roster" className="block">
+            <Card className="border-purple-500/60 bg-purple-500/5 transition-colors hover:bg-purple-500/10">
+              <CardContent className="flex items-center gap-3 py-3">
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-purple-500/20 text-purple-200">
+                  <span className="text-base leading-none">😞</span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-purple-200">
+                    {lowMoraleCount} {lowMoraleCount === 1 ? "criatura desanimada" : "criaturas desanimadas"}
+                  </p>
+                  <p className="text-xs text-purple-200/80">
+                    Moral baixa reduz o rating. Escale, dê minutos ou vença partidas para reerguer.
+                  </p>
+                </div>
+                <span className="shrink-0 text-xs text-purple-300">Ver elenco →</span>
+              </CardContent>
+            </Card>
+          </Link>
+        )}
         <div className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
