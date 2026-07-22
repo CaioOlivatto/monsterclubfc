@@ -327,8 +327,8 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
         .in("id", [m.home_team_id, m.away_team_id]);
       const h = pair!.find((t: any) => t.id === m.home_team_id) as any;
       const a = pair!.find((t: any) => t.id === m.away_team_id) as any;
-      const hs = generateCpuSideFor(hashSeed(h.id), h.id, h.name, (h.cpu_strength ?? 50) + 3);
-      const as = generateCpuSideFor(hashSeed(a.id), a.id, a.name, a.cpu_strength ?? 50);
+      const hs = generateCpuSideFor(hashSeed(h.id), h.id, h.name, (h.cpu_strength ?? 50) + 3, bestiary);
+      const as = generateCpuSideFor(hashSeed(a.id), a.id, a.name, a.cpu_strength ?? 50, bestiary);
       let r = simulate(hs, as, hashSeed(m.id));
       if (r.home_score === r.away_score) {
         const homeWin = (hashSeed(m.id + "pen") >>> 0) % 2 === 0;
