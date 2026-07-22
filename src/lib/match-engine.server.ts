@@ -23,12 +23,22 @@ export interface EngineSlot {
   creature: EngineCreature;
 }
 
+// GDD — Táticas ao vivo (§4.7). Cada eixo é um inteiro de -2 a +2.
+export interface Tactics {
+  mentalidade: number;   // -2 defensivo … +2 ofensivo
+  verticalidade: number; // -2 posse …    +2 direto
+  pressao: number;       // -2 baixa …    +2 alta
+  cortes: number;        // -2 leve …     +2 duro
+}
+export const NEUTRAL_TACTICS: Tactics = { mentalidade: 0, verticalidade: 0, pressao: 0, cortes: 0 };
+
 export interface EngineSide {
   team_id: string;
   team_name: string;
   starters: EngineSlot[];
   bench: EngineSlot[]; // reservas por ordem
   strategy: "ofensiva" | "equilibrada" | "defensiva";
+  tactics?: Tactics;
 }
 
 export type EngineEventType =
