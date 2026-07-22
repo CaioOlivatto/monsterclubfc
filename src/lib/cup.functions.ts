@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { simulate, generateCpuSideFor, type EngineSide } from "./match-engine.server";
-import { pickCpuTeamNames } from "./league.server";
+
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 
