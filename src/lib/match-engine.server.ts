@@ -900,5 +900,10 @@ function buildCpuSideCore(
   };
   const starters = roles.map((r, i) => buildSlot(r, i, "s"));
   const bench = benchRoles.map((r, i) => buildSlot(r, i, "b"));
-  return { team_id: teamId, team_name: teamName, starters, bench, strategy: "equilibrada" };
+  // Inferir divisão a partir do OVR alvo (para normalização de chances).
+  const buckets: [number, Division][] = [[33,"bronze"],[44,"prata"],[55,"ouro"],[64,"diamante"],[72,"lendaria"]];
+  let division: Division = "bronze"; let dbest = Infinity;
+  for (const [ovr, d] of buckets) { const dd = Math.abs(ovr - target); if (dd < dbest) { dbest = dd; division = d; } }
+  return { team_id: teamId, team_name: teamName, starters, bench, strategy: "equilibrada", division };
 }
+
