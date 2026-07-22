@@ -118,7 +118,7 @@ const WEATHER_LABEL: Record<Weather, string> = {
   nublado: "Nublado",
 };
 
-const P_LESAO = 0.0034; // 0,34% por minuto por time (~0,3 lesão por time/partida)
+const P_LESAO = 0.004; // 0,4% por minuto por time; sorteio base antes da vítima/fadiga.
 const MAX_INJURIES_PER_TEAM = 2;
 
 function elementalBonus(attacker: Element, defender: Element): number {
@@ -175,12 +175,18 @@ export function fatigueState(energy: number): FatigueState {
   return "esgotado";
 }
 
+function normalizedEnergy(energy: number | null | undefined): number {
+  if (typeof energy !== "number" || !Number.isFinite(energy)) return 100;
+  return Math.max(0, Math.min(100, energy));
+}
+
 function energyAdjusted(c: EngineCreature): number {
-  return Math.max(10, Math.round(c.overall * energyMultiplier(c.energy)));
+  return Math.max(10, Math.round(c.overall * energyMultiplier(normalizedEnergy(c.energy))));
 }
 
 // Multiplicador de risco de lesão por fadiga (GDD §Fadiga).
-function injuryFatigueMult(energy: number): number {
+function injuryFatigueMult(energy: number | null | undefined): number {
+  energy = normalizedEnergy(energy);
   if (energy >= 30) return 1.0;
   if (energy >= 15) return 2.0;
   return 3.0;
@@ -362,18 +368,18 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
         });
       }
     }
-    // Lesão: UM sorteio por minuto POR TIME (não por criatura).
-    // Se acertar, escolhemos aleatoriamente uma criatura em campo.
+    // Lesão: UM sorteio base por minuto POR TIME (não por criatura).
+    // Se acertar, escolhemos a vítima e só então aplicamos o multiplicador de fadiga dela.
     for (const live of [liveHome, liveAway] as const) {
-      if (!live.starters.length) continue;
       const teamInjuries = injuriesByTeam.get(live.side.team_id) ?? 0;
       if (teamInjuries >= MAX_INJURIES_PER_TEAM) continue;
-      const mul = live === liveHome ? tH.injuryMul : tA.injuryMul;
-      const fatigueMul = avg(live.starters.map((s) => injuryFatigueMult(s.creature.energy)));
-      if (rand() >= P_LESAO * mul * fatigueMul) continue;
-
-      const outSlot = pick(live.starters, rand);
+      const candidates = live.starters;
+      if (!candidates.length) continue;
+      const outSlot = pick(candidates, rand);
       const actor = outSlot.creature;
+      const tacticsInjuryMul = live === liveHome ? tH.injuryMul : tA.injuryMul;
+      const fatigueMul = injuryFatigueMult(actor.energy);
+      if (rand() >= Math.min(1, P_LESAO * fatigueMul * tacticsInjuryMul)) continue;
       // Sortear gravidade (§Lesões): 45% leve, 40% moderada, 15% grave.
       const rr = rand();
       let severity: InjurySeverity;
