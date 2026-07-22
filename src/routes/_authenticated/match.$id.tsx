@@ -389,3 +389,54 @@ function buildRevealed(e: any, playerTeamId: string | undefined): RevealedEvent 
     raw_team_id: e.actor_team_id ?? null,
   } as any;
 }
+
+function money(n: number) {
+  return "$ " + Math.round(n).toLocaleString("pt-BR");
+}
+
+function FinanceSummaryCard({ summary }: { summary: any }) {
+  const inc = summary.income ?? {};
+  const exp = summary.expense ?? {};
+  const totals = summary.totals ?? { income: 0, expense: 0, net: 0 };
+  const rows: Array<{ label: string; value: number; kind: "in" | "out" }> = [
+    { label: "Premiação da rodada", value: inc.match_prize ?? 0, kind: "in" },
+    { label: "Direitos de TV", value: inc.tv ?? 0, kind: "in" },
+    { label: "Patrocínio", value: inc.sponsor ?? 0, kind: "in" },
+    { label: "Merchandising", value: inc.merch ?? 0, kind: "in" },
+  ];
+  if ((inc.gate ?? 0) > 0) rows.push({ label: "Bilheteria", value: inc.gate, kind: "in" });
+  if ((exp.salaries ?? 0) > 0) rows.push({ label: "Salários", value: exp.salaries, kind: "out" });
+  if ((exp.maintenance ?? 0) > 0) rows.push({ label: "Manutenção", value: exp.maintenance, kind: "out" });
+
+  const netColor = totals.net >= 0 ? "text-emerald-400" : "text-red-400";
+  return (
+    <Card>
+      <CardContent className="space-y-3 py-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Finanças da partida</h3>
+          <span className={`text-sm font-bold ${netColor}`}>
+            {totals.net >= 0 ? "+" : "−"} {money(Math.abs(totals.net))}
+          </span>
+        </div>
+        <div className="space-y-1">
+          {rows.map((r, i) => (
+            <div key={i} className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">{r.label}</span>
+              <span className={r.kind === "in" ? "text-emerald-300" : "text-red-300"}>
+                {r.kind === "in" ? "+" : "−"} {money(r.value)}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center justify-between border-t pt-2 text-xs">
+          <span className="text-muted-foreground">Receitas / Despesas</span>
+          <span>
+            <span className="text-emerald-300">{money(totals.income)}</span>
+            {"  "}
+            <span className="text-red-300">−{money(totals.expense)}</span>
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
