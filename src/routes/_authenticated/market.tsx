@@ -203,7 +203,7 @@ function MarketPage() {
             {data?.division && (
               <div className="text-xs text-muted-foreground">
                 Divisão: <span className="font-medium capitalize">{data.division}</span>
-                {" · "}Até <span className="font-medium">{((data.max_band ?? 0) / 2).toFixed(1)}★</span>
+                {" · "}Até <span className="inline-flex items-center gap-1 align-middle"><StarRating value={halfStarsToStars(data.max_band ?? 0)} size={0.75} /></span>
               </div>
             )}
             {typeof data?.payroll === "number" && (
