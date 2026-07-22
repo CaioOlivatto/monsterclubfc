@@ -1,5 +1,7 @@
 import { buildSlots } from "./lineup.server";
-import type { EngineSide, EngineSlot, SlotRole, Element } from "./match-engine.server";
+import type { EngineSide, EngineSlot, SlotRole, Element, Tactics } from "./match-engine.server";
+import { NEUTRAL_TACTICS } from "./match-engine.server";
+
 
 // Constrói o lado do jogador a partir da escalação salva.
 export async function buildPlayerSideFromDb(
@@ -10,10 +12,11 @@ export async function buildPlayerSideFromDb(
 ): Promise<EngineSide> {
   const { data: lineup } = await supabase
     .from("team_lineups")
-    .select("formation, strategy, starters, bench")
+    .select("formation, strategy, starters, bench, default_tactics")
     .eq("trainer_id", trainerId)
     .maybeSingle();
   if (!lineup) throw new Error("Você ainda não tem escalação salva. Vá em Escalação primeiro.");
+
   const savedStarters = (lineup.starters ?? []) as {
     slot: number; role: SlotRole; creature_id: string | null;
   }[];
@@ -68,5 +71,7 @@ export async function buildPlayerSideFromDb(
     .filter(Boolean)
     .map((c: any) => toEngine(c, posToRole(c.suggested_position)));
 
-  return { team_id: teamId, team_name: teamName, starters, bench, strategy: lineup.strategy };
+  const tactics: Tactics = (lineup.default_tactics as Tactics | null) ?? NEUTRAL_TACTICS;
+  return { team_id: teamId, team_name: teamName, starters, bench, strategy: lineup.strategy, tactics };
 }
+
