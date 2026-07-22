@@ -7,7 +7,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { getDashboard, listMyCreatures } from "@/lib/creatures.functions";
 import { createFriendlyMatch } from "@/lib/match.functions";
 import { claimWeeklyGems } from "@/lib/progression.functions";
+import { getMyLineup } from "@/lib/lineup.functions";
 import { ageStatus } from "@/lib/age";
+import { BatteryLow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -86,6 +88,20 @@ function Dashboard() {
   const lastSeasonCount = (rosterList ?? []).filter(
     (c: any) => ageStatus(c.age) === "last_season",
   ).length;
+
+  const fetchLineup = useServerFn(getMyLineup);
+  const { data: lineupData } = useQuery({
+    queryKey: ["my-lineup"],
+    queryFn: () => fetchLineup(),
+  });
+  const tiredStarters = React.useMemo(() => {
+    const starters: any[] = (lineupData as any)?.lineup?.starters ?? [];
+    const creatures: any[] = (lineupData as any)?.creatures ?? [];
+    const byId = new Map(creatures.map((c) => [c.id, c]));
+    return starters
+      .map((s: any) => byId.get(s.creature_id))
+      .filter((c: any) => c && (c.energy ?? 100) < 50).length;
+  }, [lineupData]);
 
   // Toast comemorativo quando o treinador subir de nível
   const notifiedRef = React.useRef(false);
@@ -209,6 +225,26 @@ function Dashboard() {
                   </p>
                 </div>
                 <span className="shrink-0 text-xs text-orange-300">Ver elenco →</span>
+              </CardContent>
+            </Card>
+          </Link>
+        )}
+        {tiredStarters > 0 && (
+          <Link to="/lineup" className="block">
+            <Card className="border-amber-500/60 bg-amber-500/5 transition-colors hover:bg-amber-500/10">
+              <CardContent className="flex items-center gap-3 py-3">
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-amber-500/20 text-amber-300">
+                  <BatteryLow className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-amber-200">
+                    {tiredStarters} {tiredStarters === 1 ? "titular está cansado" : "titulares estão cansados"}
+                  </p>
+                  <p className="text-xs text-amber-200/80">
+                    Considere revezar o elenco antes da próxima partida.
+                  </p>
+                </div>
+                <span className="shrink-0 text-xs text-amber-300">Ver escalação →</span>
               </CardContent>
             </Card>
           </Link>
