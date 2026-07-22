@@ -257,12 +257,27 @@ function LeagueBody({
                 {standings.map((s: any, i: number) => {
                   const team = teamsById.get(s.team_id);
                   const isPlayer = team?.is_player;
+                  const pos = i + 1;
+                  const total = standings.length;
+                  const isPromo = pos <= 3 && division !== "lendaria";
+                  const isReleg = pos >= total - 2 && division !== "bronze";
+                  const rowCls = [
+                    isPlayer ? "bg-primary/10 font-semibold" : "",
+                    !isPlayer && isPromo ? "bg-emerald-500/5" : "",
+                    !isPlayer && isReleg ? "bg-red-500/5" : "",
+                  ].join(" ");
                   return (
-                    <tr key={s.team_id} className={isPlayer ? "bg-primary/5 font-semibold" : ""}>
-                      <td className="px-3 py-2">{i + 1}</td>
+                    <tr key={s.team_id} className={rowCls}>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-1">
+                          <span>{pos}</span>
+                          {isPromo && <ArrowUp className="h-3 w-3 text-emerald-500" />}
+                          {isReleg && <ArrowDown className="h-3 w-3 text-red-500" />}
+                        </div>
+                      </td>
                       <td className="px-2 py-2">
                         <div className="flex items-center gap-2">
-                          <span>{team?.name ?? "—"}</span>
+                          <span className="truncate">{team?.name ?? "—"}</span>
                           {isPlayer && <Badge variant="secondary" className="text-[10px]">Você</Badge>}
                         </div>
                       </td>
