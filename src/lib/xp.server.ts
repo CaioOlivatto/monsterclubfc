@@ -43,6 +43,8 @@ export async function applyPostMatchXp(
     energy_loss: Record<string, number>;
     injuries?: Array<{ creature_id: string; severity: "leve" | "moderada" | "grave"; matches: number }>;
     isOfficial?: boolean;
+    /** Gols por creature_id na partida — usados para bônus de moral. */
+    goalsByCreature?: Record<string, number>;
   },
 ) {
   const base = opts.outcome === "W" ? 100 : opts.outcome === "D" ? 50 : 0;
