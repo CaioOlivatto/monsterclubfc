@@ -137,18 +137,29 @@ export async function buildPlayerSideFromDraft(
     (creatures ?? []).filter((c: any) => c.owner_trainer_id === trainerId).map((c: any) => [c.id, c]),
   );
 
-  const toEngine = (c: any, role: SlotRole): EngineSlot => ({
-    role,
-    creature: {
-      id: c.id, name: c.name, element: c.element as Element,
-      overall: c.overall,
-      physical: Math.round(((c.attr_pique ?? 40) + (c.attr_forca ?? 40)) / 2),
-      energy: c.energy ?? 100,
-      affinity_fogo: c.aff_fogo ?? 0, affinity_agua: c.aff_agua ?? 0,
-      affinity_terra: c.aff_terra ?? 0, affinity_ar: c.aff_ar ?? 0,
-      affinity_gelo: c.aff_gelo ?? 0,
-    },
-  });
+  const posToRole = (pos: string | null | undefined): SlotRole => {
+    if (pos === "Goleiro") return "GOL";
+    if (pos === "Zagueiro") return "DEF";
+    if (pos === "Atacante") return "ATA";
+    return "MEI";
+  };
+
+  const toEngine = (c: any, role: SlotRole): EngineSlot => {
+    const oop = posToRole(c.suggested_position) !== role;
+    const effOverall = oop ? Math.round((c.overall ?? 0) * 0.85) : c.overall;
+    return {
+      role,
+      creature: {
+        id: c.id, name: c.name, element: c.element as Element,
+        overall: effOverall,
+        physical: Math.round(((c.attr_pique ?? 40) + (c.attr_forca ?? 40)) / 2),
+        energy: c.energy ?? 100,
+        affinity_fogo: c.aff_fogo ?? 0, affinity_agua: c.aff_agua ?? 0,
+        affinity_terra: c.aff_terra ?? 0, affinity_ar: c.aff_ar ?? 0,
+        affinity_gelo: c.aff_gelo ?? 0,
+      },
+    };
+  };
 
   const slots = buildSlots(draft.formation as any);
   const starters: EngineSlot[] = slots.map((s) => {
@@ -161,12 +172,7 @@ export async function buildPlayerSideFromDraft(
     return toEngine(c, s.role);
   });
 
-  const posToRole = (pos: string | null | undefined): SlotRole => {
-    if (pos === "Goleiro") return "GOL";
-    if (pos === "Zagueiro") return "DEF";
-    if (pos === "Atacante") return "ATA";
-    return "MEI";
-  };
+
   const bench: EngineSlot[] = draft.bench
     .map((id) => byId.get(id))
     .filter((c: any) => c && (c.injury_matches_remaining ?? 0) === 0)
