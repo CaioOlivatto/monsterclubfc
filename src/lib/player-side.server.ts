@@ -2,6 +2,17 @@ import { buildSlots } from "./lineup.server";
 import type { EngineSide, EngineSlot, SlotRole, Element, Tactics } from "./match-engine.server";
 import { NEUTRAL_TACTICS } from "./match-engine.server";
 
+async function fetchMedicalLevel(supabase: any, trainerId: string): Promise<number> {
+  const { data } = await supabase
+    .from("buildings")
+    .select("level")
+    .eq("trainer_id", trainerId)
+    .eq("building_type", "centro_medico")
+    .maybeSingle();
+  return Math.max(1, Math.min(5, data?.level ?? 1));
+}
+
+
 
 // Constrói o lado do jogador a partir da escalação salva.
 export async function buildPlayerSideFromDb(
