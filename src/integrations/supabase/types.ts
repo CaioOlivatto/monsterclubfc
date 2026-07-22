@@ -175,6 +175,7 @@ export type Database = {
           injury_severity: string | null
           is_goalkeeper: boolean
           market_value: number
+          morale: number
           name: string
           overall: number
           owner_team_id: string | null
@@ -214,6 +215,7 @@ export type Database = {
           injury_severity?: string | null
           is_goalkeeper?: boolean
           market_value?: number
+          morale?: number
           name: string
           overall?: number
           owner_team_id?: string | null
@@ -253,6 +255,7 @@ export type Database = {
           injury_severity?: string | null
           is_goalkeeper?: boolean
           market_value?: number
+          morale?: number
           name?: string
           overall?: number
           owner_team_id?: string | null
