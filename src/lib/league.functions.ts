@@ -11,6 +11,7 @@ import { stadiumCapacity } from "./buildings.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { awardTrainerXp, resetSeasonBreakdown } from "./trainer-xp.server";
+import { MATCH_REVENUE, MAINTENANCE_PER_MATCH, matchSalary } from "./economy";
 
 
 async function getTrainer(supabase: any, userId: string) {
@@ -321,7 +322,9 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         .eq("team_id", u.team_id);
     }
 
-    // Financeiro por partida — prêmio por divisão + bilheteria (sem salários)
+    // Financeiro por partida — Balanceamento por partida (TV, Patrocínio, Merch,
+    // Bilheteria, Prêmio) menos (Salários da rodada + Manutenção de infraestrutura).
+    let financeSummary: any = null;
     try {
       const isHome = playerTeam.id === home.id;
       const playerGf = isHome ? result.home_score : result.away_score;
@@ -332,6 +335,10 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       const [pw, pd, pl] = MATCH_PRIZE[division];
       const matchPrize = outcome === "W" ? pw : outcome === "D" ? pd : pl;
 
+      // Receitas passivas por partida (§Economia-Por-Partida)
+      const rev = MATCH_REVENUE[division];
+
+      // Bilheteria (só em casa)
       let gate = 0;
       let stadiumLevel = 0;
       if (isHome) {
@@ -343,7 +350,6 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
           .maybeSingle();
         stadiumLevel = est?.level ?? 0;
         const capacity = stadiumCapacity(stadiumLevel);
-        // Bilheteria (§2.2): ocupação = 70% + 3% × posição_invertida_na_liga
         const { data: standRows } = await supabase
           .from("standings")
           .select("team_id, points, goals_for, goals_against")
@@ -357,12 +363,37 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         });
         const posIdx = rankedCur.findIndex((r: any) => r.team_id === playerTeam.id);
         const pos = posIdx >= 0 ? posIdx + 1 : LEAGUE_SIZE;
-        const posInvertida = LEAGUE_SIZE + 1 - pos; // 1º → 14 ; último → 1
+        const posInvertida = LEAGUE_SIZE + 1 - pos;
         const fillRate = Math.min(1, 0.70 + 0.03 * posInvertida);
         gate = Math.round(capacity * fillRate * 25);
       }
 
-      const gross = matchPrize + gate;
+      // Salários por partida — elenco atual
+      const { data: roster } = await supabase
+        .from("creatures")
+        .select("overall")
+        .eq("owner_trainer_id", trainer.id);
+      const salaries = (roster ?? []).reduce(
+        (a: number, c: any) => a + matchSalary(c.overall ?? 40),
+        0,
+      );
+
+      // Manutenção de infraestrutura por partida
+      const { data: bldgs } = await supabase
+        .from("buildings")
+        .select("building_type, level")
+        .eq("trainer_id", trainer.id);
+      const maintenance = (bldgs ?? []).reduce((sum: number, b: any) => {
+        const table = (MAINTENANCE_PER_MATCH as any)[b.building_type] as number[] | undefined;
+        if (!table) return sum;
+        const lvl = Math.min(Math.max(b.level ?? 0, 0), table.length - 1);
+        return sum + (table[lvl] ?? 0);
+      }, 0);
+
+      const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch + gate;
+      const totalExpense = salaries + maintenance;
+      const net = totalIncome - totalExpense;
+
       const { data: acad } = await supabase
         .from("academies")
         .select("money")
@@ -370,30 +401,58 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         .maybeSingle();
       await supabase
         .from("academies")
-        .update({ money: (acad?.money ?? 0) + gross })
+        .update({ money: (acad?.money ?? 0) + net })
         .eq("trainer_id", trainer.id);
 
       const label = outcome === "W" ? "vitória" : outcome === "D" ? "empate" : "derrota";
+      const roundTag = `Rodada ${next.round}`;
       const txs: any[] = [
-        {
-          trainer_id: trainer.id,
-          transaction_type: "income",
-          amount: matchPrize,
-          description: `Rodada ${next.round} — premiação por ${label} (${division})`,
-        },
+        { trainer_id: trainer.id, transaction_type: "income", category: "premio_partida",
+          amount: matchPrize, description: `${roundTag} — premiação por ${label} (${division})` },
+        { trainer_id: trainer.id, transaction_type: "income", category: "tv",
+          amount: rev.tv, description: `${roundTag} — Direitos de TV` },
+        { trainer_id: trainer.id, transaction_type: "income", category: "patrocinio",
+          amount: rev.sponsor, description: `${roundTag} — Patrocínio` },
+        { trainer_id: trainer.id, transaction_type: "income", category: "merch",
+          amount: rev.merch, description: `${roundTag} — Merchandising` },
       ];
       if (isHome && gate > 0) {
-        txs.push({
-          trainer_id: trainer.id,
-          transaction_type: "income",
-          amount: gate,
-          description: `Rodada ${next.round} — bilheteria (estádio nv.${stadiumLevel})`,
-        });
+        txs.push({ trainer_id: trainer.id, transaction_type: "income", category: "bilheteria",
+          amount: gate, description: `${roundTag} — Bilheteria (estádio nv.${stadiumLevel})` });
+      }
+      if (salaries > 0) {
+        txs.push({ trainer_id: trainer.id, transaction_type: "expense", category: "salarios",
+          amount: salaries, description: `${roundTag} — Salários (${(roster ?? []).length} criaturas)` });
+      }
+      if (maintenance > 0) {
+        txs.push({ trainer_id: trainer.id, transaction_type: "expense", category: "manutencao",
+          amount: maintenance, description: `${roundTag} — Manutenção de infraestrutura` });
       }
       await supabase.from("financial_transactions").insert(txs);
+
+      financeSummary = {
+        outcome,
+        division,
+        round: next.round,
+        is_home: isHome,
+        income: {
+          match_prize: matchPrize,
+          tv: rev.tv,
+          sponsor: rev.sponsor,
+          merch: rev.merch,
+          gate,
+        },
+        expense: {
+          salaries,
+          maintenance,
+        },
+        totals: { income: totalIncome, expense: totalExpense, net },
+      };
+      await supabase.from("matches").update({ finance_summary: financeSummary }).eq("id", next.id);
     } catch (e) {
       console.error("payoff error", e);
     }
+
 
     // XP pós-partida e mensagem de resultado
     try {
@@ -624,15 +683,7 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
     const promoted = DIVISION_ORDER.indexOf(newDivision) > DIVISION_ORDER.indexOf(previousDivision);
     const relegated = DIVISION_ORDER.indexOf(newDivision) < DIVISION_ORDER.indexOf(previousDivision);
 
-    // Salários (elenco do jogador)
-    const { data: roster } = await supabase
-      .from("creatures")
-      .select("id, overall")
-      .eq("owner_trainer_id", trainer.id);
-    const salaries = (roster ?? []).reduce(
-      (acc: number, c: any) => acc + seasonSalary(c.overall ?? 40),
-      0,
-    );
+    // Salários agora são cobrados por partida — nada a descontar aqui.
     const { data: acad } = await supabase
       .from("academies")
       .select("money, gems")
@@ -641,7 +692,7 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
     await supabase
       .from("academies")
       .update({
-        money: (acad?.money ?? 0) + prize - salaries,
+        money: (acad?.money ?? 0) + prize,
         gems: (acad?.gems ?? 0) + championGems,
       })
       .eq("trainer_id", trainer.id);
@@ -656,14 +707,9 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
     if (prize > 0) txs.push({
       trainer_id: trainer.id,
       transaction_type: "income",
+      category: "premio_temporada",
       amount: prize,
       description: `Prêmio de temporada — ${playerDiv} • ${position}º lugar`,
-    });
-    if (salaries > 0) txs.push({
-      trainer_id: trainer.id,
-      transaction_type: "expense",
-      amount: salaries,
-      description: `Salários da temporada (${(roster ?? []).length} criaturas)`,
     });
     if (txs.length) await supabase.from("financial_transactions").insert(txs);
 
@@ -794,7 +840,7 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
       playerIsChampion
         ? `Campeão da ${playerDiv}! (+${championGems}💎)`
         : `Temporada encerrada — ${position}º lugar`,
-      `Prêmio: $${prize.toLocaleString("pt-BR")} • Salários: $${salaries.toLocaleString("pt-BR")}${promoted ? ` • Promovido para ${newDivision}` : relegated ? ` • Rebaixado para ${newDivision}` : ""}`,
+      `Prêmio: $${prize.toLocaleString("pt-BR")}${promoted ? ` • Promovido para ${newDivision}` : relegated ? ` • Rebaixado para ${newDivision}` : ""}`,
     );
 
     // Resumo do mundo
@@ -813,7 +859,7 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
       position,
       prize,
       championGems,
-      salaries,
+      salaries: 0,
       previousDivision,
       newDivision,
       promoted,

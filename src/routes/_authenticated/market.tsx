@@ -110,7 +110,7 @@ function MarketPage() {
               {" · "}{res.position}{" · "}
               <span className="text-amber-300">{res.stars.toFixed(1)}★</span>
             </p>
-            <p>Salário: <span className="font-medium">{formatMoney(res.salary)}/temporada</span></p>
+            <p>Salário: <span className="font-medium">{formatMoney((res as any).salary_per_match ?? Math.round(res.salary / 26))}/partida</span> <span className="text-muted-foreground">({formatMoney(res.salary)}/temporada)</span></p>
             <p>
               Folha: {formatMoney(res.payroll_after)} / {formatMoney(res.salary_cap)}
               {" "}<span className="text-muted-foreground">(resta {formatMoney(remainingCap)})</span>
@@ -354,7 +354,8 @@ function MarketPage() {
                       </span>
                       <span>
                         <span className="text-muted-foreground">Salário:</span>{" "}
-                        <span className="font-semibold">{formatMoney(salary)}/temporada</span>
+                        <span className="font-semibold">{formatMoney(l.salary_per_match ?? Math.round(salary / 26))}/partida</span>
+                        <span className="ml-1 text-muted-foreground">({formatMoney(salary)}/temp)</span>
                       </span>
                     </div>
                     <p className={`text-[11px] ${overCap ? "text-red-400" : "text-muted-foreground"}`}>
