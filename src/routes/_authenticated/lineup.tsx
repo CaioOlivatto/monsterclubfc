@@ -71,6 +71,11 @@ function LineupPage() {
     queryFn: () => fetchLineup(),
   });
 
+  const [formation, setFormation] = useState<Formation>("4-4-2");
+  const [strategy, setStrategy] = useState<"ofensiva" | "equilibrada" | "defensiva">("equilibrada");
+  const [starters, setStarters] = useState<StarterSlot[]>([]);
+  const [bench, setBench] = useState<string[]>([]);
+
   // Draft enviado ao servidor para recalcular odds ao vivo (sem precisar salvar).
   const draft = useMemo(() => ({
     formation, strategy, starters, bench,
@@ -83,13 +88,8 @@ function LineupPage() {
     enabled: !!data && starters.filter((s) => s.creature_id).length === 11,
   });
 
-
-  const [formation, setFormation] = useState<Formation>("4-4-2");
-  const [strategy, setStrategy] = useState<"ofensiva" | "equilibrada" | "defensiva">("equilibrada");
-  const [starters, setStarters] = useState<StarterSlot[]>([]);
-  const [bench, setBench] = useState<string[]>([]);
-
   const slots = useMemo(() => buildSlots(formation), [formation]);
+
 
   // Sincroniza estado quando dados carregam
   useEffect(() => {
