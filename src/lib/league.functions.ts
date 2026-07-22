@@ -654,6 +654,12 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
       })
       .eq("trainer_id", trainer.id);
 
+    // XP de prestígio de fim de temporada
+    if (playerIsChampion) await awardTrainerXp(supabase, trainer.id, "title", 1);
+    if (promoted) await awardTrainerXp(supabase, trainer.id, "promotion", 1);
+
+
+
     const txs: any[] = [];
     if (prize > 0) txs.push({
       trainer_id: trainer.id,
