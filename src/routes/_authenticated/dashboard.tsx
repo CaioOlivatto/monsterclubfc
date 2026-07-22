@@ -77,6 +77,14 @@ function Dashboard() {
     queryKey: ["dashboard"],
     queryFn: () => fetchDashboard(),
   });
+  const fetchRoster = useServerFn(listMyCreatures);
+  const { data: rosterList } = useQuery({
+    queryKey: ["my-creatures"],
+    queryFn: () => fetchRoster(),
+  });
+  const lastSeasonCount = (rosterList ?? []).filter(
+    (c: any) => ageStatus(c.age) === "last_season",
+  ).length;
 
   const friendlyMut = useMutation({
     mutationFn: () => startFriendly(),
