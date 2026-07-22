@@ -306,7 +306,7 @@ export async function seedWorldForTrainer({
         continue;
       }
       const seed = hashSeed(`${trainerId}:${div}:${i}:${teams[i].name}`);
-      const roster = generateTeamRoster(teams[i], div, seed);
+      const roster = generateTeamRoster(bestiary, teams[i], div, seed);
       for (const c of roster) creatureRows.push({ ...c, owner_team_id: teamId });
     }
   }
