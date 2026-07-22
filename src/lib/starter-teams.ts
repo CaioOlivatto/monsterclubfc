@@ -96,13 +96,22 @@ function pickSpecies(pos: Position, el: Element, used: Set<string>, rng: () => n
   return any[Math.floor(rng() * any.length)] ?? BESTIARY[Math.floor(rng() * BESTIARY.length)];
 }
 
-// Composição: 3 GOL, 7 DEF, 7 MEI, 5 ATA — 22 criaturas
+// Composição: 3 GOL, 8 DEF, 8 MEI, 7 ATA — 26 criaturas (§9 novo balanceamento)
 const ROSTER_PLAN: Position[] = [
   ...Array(3).fill("Goleiro"),
-  ...Array(7).fill("Zagueiro"),
-  ...Array(7).fill("Meio-campo"),
-  ...Array(5).fill("Atacante"),
+  ...Array(8).fill("Zagueiro"),
+  ...Array(8).fill("Meio-campo"),
+  ...Array(7).fill("Atacante"),
 ] as Position[];
+
+// Distribuição de idades do elenco inicial (26 = 6+6+5+5+4)
+const AGE_PLAN: number[] = [
+  ...Array(6).fill(18),
+  ...Array(6).fill(21),
+  ...Array(5).fill(24),
+  ...Array(5).fill(27),
+  ...Array(4).fill(30),
+];
 
 export function generateStarterRoster(teamKey: StarterKey): RolledCreature[] {
   const team = getStarterTeam(teamKey);
