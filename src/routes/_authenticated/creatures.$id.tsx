@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, BatteryCharging, Clock, Coins, Dumbbell, Gem, HeartPulse, Hourglass, Sparkles, Star } from "lucide-react";
 import { ageStatus, seasonsRemaining, rebirthHalfStarsPreview, sellValuePreview } from "@/lib/age";
+import { moraleState, MORALE_EMOJI, MORALE_LABEL } from "@/lib/morale";
 
 
 export const Route = createFileRoute("/_authenticated/creatures/$id")({
