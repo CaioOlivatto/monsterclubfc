@@ -250,6 +250,12 @@ function LineupPage() {
   };
 
 
+  const mut = useMutation({
+    mutationFn: async () => {
+      await save({
+        data: { formation, strategy, starters, bench },
+      });
+    },
     onSuccess: () => {
       toast.success("Escalação salva!");
       qc.invalidateQueries({ queryKey: ["lineup"] });
@@ -257,6 +263,7 @@ function LineupPage() {
     },
     onError: (e: any) => toast.error(e?.message ?? "Erro ao salvar."),
   });
+
 
   const filledStarters = starters.filter((s) => s.creature_id).length;
 
