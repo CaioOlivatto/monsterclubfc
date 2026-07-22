@@ -17,6 +17,8 @@ export interface EngineCreature {
   overall: number;
   physical: number;
   energy: number;
+  /** Moral 0..100 (default 50). Multiplica o rating (±10% no extremo). */
+  morale?: number;
   affinity_fogo: number;
   affinity_agua: number;
   affinity_terra: number;
