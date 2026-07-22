@@ -319,13 +319,18 @@ function LineupPage() {
                 {bench.map((id) => {
                   const c = creatures.find((x) => x.id === id);
                   if (!c) return null;
+                  const fs = fatigueState(c.energy ?? 100);
+                  const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100);
                   return (
                     <div key={id} className="flex items-center justify-between rounded-md border p-2">
-                      <div className="text-sm">
+                      <div className="text-sm min-w-0">
                         <span className="font-medium">{c.name}</span>{" "}
                         <span className="text-muted-foreground">
-                          · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall} · {(c.overall / 20).toFixed(1)}★ · Energia {c.energy}
+                          · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}{eff !== c.overall ? `→${eff}` : ""} · {(c.overall / 20).toFixed(1)}★
                         </span>
+                        <div className={"mt-1 inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] " + FATIGUE_CLASS[fs]}>
+                          {FATIGUE_LABEL[fs]} · {c.energy}%
+                        </div>
                       </div>
                       <Button size="sm" variant="ghost" onClick={() => removeFromBench(id)}>
                         Remover
