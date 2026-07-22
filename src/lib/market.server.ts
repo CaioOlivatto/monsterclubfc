@@ -46,6 +46,31 @@ function rollHalfStarBand(rng: () => number, division: Division): number {
   return rollBandForDivision(division, rng);
 }
 
+// Baralho determinístico: distribui as N cartas conforme os pesos da divisão,
+// garantindo a variedade prometida (§7.1) mesmo em amostras pequenas.
+function buildBandDeck(division: Division, count: number, rng: () => number): number[] {
+  const { DIVISION_STAR_PROFILE } = require("./economy") as typeof import("./economy");
+  const weights = DIVISION_STAR_PROFILE[division];
+  const total = weights.reduce((a, b) => a + b, 0);
+  const deck: number[] = [];
+  for (let i = 0; i < weights.length; i++) {
+    const n = Math.round((weights[i] / total) * count);
+    for (let k = 0; k < n; k++) deck.push(i + 1);
+  }
+  // ajusta arredondamentos até bater exatamente `count`
+  while (deck.length < count) {
+    const maxIdx = weights.indexOf(Math.max(...weights));
+    deck.push(maxIdx + 1);
+  }
+  while (deck.length > count) deck.pop();
+  // Fisher-Yates com o mesmo rng determinístico
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  return deck;
+}
+
 
 // Para atingir uma banda alvo, precisamos que o overall bata a faixa dela.
 // A espécie tem um overall-base; aplicamos variação forçada até bater a banda.
