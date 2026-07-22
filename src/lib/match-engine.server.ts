@@ -148,26 +148,29 @@ function tacticsMod(t: Tactics | undefined) {
   };
 }
 
+/** Piso de energia v2: nunca cai abaixo de 30 em lugar nenhum. */
+export const ENERGY_FLOOR = 30;
+
+/** Escala contínua: >=70 → 1.00; senão 0.50 + 0.50 * (e-30)/40. */
 export function energyMultiplier(energy: number): number {
-  if (energy >= 70) return 1.0;
-  if (energy >= 50) return 0.95;
-  if (energy >= 30) return 0.85;
-  if (energy >= 15) return 0.7;
-  return 0.5;
+  const e = Math.max(ENERGY_FLOOR, Math.min(100, Number.isFinite(energy) ? energy : 100));
+  if (e >= 70) return 1.0;
+  return 0.5 + 0.5 * (e - 30) / 40;
 }
 
-export type FatigueState = "pleno" | "leve" | "cansado" | "exausto" | "esgotado";
+export type FatigueState = "pleno" | "leve" | "cansado" | "muito_cansado" | "exausto";
 export function fatigueState(energy: number): FatigueState {
-  if (energy >= 70) return "pleno";
-  if (energy >= 50) return "leve";
-  if (energy >= 30) return "cansado";
-  if (energy >= 15) return "exausto";
-  return "esgotado";
+  const e = Math.max(ENERGY_FLOOR, Math.min(100, Number.isFinite(energy) ? energy : 100));
+  if (e >= 70) return "pleno";
+  if (e >= 60) return "leve";
+  if (e >= 50) return "cansado";
+  if (e >= 40) return "muito_cansado";
+  return "exausto";
 }
 
 function normalizedEnergy(e: number | null | undefined): number {
   if (typeof e !== "number" || !Number.isFinite(e)) return 100;
-  return Math.max(0, Math.min(100, e));
+  return Math.max(ENERGY_FLOOR, Math.min(100, e));
 }
 
 function fatMult(c: EngineCreature): number {
@@ -186,12 +189,14 @@ function logistic(diff: number): number {
   return 1 / (1 + Math.exp(-diff / K_DUEL));
 }
 
+/** Risco de lesão por fadiga — faixas ajustadas ao piso 30. */
 function injuryFatigueMult(energy: number | null | undefined): number {
-  energy = normalizedEnergy(energy);
-  if (energy >= 30) return 1.0;
-  if (energy >= 15) return 2.0;
-  return 3.0;
+  const e = normalizedEnergy(energy);
+  if (e >= 50) return 1.0;
+  if (e >= 40) return 1.5;
+  return 2.0;
 }
+
 
 function avg(nums: number[]): number {
   if (!nums.length) return 0;
