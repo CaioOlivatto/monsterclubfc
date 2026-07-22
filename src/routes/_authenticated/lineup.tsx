@@ -229,6 +229,16 @@ function LineupPage() {
               Auto definir
             </Button>
             <Button
+              onClick={autoRested}
+              disabled={creatures.length === 0}
+              size="sm"
+              variant="outline"
+              title="Prioriza criaturas com energia alta"
+            >
+              Escalar time descansado
+            </Button>
+
+            <Button
               onClick={() => mut.mutate()}
               disabled={mut.isPending || filledStarters !== 11}
               size="sm"
