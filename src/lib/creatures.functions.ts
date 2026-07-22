@@ -543,7 +543,7 @@ export const listMyCreatures = createServerFn({ method: "GET" })
     const { data, error } = await supabase
       .from("creatures")
       .select(
-        "id, name, element, suggested_position, attack, defense, goalkeeper, physical, strength, overall, energy, xp, half_stars_earned, market_value",
+        "id, name, species, epithet, element, suggested_position, is_goalkeeper, power_key, overall, energy, xp, half_stars_earned, market_value, age",
       )
       .eq("owner_trainer_id", trainer.id)
       .order("overall", { ascending: false });
