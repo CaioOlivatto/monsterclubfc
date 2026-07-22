@@ -8,14 +8,41 @@ export function divisionLabel(d: Division): string {
   return { bronze: "5ª Bronze", prata: "4ª Prata", ouro: "3ª Ouro", diamante: "2ª Diamante", lendaria: "1ª Lendária" }[d];
 }
 
-/** Salário por temporada — Balanceamento §2.4. Overall aproxima o tier de estrelas. */
+export const MATCHES_PER_SEASON = 26;
+
+/** Salário anual (temporada de 26 partidas). Base para o teto de folha. */
 export function seasonSalary(overall: number): number {
-  if (overall < 30) return 4_000;    // 0,5–1★
-  if (overall < 50) return 9_000;    // 1,5–2★
-  if (overall < 70) return 20_000;   // 2,5–3★
-  if (overall < 90) return 45_000;   // 3,5–4★
-  return 90_000;                     // 4,5–5★
+  if (overall < 30) return 4_000;
+  if (overall < 50) return 12_000;
+  if (overall < 70) return 35_000;
+  if (overall < 90) return 110_000;
+  return 400_000;
 }
+
+/** Salário por partida (§Economia-Por-Partida). */
+export function matchSalary(overall: number): number {
+  return Math.round(seasonSalary(overall) / MATCHES_PER_SEASON);
+}
+
+/** Receita passiva por partida, por divisão (TV, Patrocínio, Merchandising). */
+export const MATCH_REVENUE: Record<Division, { tv: number; sponsor: number; merch: number }> = {
+  bronze:   { tv:  8_000, sponsor:  6_000, merch:  4_000 },
+  prata:    { tv: 16_000, sponsor: 12_000, merch:  8_000 },
+  ouro:     { tv: 30_000, sponsor: 22_000, merch: 15_000 },
+  diamante: { tv: 55_000, sponsor: 40_000, merch: 28_000 },
+  lendaria: { tv:100_000, sponsor: 75_000, merch: 50_000 },
+};
+
+/** Manutenção por partida por nível (índice = nível, 0 = não construído). */
+export const MAINTENANCE_PER_MATCH: Record<
+  "ct_treino" | "ct_elemental" | "estadio" | "centro_medico",
+  number[]
+> = {
+  estadio:       [0, 2_000, 4_500, 9_000, 16_000, 27_000],
+  ct_treino:     [0, 1_000, 2_200, 4_500,  9_000, 16_000],
+  ct_elemental:  [0, 1_000, 2_200, 4_500,  9_000, 16_000],
+  centro_medico: [0,   800, 1_800, 3_600,  6_500, 12_000],
+};
 
 /** Limite de contratação (banda de meia-estrela máxima) — Balanceamento §8.1. */
 export const DIVISION_MAX_BAND: Record<Division, number> = {
