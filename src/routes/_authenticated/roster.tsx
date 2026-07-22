@@ -153,6 +153,7 @@ function RosterPage() {
             onChange={(e) => setSort(e.target.value as SortKey)}
             className="rounded-md border border-border/60 bg-card/40 px-3 py-2 text-sm"
           >
+            <option value="position">Ordenar: Posição (GOL→ATA)</option>
             <option value="overall">Ordenar: Overall</option>
             <option value="name">Ordenar: Nome</option>
             <option value="energy">Ordenar: Energia</option>
