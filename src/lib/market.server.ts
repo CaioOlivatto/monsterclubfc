@@ -10,7 +10,7 @@ import {
   type SpeciesBase,
 } from "./bestiary";
 import type { LoadedBestiary } from "./bestiary.server";
-import { rollBandForDivision, type Division } from "./economy";
+import { rollBandForDivision, DIVISION_STAR_PROFILE, type Division } from "./economy";
 
 
 const STAR_VALUE = [
@@ -44,6 +44,30 @@ function pick<T>(rng: () => number, arr: readonly T[]): T {
 
 function rollHalfStarBand(rng: () => number, division: Division): number {
   return rollBandForDivision(division, rng);
+}
+
+// Baralho determinístico: distribui as N cartas conforme os pesos da divisão,
+// garantindo a variedade prometida (§7.1) mesmo em amostras pequenas.
+function buildBandDeck(division: Division, count: number, rng: () => number): number[] {
+  const weights = DIVISION_STAR_PROFILE[division];
+  const total = weights.reduce((a, b) => a + b, 0);
+  const deck: number[] = [];
+  for (let i = 0; i < weights.length; i++) {
+    const n = Math.round((weights[i] / total) * count);
+    for (let k = 0; k < n; k++) deck.push(i + 1);
+  }
+  // ajusta arredondamentos até bater exatamente `count`
+  while (deck.length < count) {
+    const maxIdx = weights.indexOf(Math.max(...weights));
+    deck.push(maxIdx + 1);
+  }
+  while (deck.length > count) deck.pop();
+  // Fisher-Yates com o mesmo rng determinístico
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  return deck;
 }
 
 
@@ -104,8 +128,8 @@ function pickSpeciesForBand(bestiary: LoadedBestiary, band: number, rng: () => n
   return pick(rng, pool);
 }
 
-function generateOne(bestiary: LoadedBestiary, rng: () => number, division: Division): MarketListing {
-  const band = rollHalfStarBand(rng, division);
+function generateOne(bestiary: LoadedBestiary, rng: () => number, division: Division, forcedBand?: number): MarketListing {
+  const band = forcedBand ?? rollHalfStarBand(rng, division);
   const targetOverall = band * 10; // 10..100
   const spBase = pickSpeciesForBand(bestiary, band, rng);
   const c = rollCreature(spBase, bestiary.epithets[spBase.element] ?? [], rng, { variation: 6 });
@@ -173,8 +197,9 @@ export function generateMarketListings(
 ): MarketListing[] {
   const seed = hashString(`${trainerId}:season:${seasonNumber}:${division}`);
   const rng = mulberry32(seed);
+  const deck = buildBandDeck(division, count, rng);
   const listings: MarketListing[] = [];
-  for (let i = 0; i < count; i++) listings.push(generateOne(bestiary, rng, division));
+  for (let i = 0; i < count; i++) listings.push(generateOne(bestiary, rng, division, deck[i]));
   return listings;
 }
 

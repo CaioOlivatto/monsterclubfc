@@ -10,7 +10,7 @@ import {
   type StarterKey,
 } from "./starter-teams";
 import { overallToStars } from "./bestiary";
-import { generateSchedule, pickCpuTeamNames } from "./league.server";
+import { generateSchedule } from "./league.server";
 
 
 // ---------- gerador de criatura inicial ----------

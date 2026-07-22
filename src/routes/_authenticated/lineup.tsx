@@ -275,8 +275,8 @@ function LineupPage() {
                         const match = sug.includes(c.suggested_position ?? "");
                         return (
                           <SelectItem key={c.id} value={c.id}>
-                            {c.name} · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}
-                            {match ? " ★" : ""}
+                            {c.name} · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall} · {(c.overall / 20).toFixed(1)}★
+                            {match ? " (posição ideal)" : ""}
                           </SelectItem>
                         );
                       })}
@@ -303,7 +303,7 @@ function LineupPage() {
                       <div className="text-sm">
                         <span className="font-medium">{c.name}</span>{" "}
                         <span className="text-muted-foreground">
-                          · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall} · Energia {c.energy}
+                          · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall} · {(c.overall / 20).toFixed(1)}★ · Energia {c.energy}
                         </span>
                       </div>
                       <Button size="sm" variant="ghost" onClick={() => removeFromBench(id)}>
@@ -325,7 +325,7 @@ function LineupPage() {
                       .filter((c) => !usedIds.has(c.id))
                       .map((c) => (
                         <SelectItem key={c.id} value={c.id}>
-                          {c.name} · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}
+                          {c.name} · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall} · {(c.overall / 20).toFixed(1)}★
                         </SelectItem>
                       ))}
                   </SelectContent>

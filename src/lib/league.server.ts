@@ -1,43 +1,6 @@
-// Utilitários de liga: geração de calendário e nomes de times CPU.
+// Utilitários de liga: geração de calendário (round-robin).
+// Nomes de times CPU vêm sempre do catálogo oficial em `src/lib/world/catalog.ts`.
 
-const TEAM_NAMES = [
-  "Falcões Ardentes",
-  "Tsunami FC",
-  "Titãs de Pedra",
-  "Vendaval SC",
-  "Nevasca Real",
-  "Cometa Elemental",
-  "Fúria Selvagem",
-  "Sombra Racing",
-  "Vulcão United",
-  "Rajada Sporting",
-  "Aurora Atlético",
-  "Miragem FC",
-  "Cavaleiros do Alvorecer",
-  "Grifos Reais",
-  "Serpente Abissal",
-  "Guardiões do Vale",
-  "Trovão Azul",
-  "Ondas Negras",
-  "Chama Eterna",
-  "Legião Ancestral",
-];
-
-
-export function pickCpuTeamNames(count: number, seed: number): string[] {
-  const pool = [...TEAM_NAMES];
-  const out: string[] = [];
-  let s = seed || 1;
-  const rnd = () => {
-    s = (s * 1664525 + 1013904223) >>> 0;
-    return s / 0xffffffff;
-  };
-  while (out.length < count && pool.length) {
-    const i = Math.floor(rnd() * pool.length);
-    out.push(pool.splice(i, 1)[0]);
-  }
-  return out;
-}
 
 // Round-robin (método círculo) — para N times pares (aqui 8).
 // Retorna array de rounds; cada round é lista de [homeIdx, awayIdx].

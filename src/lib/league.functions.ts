@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { generateSchedule, pickCpuTeamNames } from "./league.server";
+import { generateSchedule } from "./league.server";
 import {
   simulate,
   generateCpuSideFor,
@@ -85,76 +85,68 @@ export const startLeague = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const trainer = await getTrainer(supabase, userId);
 
+    // Se já existe qualquer competição de liga ativa (mundo semeado), aborta.
     const { data: existingComp } = await supabase
       .from("competitions")
       .select("id")
       .eq("trainer_id", trainer.id)
       .eq("type", "league")
       .eq("status", "active")
+      .limit(1)
       .maybeSingle();
     if (existingComp) throw new Error("Você já tem uma liga em andamento.");
 
+    // Semeia todo o mundo (5 divisões × 14 times = 70) usando o time do jogador.
     const season = await ensureCurrentSeason(supabase, trainer.id);
 
-    const { data: competition, error: cErr } = await supabase
-      .from("competitions")
-      .insert({ trainer_id: trainer.id, season_id: season.id, division: "bronze", type: "league", status: "active" })
-      .select("id")
-      .single();
-    if (cErr) throw cErr;
-
-    const { data: playerTeam, error: ptErr } = await supabase
+    // Descobre o starter_key: prefere um time existente do jogador na Bronze; senão, usa titas_pedra.
+    const { data: existingPlayerTeam } = await supabase
       .from("teams")
-      .insert({
-        competition_id: competition.id,
-        trainer_id: trainer.id,
-        is_player: true,
-        name: trainer.academy_name,
-      })
-      .select("id")
-      .single();
-    if (ptErr) throw ptErr;
+      .select("starter_key, name")
+      .eq("trainer_id", trainer.id)
+      .eq("is_player", true)
+      .maybeSingle();
+    const playerStarterKey = existingPlayerTeam?.starter_key || "titas_pedra";
 
-    const avg = await playerAverage(supabase, trainer.id);
-    const cpuNames = pickCpuTeamNames(CPU_COUNT, Date.now() & 0xffffffff);
-    const cpuRows = cpuNames.map((name, i) => ({
-      competition_id: competition.id,
-      trainer_id: null,
-      is_player: false,
-      name,
-      cpu_strength: Math.max(20, Math.min(90, avg + (i - Math.floor(CPU_COUNT / 2)) * 3)),
-    }));
-    const { data: cpuTeams, error: ctErr } = await supabase.from("teams").insert(cpuRows).select("id");
-    if (ctErr) throw ctErr;
-
-    const teamIds = [playerTeam.id, ...cpuTeams.map((t: any) => t.id)] as string[];
-
-    const standingsRows = teamIds.map((tid) => ({
-      competition_id: competition.id,
-      team_id: tid,
-      points: 0, wins: 0, draws: 0, losses: 0, goals_for: 0, goals_against: 0,
-    }));
-    const { error: sErr } = await supabase.from("standings").insert(standingsRows);
-    if (sErr) throw sErr;
-
-    const schedule = generateSchedule(LEAGUE_SIZE, true);
-    const matchesRows: any[] = [];
-    schedule.forEach((round, rIdx) => {
-      round.forEach(([h, a]) => {
-        matchesRows.push({
-          competition_id: competition.id,
-          round: rIdx + 1,
-          home_team_id: teamIds[h],
-          away_team_id: teamIds[a],
-          status: "scheduled",
-          is_friendly: false,
-        });
-      });
+    const { seedWorldForTrainer } = await import("./world/seed.server");
+    const { playerTeamId } = await seedWorldForTrainer({
+      supabase,
+      trainerId: trainer.id,
+      seasonId: season.id,
+      playerStarterKey,
+      playerRoster: [],
     });
-    const { error: mErr } = await supabase.from("matches").insert(matchesRows);
-    if (mErr) throw mErr;
 
-    return { competition_id: competition.id };
+    // Reatribui elenco atual ao novo time do jogador e sincroniza academy_name.
+    const { data: myCreatures } = await supabase
+      .from("creatures")
+      .select("id")
+      .eq("owner_trainer_id", trainer.id);
+    if (myCreatures?.length) {
+      await supabase
+        .from("creatures")
+        .update({ owner_team_id: playerTeamId })
+        .in("id", myCreatures.map((c: any) => c.id));
+    }
+    const { data: playerTeamRow } = await supabase
+      .from("teams")
+      .select("name")
+      .eq("id", playerTeamId)
+      .maybeSingle();
+    if (playerTeamRow?.name) {
+      await supabase.from("trainers").update({ academy_name: playerTeamRow.name }).eq("id", trainer.id);
+    }
+
+    const { data: bronzeComp } = await supabase
+      .from("competitions")
+      .select("id")
+      .eq("trainer_id", trainer.id)
+      .eq("type", "league")
+      .eq("division", "bronze")
+      .eq("status", "active")
+      .maybeSingle();
+
+    return { competition_id: bronzeComp?.id ?? null };
   });
 
 export const getLeague = createServerFn({ method: "GET" })

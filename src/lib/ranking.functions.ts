@@ -3,12 +3,23 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   seedWorldAcademiesIfNeeded,
   upsertPlayerAcademy,
-  recomputePositionsBy,
   evolveCpuAcademies,
   type SortKey,
 } from "./ranking/logic";
 
 export type { SortKey } from "./ranking/logic";
+
+const SELECT_COLS =
+  "id, trainer_id, academy_name, trainer_name, division, level, wins, patrimony, primary_color, secondary_color, is_player, last_position";
+
+function sortRows(rows: any[], sort: SortKey): any[] {
+  return [...rows].sort((a, b) => {
+    if (b[sort] !== a[sort]) return (b[sort] ?? 0) - (a[sort] ?? 0);
+    if (b.level !== a.level) return (b.level ?? 0) - (a.level ?? 0);
+    if (b.patrimony !== a.patrimony) return (b.patrimony ?? 0) - (a.patrimony ?? 0);
+    return String(a.id).localeCompare(String(b.id));
+  });
+}
 
 export const getWorldRanking = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -26,42 +37,36 @@ export const getWorldRanking = createServerFn({ method: "POST" })
       .maybeSingle();
     if (trainer?.id) await upsertPlayerAcademy(supabaseAdmin, trainer.id);
 
-    await recomputePositionsBy(supabaseAdmin, sort);
+    // Busca todas as academias e ordena em memória (evita depender de current_position persistida)
+    const all: any[] = [];
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+      const { data: rows } = await supabaseAdmin
+        .from("world_academies")
+        .select(SELECT_COLS)
+        .range(from, from + PAGE - 1);
+      if (!rows || rows.length === 0) break;
+      all.push(...rows);
+      if (rows.length < PAGE) break;
+    }
 
-
-    const { count: total } = await supabase
-      .from("world_academies")
-      .select("id", { count: "exact", head: true });
-
-    const { data: top } = await supabase
-      .from("world_academies")
-      .select("id, academy_name, trainer_name, division, level, wins, patrimony, primary_color, secondary_color, is_player, current_position, last_position")
-      .order("current_position", { ascending: true })
-      .limit(50);
+    const sorted = sortRows(all, sort);
+    const withPos = sorted.map((r, i) => ({ ...r, current_position: i + 1 }));
+    const top = withPos.slice(0, 50);
 
     let player: any = null;
     let context5: any[] = [];
     if (trainer?.id) {
-      const { data: me } = await supabase
-        .from("world_academies")
-        .select("id, academy_name, trainer_name, division, level, wins, patrimony, primary_color, secondary_color, is_player, current_position, last_position")
-        .eq("trainer_id", trainer.id)
-        .maybeSingle();
-      if (me?.current_position) {
+      const me = withPos.find((r) => r.trainer_id === trainer.id) ?? null;
+      if (me) {
         player = me;
         const from = Math.max(1, me.current_position - 2);
         const to = me.current_position + 2;
-        const { data: nearby } = await supabase
-          .from("world_academies")
-          .select("id, academy_name, trainer_name, division, level, wins, patrimony, primary_color, secondary_color, is_player, current_position, last_position")
-          .gte("current_position", from)
-          .lte("current_position", to)
-          .order("current_position", { ascending: true });
-        context5 = nearby ?? [];
+        context5 = withPos.filter((r) => r.current_position >= from && r.current_position <= to);
       }
     }
 
-    return { sort, total: total ?? 0, top: top ?? [], player, context5 };
+    return { sort, total: all.length, top, player, context5 };
   });
 
 export const recomputeWorldRanking = createServerFn({ method: "POST" })
@@ -77,7 +82,5 @@ export const recomputeWorldRanking = createServerFn({ method: "POST" })
       .eq("user_id", userId)
       .maybeSingle();
     if (trainer?.id) await upsertPlayerAcademy(supabaseAdmin, trainer.id);
-    await recomputePositionsBy(supabaseAdmin, "level");
     return { updated };
-
   });
