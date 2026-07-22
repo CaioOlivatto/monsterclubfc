@@ -94,7 +94,12 @@ export const createFriendlyMatch = createServerFn({ method: "POST" })
     );
 
     const seed = Math.floor(Math.random() * 2 ** 31);
-    const cpuSide = generateCpuSide(seed, playerOverall);
+    const bestiaryRaw = await loadBestiary(supabase);
+    const bestiary: EngineBestiary = {
+      species: bestiaryRaw.species.map((s) => ({ species: s.species, element: s.element })),
+      epithets: bestiaryRaw.epithets,
+    };
+    const cpuSide = generateCpuSide(seed, playerOverall, bestiary);
     const cpuOverall = Math.round(
       cpuSide.starters.reduce((a, s) => a + s.creature.overall, 0) / cpuSide.starters.length,
     );
