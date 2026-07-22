@@ -303,7 +303,7 @@ function LineupPage() {
                       <div className="text-sm">
                         <span className="font-medium">{c.name}</span>{" "}
                         <span className="text-muted-foreground">
-                          · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall} · Energia {c.energy}
+                          · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall} · {(c.overall / 20).toFixed(1)}★ · Energia {c.energy}
                         </span>
                       </div>
                       <Button size="sm" variant="ghost" onClick={() => removeFromBench(id)}>
