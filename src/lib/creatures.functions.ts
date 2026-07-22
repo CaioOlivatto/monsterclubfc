@@ -350,10 +350,14 @@ export const getStarterTeamDetail = createServerFn({ method: "GET" })
       },
       roster: roster.map((c) => ({
         name: c.name,
+        species: c.species,
+        epithet: c.epithet,
         element: c.element,
-        position: c.suggested_position,
-        stars: c.stars,
+        position: c.position,
+        stars: overallToStars(c.overall),
         overall: c.overall,
+        is_goalkeeper: c.is_goalkeeper,
+        power_name: c.power_name,
       })),
     };
   });
@@ -381,30 +385,10 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
       throw new Error("Você já escolheu um time inicial.");
     }
 
-    // 1. Insere as 22 criaturas do time escolhido
+    // 1. Insere as 22 criaturas do time escolhido (usando o Bestiário Mitológico)
     const roster = generateStarterRoster(data.key as StarterKey);
-    const creatureRows = roster.map((c) => ({
-      owner_trainer_id: trainer.id,
-      name: c.name,
-      element: c.element,
-      suggested_position: c.suggested_position,
-      attack: c.attack,
-      defense: c.defense,
-      goalkeeper: c.goalkeeper,
-      physical: c.physical,
-      strength: c.strength,
-      aff_fogo: c.aff_fogo,
-      aff_agua: c.aff_agua,
-      aff_terra: c.aff_terra,
-      aff_ar: c.aff_ar,
-      aff_gelo: c.aff_gelo,
-      overall: c.overall,
-      xp: c.xp,
-      half_stars_earned: c.half_stars_earned,
-      energy: c.energy,
-      market_value: c.market_value,
-    }));
-    const { error: cErr } = await supabase.from("creatures").insert(creatureRows);
+    const creatureRows = rosterToDbRows(trainer.id, roster);
+    const { error: cErr } = await supabase.from("creatures").insert(creatureRows as any);
     if (cErr) throw cErr;
 
     // 2. Cria temporada + competição (5ª Divisão – Liga Bronze)
