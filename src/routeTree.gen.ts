@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedShopRouteImport } from './routes/_authenticated/shop'
 import { Route as AuthenticatedRosterRouteImport } from './routes/_authenticated/roster'
+import { Route as AuthenticatedRankingRouteImport } from './routes/_authenticated/ranking'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedMessagesRouteImport } from './routes/_authenticated/messages'
 import { Route as AuthenticatedMarketRouteImport } from './routes/_authenticated/market'
@@ -48,6 +49,11 @@ const AuthenticatedShopRoute = AuthenticatedShopRouteImport.update({
 const AuthenticatedRosterRoute = AuthenticatedRosterRouteImport.update({
   id: '/roster',
   path: '/roster',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedRankingRoute = AuthenticatedRankingRouteImport.update({
+  id: '/ranking',
+  path: '/ranking',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
@@ -119,6 +125,7 @@ export interface FileRoutesByFullPath {
   '/market': typeof AuthenticatedMarketRoute
   '/messages': typeof AuthenticatedMessagesRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/ranking': typeof AuthenticatedRankingRoute
   '/roster': typeof AuthenticatedRosterRoute
   '/shop': typeof AuthenticatedShopRoute
   '/creatures/$id': typeof AuthenticatedCreaturesIdRoute
@@ -136,6 +143,7 @@ export interface FileRoutesByTo {
   '/market': typeof AuthenticatedMarketRoute
   '/messages': typeof AuthenticatedMessagesRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/ranking': typeof AuthenticatedRankingRoute
   '/roster': typeof AuthenticatedRosterRoute
   '/shop': typeof AuthenticatedShopRoute
   '/creatures/$id': typeof AuthenticatedCreaturesIdRoute
@@ -155,6 +163,7 @@ export interface FileRoutesById {
   '/_authenticated/market': typeof AuthenticatedMarketRoute
   '/_authenticated/messages': typeof AuthenticatedMessagesRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
+  '/_authenticated/ranking': typeof AuthenticatedRankingRoute
   '/_authenticated/roster': typeof AuthenticatedRosterRoute
   '/_authenticated/shop': typeof AuthenticatedShopRoute
   '/_authenticated/creatures/$id': typeof AuthenticatedCreaturesIdRoute
@@ -174,6 +183,7 @@ export interface FileRouteTypes {
     | '/market'
     | '/messages'
     | '/onboarding'
+    | '/ranking'
     | '/roster'
     | '/shop'
     | '/creatures/$id'
@@ -191,6 +201,7 @@ export interface FileRouteTypes {
     | '/market'
     | '/messages'
     | '/onboarding'
+    | '/ranking'
     | '/roster'
     | '/shop'
     | '/creatures/$id'
@@ -209,6 +220,7 @@ export interface FileRouteTypes {
     | '/_authenticated/market'
     | '/_authenticated/messages'
     | '/_authenticated/onboarding'
+    | '/_authenticated/ranking'
     | '/_authenticated/roster'
     | '/_authenticated/shop'
     | '/_authenticated/creatures/$id'
@@ -256,6 +268,13 @@ declare module '@tanstack/react-router' {
       path: '/roster'
       fullPath: '/roster'
       preLoaderRoute: typeof AuthenticatedRosterRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/ranking': {
+      id: '/_authenticated/ranking'
+      path: '/ranking'
+      fullPath: '/ranking'
+      preLoaderRoute: typeof AuthenticatedRankingRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/onboarding': {
@@ -348,6 +367,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedMarketRoute: typeof AuthenticatedMarketRoute
   AuthenticatedMessagesRoute: typeof AuthenticatedMessagesRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
+  AuthenticatedRankingRoute: typeof AuthenticatedRankingRoute
   AuthenticatedRosterRoute: typeof AuthenticatedRosterRoute
   AuthenticatedShopRoute: typeof AuthenticatedShopRoute
   AuthenticatedCreaturesIdRoute: typeof AuthenticatedCreaturesIdRoute
@@ -364,6 +384,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedMarketRoute: AuthenticatedMarketRoute,
   AuthenticatedMessagesRoute: AuthenticatedMessagesRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
+  AuthenticatedRankingRoute: AuthenticatedRankingRoute,
   AuthenticatedRosterRoute: AuthenticatedRosterRoute,
   AuthenticatedShopRoute: AuthenticatedShopRoute,
   AuthenticatedCreaturesIdRoute: AuthenticatedCreaturesIdRoute,

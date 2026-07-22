@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { getLeague, startLeague, playNextLeagueMatch, finishSeasonAndAdvance } from "@/lib/league.functions";
+import { recomputeWorldRanking } from "@/lib/ranking.functions";
 
 const DIV_LABEL: Record<string, string> = {
   lendaria: "1ª — Lendária",
@@ -64,13 +65,16 @@ function LeaguePage() {
   });
 
   const finishSeasonFn = useServerFn(finishSeasonAndAdvance);
+  const recomputeRankingFn = useServerFn(recomputeWorldRanking);
   const [summary, setSummary] = useState<any | null>(null);
   const finishMut = useMutation({
     mutationFn: () => finishSeasonFn(),
-    onSuccess: (res: any) => {
+    onSuccess: async (res: any) => {
       setSummary(res);
+      try { await recomputeRankingFn(); } catch { /* ignora */ }
       qc.invalidateQueries({ queryKey: ["league"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["world-ranking"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Não foi possível encerrar a temporada."),
   });

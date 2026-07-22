@@ -357,6 +357,7 @@ function Dashboard() {
           <Shortcut icon={<ShoppingBag className="h-5 w-5" />} label="Loja" to="/shop" />
           <Shortcut icon={<Wallet className="h-5 w-5" />} label="Finanças" to="/finances" />
           <Shortcut icon={<Inbox className="h-5 w-5" />} label="Mensagens" to="/messages" />
+          <Shortcut icon={<Trophy className="h-5 w-5" />} label="Ranking Mundial" to="/ranking" />
         </div>
 
 
