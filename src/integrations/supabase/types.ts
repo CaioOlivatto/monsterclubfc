@@ -402,6 +402,63 @@ export type Database = {
           },
         ]
       }
+      live_matches: {
+        Row: {
+          cpu_tactics: Json
+          created_at: string
+          current_minute: number
+          ended: boolean
+          events_buffered: Json
+          match_id: string
+          player_tactics: Json
+          seed: number
+          state: Json
+          trainer_id: string
+          updated_at: string
+        }
+        Insert: {
+          cpu_tactics: Json
+          created_at?: string
+          current_minute?: number
+          ended?: boolean
+          events_buffered?: Json
+          match_id: string
+          player_tactics: Json
+          seed: number
+          state: Json
+          trainer_id: string
+          updated_at?: string
+        }
+        Update: {
+          cpu_tactics?: Json
+          created_at?: string
+          current_minute?: number
+          ended?: boolean
+          events_buffered?: Json
+          match_id?: string
+          player_tactics?: Json
+          seed?: number
+          state?: Json
+          trainer_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_matches_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: true
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_matches_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "trainers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       market_listings: {
         Row: {
           created_at: string
@@ -550,11 +607,13 @@ export type Database = {
           home_team_id: string
           id: string
           is_friendly: boolean
+          is_live: boolean
           is_summary: boolean
           played_at: string | null
           round: number | null
           speed_paid: Json
           status: Database["public"]["Enums"]["match_status"]
+          tactics_history: Json | null
         }
         Insert: {
           away_score?: number | null
@@ -568,11 +627,13 @@ export type Database = {
           home_team_id: string
           id?: string
           is_friendly?: boolean
+          is_live?: boolean
           is_summary?: boolean
           played_at?: string | null
           round?: number | null
           speed_paid?: Json
           status?: Database["public"]["Enums"]["match_status"]
+          tactics_history?: Json | null
         }
         Update: {
           away_score?: number | null
@@ -586,11 +647,13 @@ export type Database = {
           home_team_id?: string
           id?: string
           is_friendly?: boolean
+          is_live?: boolean
           is_summary?: boolean
           played_at?: string | null
           round?: number | null
           speed_paid?: Json
           status?: Database["public"]["Enums"]["match_status"]
+          tactics_history?: Json | null
         }
         Relationships: [
           {
@@ -802,6 +865,7 @@ export type Database = {
         Row: {
           bench: Json
           created_at: string
+          default_tactics: Json
           formation: string
           id: string
           starters: Json
@@ -812,6 +876,7 @@ export type Database = {
         Insert: {
           bench?: Json
           created_at?: string
+          default_tactics?: Json
           formation?: string
           id?: string
           starters?: Json
@@ -822,6 +887,7 @@ export type Database = {
         Update: {
           bench?: Json
           created_at?: string
+          default_tactics?: Json
           formation?: string
           id?: string
           starters?: Json

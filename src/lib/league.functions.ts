@@ -6,12 +6,22 @@ import {
   simulate,
   generateCpuSideFor,
   type EngineSide,
+  type EngineBestiary,
 } from "./match-engine.server";
 import { stadiumCapacity } from "./buildings.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { awardTrainerXp, resetSeasonBreakdown } from "./trainer-xp.server";
 import { MATCH_REVENUE, MAINTENANCE_PER_MATCH, matchSalary } from "./economy";
+import { loadBestiary } from "./bestiary.server";
+
+async function loadEngineBestiary(supabase: any): Promise<EngineBestiary> {
+  const b = await loadBestiary(supabase);
+  return {
+    species: b.species.map((s) => ({ species: s.species, element: s.element })),
+    epithets: b.epithets,
+  };
+}
 
 
 async function getTrainer(supabase: any, userId: string) {
@@ -253,6 +263,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     const home = teams!.find((t: any) => t.id === next.home_team_id) as any;
     const away = teams!.find((t: any) => t.id === next.away_team_id) as any;
 
+    const bestiary = await loadEngineBestiary(supabase);
     const playerSideRef: { current: EngineSide | null } = { current: null };
     async function buildSide(team: any): Promise<EngineSide> {
       if (team.is_player) {
@@ -261,7 +272,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         return side;
       }
       const seed = hashSeed(team.id);
-      return generateCpuSideFor(seed, team.id, team.name, team.cpu_strength ?? 45);
+      return generateCpuSideFor(seed, team.id, team.name, team.cpu_strength ?? 45, bestiary);
     }
     const homeSide = await buildSide(home);
     const awaySide = await buildSide(away);
@@ -504,8 +515,8 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         .in("id", [m.home_team_id, m.away_team_id]);
       const h = pair!.find((t: any) => t.id === m.home_team_id) as any;
       const a = pair!.find((t: any) => t.id === m.away_team_id) as any;
-      const hs = generateCpuSideFor(hashSeed(h.id), h.id, h.name, (h.cpu_strength ?? 45) + 4);
-      const as = generateCpuSideFor(hashSeed(a.id), a.id, a.name, a.cpu_strength ?? 45);
+      const hs = generateCpuSideFor(hashSeed(h.id), h.id, h.name, (h.cpu_strength ?? 45) + 4, bestiary);
+      const as = generateCpuSideFor(hashSeed(a.id), a.id, a.name, a.cpu_strength ?? 45, bestiary);
       const r = simulate(hs, as, hashSeed(m.id));
       await supabase
         .from("matches")

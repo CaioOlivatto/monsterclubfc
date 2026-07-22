@@ -1,9 +1,18 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { simulate, generateCpuSideFor, type EngineSide } from "./match-engine.server";
+import { simulate, generateCpuSideFor, type EngineSide, type EngineBestiary } from "./match-engine.server";
 
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
+import { loadBestiary } from "./bestiary.server";
+
+async function loadEngineBestiary(supabase: any): Promise<EngineBestiary> {
+  const b = await loadBestiary(supabase);
+  return {
+    species: b.species.map((s) => ({ species: s.species, element: s.element })),
+    epithets: b.epithets,
+  };
+}
 
 const CUP_ROUND_NAMES: Record<number, string> = { 1: "Quartas", 2: "Semifinal", 3: "Final" };
 
@@ -234,8 +243,9 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
         playerSideRef.current = s;
         return s;
       }
-      return generateCpuSideFor(hashSeed(team.id), team.id, team.name, team.cpu_strength ?? 50);
+      return generateCpuSideFor(hashSeed(team.id), team.id, team.name, team.cpu_strength ?? 50, bestiary);
     }
+    const bestiary = await loadEngineBestiary(supabase);
     let result = simulate(await side(home), await side(away), hashSeed(next.id));
     // Sem empate em copa: pênaltis determinísticos
     if (result.home_score === result.away_score) {
@@ -317,8 +327,8 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
         .in("id", [m.home_team_id, m.away_team_id]);
       const h = pair!.find((t: any) => t.id === m.home_team_id) as any;
       const a = pair!.find((t: any) => t.id === m.away_team_id) as any;
-      const hs = generateCpuSideFor(hashSeed(h.id), h.id, h.name, (h.cpu_strength ?? 50) + 3);
-      const as = generateCpuSideFor(hashSeed(a.id), a.id, a.name, a.cpu_strength ?? 50);
+      const hs = generateCpuSideFor(hashSeed(h.id), h.id, h.name, (h.cpu_strength ?? 50) + 3, bestiary);
+      const as = generateCpuSideFor(hashSeed(a.id), a.id, a.name, a.cpu_strength ?? 50, bestiary);
       let r = simulate(hs, as, hashSeed(m.id));
       if (r.home_score === r.away_score) {
         const homeWin = (hashSeed(m.id + "pen") >>> 0) % 2 === 0;

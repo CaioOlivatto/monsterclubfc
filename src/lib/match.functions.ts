@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { simulate, generateCpuSide, type EngineSide } from "./match-engine.server";
+import { simulate, generateCpuSide, type EngineSide, type EngineBestiary } from "./match-engine.server";
+import { loadBestiary } from "./bestiary.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { SPEED_UNLOCK_COSTS } from "./shop.server";
@@ -93,7 +94,12 @@ export const createFriendlyMatch = createServerFn({ method: "POST" })
     );
 
     const seed = Math.floor(Math.random() * 2 ** 31);
-    const cpuSide = generateCpuSide(seed, playerOverall);
+    const bestiaryRaw = await loadBestiary(supabase);
+    const bestiary: EngineBestiary = {
+      species: bestiaryRaw.species.map((s) => ({ species: s.species, element: s.element })),
+      epithets: bestiaryRaw.epithets,
+    };
+    const cpuSide = generateCpuSide(seed, playerOverall, bestiary);
     const cpuOverall = Math.round(
       cpuSide.starters.reduce((a, s) => a + s.creature.overall, 0) / cpuSide.starters.length,
     );
