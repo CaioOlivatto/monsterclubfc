@@ -444,6 +444,38 @@ export type Database = {
           },
         ]
       }
+      market_purchases: {
+        Row: {
+          bought_at: string
+          division: string
+          listing_id: string
+          season_number: number
+          trainer_id: string
+        }
+        Insert: {
+          bought_at?: string
+          division: string
+          listing_id: string
+          season_number: number
+          trainer_id: string
+        }
+        Update: {
+          bought_at?: string
+          division?: string
+          listing_id?: string
+          season_number?: number
+          trainer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_purchases_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "trainers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       match_events: {
         Row: {
           actor_creature_id: string | null
