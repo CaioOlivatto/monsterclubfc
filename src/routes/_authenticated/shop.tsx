@@ -165,13 +165,16 @@ function ShopPage() {
                       >
                         Usar
                       </Button>
-                      <Button
-                        size="sm"
-                        disabled={buyMut.isPending}
-                        onClick={() => buyMut.mutate({ itemKey: item.key, currency: "money" })}
-                      >
-                        <Coins className="mr-1 h-3 w-3" /> ${item.moneyPrice.toLocaleString("pt-BR")}
-                      </Button>
+                      {item.moneyPrice != null && (
+                        <Button
+                          size="sm"
+                          disabled={buyMut.isPending}
+                          onClick={() => buyMut.mutate({ itemKey: item.key, currency: "money" })}
+                        >
+                          <Coins className="mr-1 h-3 w-3" /> ${item.moneyPrice.toLocaleString("pt-BR")}
+                        </Button>
+                      )}
+
                       <Button
                         size="sm"
                         variant="outline"
