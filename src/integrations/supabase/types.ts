@@ -432,6 +432,7 @@ export type Database = {
           event_type: string
           id: string
           match_id: string
+          meta: Json | null
           minute: number
         }
         Insert: {
@@ -442,6 +443,7 @@ export type Database = {
           event_type: string
           id?: string
           match_id: string
+          meta?: Json | null
           minute: number
         }
         Update: {
@@ -452,6 +454,7 @@ export type Database = {
           event_type?: string
           id?: string
           match_id?: string
+          meta?: Json | null
           minute?: number
         }
         Relationships: [
