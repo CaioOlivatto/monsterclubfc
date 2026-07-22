@@ -570,3 +570,91 @@ function TrainerLevelBar({
   );
 }
 
+const TONE_STYLES: Record<ConfidenceInfo["tone"], { bar: string; badge: string; ring: string }> = {
+  danger: { bar: "bg-red-500", badge: "bg-red-500/20 text-red-200 border-red-500/40", ring: "border-red-500/50" },
+  warn: { bar: "bg-amber-500", badge: "bg-amber-500/20 text-amber-200 border-amber-500/40", ring: "border-amber-500/40" },
+  neutral: { bar: "bg-muted-foreground", badge: "bg-muted/40 text-muted-foreground border-border", ring: "border-border/60" },
+  good: { bar: "bg-emerald-500", badge: "bg-emerald-500/20 text-emerald-200 border-emerald-500/40", ring: "border-emerald-500/40" },
+  great: { bar: "bg-primary", badge: "bg-primary/20 text-primary border-primary/40", ring: "border-primary/50" },
+};
+
+function ConfidenceCard({ c }: { c: ConfidenceInfo }) {
+  const t = TONE_STYLES[c.tone];
+  return (
+    <Card className={t.ring}>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">
+          Confiança da diretoria
+        </CardTitle>
+        <Badge variant="outline" className={t.badge}>{c.label}</Badge>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div>
+          <div className="flex items-baseline justify-between">
+            <p className="text-3xl font-bold">{c.score}<span className="text-sm font-normal text-muted-foreground">/100</span></p>
+            <p className="text-xs text-muted-foreground">
+              {c.seasonsAtClub > 0
+                ? `${c.seasonsAtClub} temporada${c.seasonsAtClub === 1 ? "" : "s"} no clube`
+                : "Nova era"}
+            </p>
+          </div>
+          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
+            <div className={`h-full ${t.bar} transition-all`} style={{ width: `${c.score}%` }} />
+          </div>
+        </div>
+
+        {c.form.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs uppercase tracking-wider text-muted-foreground">Forma</span>
+            <div className="flex gap-1">
+              {c.form.map((r, i) => (
+                <span
+                  key={i}
+                  className={`grid h-6 w-6 place-items-center rounded text-[10px] font-bold ${
+                    r === "W"
+                      ? "bg-emerald-500/20 text-emerald-200"
+                      : r === "L"
+                        ? "bg-red-500/20 text-red-200"
+                        : "bg-muted/40 text-muted-foreground"
+                  }`}
+                >
+                  {r === "W" ? "V" : r === "L" ? "D" : "E"}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <ul className="space-y-1">
+          {c.factors
+            .filter((f) => f.delta !== 0 || f.label === "Base")
+            .map((f, i) => (
+              <li key={i} className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">{f.label}</span>
+                <span
+                  className={
+                    f.delta > 0
+                      ? "font-semibold text-emerald-300"
+                      : f.delta < 0
+                        ? "font-semibold text-red-300"
+                        : "text-muted-foreground"
+                  }
+                >
+                  {f.delta > 0 ? "+" : ""}
+                  {f.delta}
+                </span>
+              </li>
+            ))}
+        </ul>
+
+        {c.consecutiveBadSeasons >= 2 && (
+          <p className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+            Atenção: mais uma temporada ruim pode custar seu cargo.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+
