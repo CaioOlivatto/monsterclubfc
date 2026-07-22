@@ -7,7 +7,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Search, BatteryCharging, Star } from "lucide-react";
+import { ArrowLeft, Search, BatteryCharging, Star, Clock, Hourglass } from "lucide-react";
+import { ageStatus, seasonsRemaining, type AgeStatus } from "@/lib/age";
 
 export const Route = createFileRoute("/_authenticated/roster")({
   head: () => ({
@@ -40,7 +41,8 @@ const ELEMENT_LABEL: Record<string, string> = {
 const ELEMENTS = ["fogo", "agua", "terra", "ar", "gelo"] as const;
 const POSITIONS = ["Goleiro", "Zagueiro", "Meio-campo", "Atacante"] as const;
 
-type SortKey = "overall" | "name" | "energy" | "market_value";
+type SortKey = "overall" | "name" | "energy" | "market_value" | "age";
+type AgeFilter = "all" | "veteran" | "last_season";
 
 function RosterPage() {
   const fetchList = useServerFn(listMyCreatures);
@@ -53,6 +55,12 @@ function RosterPage() {
   const [elem, setElem] = useState<string | null>(null);
   const [pos, setPos] = useState<string | null>(null);
   const [sort, setSort] = useState<SortKey>("overall");
+  const [ageFilter, setAgeFilter] = useState<AgeFilter>("all");
+
+  const lastSeasonCount = useMemo(
+    () => (data ?? []).filter((c) => ageStatus((c as any).age) === "last_season").length,
+    [data],
+  );
 
   const filtered = useMemo(() => {
     let list = (data ?? []).slice();
@@ -62,15 +70,19 @@ function RosterPage() {
     }
     if (elem) list = list.filter((c) => c.element === elem);
     if (pos) list = list.filter((c) => c.suggested_position === pos);
+    if (ageFilter !== "all") {
+      list = list.filter((c) => ageStatus((c as any).age) === ageFilter);
+    }
     list.sort((a, b) => {
       if (sort === "name") return a.name.localeCompare(b.name);
       if (sort === "energy") return (b.energy ?? 0) - (a.energy ?? 0);
+      if (sort === "age") return ((b as any).age ?? 0) - ((a as any).age ?? 0);
       if (sort === "market_value")
         return (b.market_value ?? 0) - (a.market_value ?? 0);
       return (b.overall ?? 0) - (a.overall ?? 0);
     });
     return list;
-  }, [data, q, elem, pos, sort]);
+  }, [data, q, elem, pos, sort, ageFilter]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -137,7 +149,37 @@ function RosterPage() {
             <option value="name">Ordenar: Nome</option>
             <option value="energy">Ordenar: Energia</option>
             <option value="market_value">Ordenar: Valor</option>
+            <option value="age">Ordenar: Idade (+ velhas)</option>
           </select>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {(
+            [
+              { key: "all", label: "Todas" },
+              { key: "veteran", label: "Veteranas" },
+              { key: "last_season", label: "Última temporada" },
+            ] as { key: AgeFilter; label: string }[]
+          ).map((t) => (
+            <Button
+              key={t.key}
+              size="sm"
+              variant={ageFilter === t.key ? "default" : "outline"}
+              onClick={() => setAgeFilter(t.key)}
+            >
+              {t.label}
+            </Button>
+          ))}
+          {lastSeasonCount > 0 && ageFilter !== "last_season" && (
+            <button
+              type="button"
+              onClick={() => setAgeFilter("last_season")}
+              className="ml-auto rounded-md border border-orange-500/40 bg-orange-500/10 px-3 py-1.5 text-xs text-orange-300 hover:bg-orange-500/20"
+            >
+              <Hourglass className="mr-1 inline h-3 w-3" />
+              {lastSeasonCount} na última temporada — ver
+            </button>
+          )}
         </div>
 
         {isLoading ? (
@@ -148,14 +190,23 @@ function RosterPage() {
           </p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((c) => (
+            {filtered.map((c) => {
+              const status = ageStatus((c as any).age);
+              const seasons = seasonsRemaining((c as any).age);
+              const cardBorder =
+                status === "last_season"
+                  ? "border-orange-500/60 bg-orange-500/5 hover:border-orange-400/80"
+                  : status === "veteran"
+                  ? "border-amber-500/40 hover:border-amber-400/60"
+                  : "hover:border-primary/40 hover:bg-card/70";
+              return (
               <Link
                 key={c.id}
                 to="/creatures/$id"
                 params={{ id: c.id }}
                 className="block"
               >
-                <Card className="transition-colors hover:border-primary/40 hover:bg-card/70">
+                <Card className={"transition-colors " + cardBorder}>
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
@@ -163,7 +214,7 @@ function RosterPage() {
                           {c.name}
                         </p>
                         <p className="truncate text-xs text-muted-foreground">
-                          {c.suggested_position}
+                          {c.suggested_position} · {(c as any).age ?? 18} anos
                         </p>
                       </div>
                       <Badge
@@ -173,6 +224,20 @@ function RosterPage() {
                         {ELEMENT_LABEL[c.element] ?? c.element}
                       </Badge>
                     </div>
+
+                    {status === "veteran" && (
+                      <div className="mt-2 flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-300">
+                        <Clock className="h-3 w-3" />
+                        <span className="font-medium">Veterano</span>
+                        <span className="text-amber-300/80">· {seasons} temporadas restantes</span>
+                      </div>
+                    )}
+                    {status === "last_season" && (
+                      <div className="mt-2 flex items-center gap-1.5 rounded-md border border-orange-500/60 bg-orange-500/15 px-2 py-1 text-[11px] text-orange-200">
+                        <Hourglass className="h-3 w-3" />
+                        <span className="font-medium">Última temporada</span>
+                      </div>
+                    )}
 
                     <div className="mt-3 flex items-end justify-between">
                       <div>
@@ -199,7 +264,8 @@ function RosterPage() {
                   </CardContent>
                 </Card>
               </Link>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>

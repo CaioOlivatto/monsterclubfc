@@ -3,9 +3,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { getDashboard } from "@/lib/creatures.functions";
+import { getDashboard, listMyCreatures } from "@/lib/creatures.functions";
 import { createFriendlyMatch } from "@/lib/match.functions";
 import { claimWeeklyGems } from "@/lib/progression.functions";
+import { ageStatus } from "@/lib/age";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -26,6 +27,7 @@ import {
   ShoppingBag,
   Inbox,
   Wallet,
+  Hourglass,
 } from "lucide-react";
 
 
@@ -75,6 +77,14 @@ function Dashboard() {
     queryKey: ["dashboard"],
     queryFn: () => fetchDashboard(),
   });
+  const fetchRoster = useServerFn(listMyCreatures);
+  const { data: rosterList } = useQuery({
+    queryKey: ["my-creatures"],
+    queryFn: () => fetchRoster(),
+  });
+  const lastSeasonCount = (rosterList ?? []).filter(
+    (c: any) => ageStatus(c.age) === "last_season",
+  ).length;
 
   const friendlyMut = useMutation({
     mutationFn: () => startFriendly(),
@@ -162,6 +172,26 @@ function Dashboard() {
       </header>
 
       <main className="mx-auto max-w-6xl space-y-4 p-4">
+        {lastSeasonCount > 0 && (
+          <Link to="/roster" className="block">
+            <Card className="border-orange-500/60 bg-orange-500/5 transition-colors hover:bg-orange-500/10">
+              <CardContent className="flex items-center gap-3 py-3">
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-orange-500/20 text-orange-300">
+                  <Hourglass className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-orange-200">
+                    {lastSeasonCount} {lastSeasonCount === 1 ? "criatura se aposenta" : "criaturas se aposentam"} no fim desta temporada
+                  </p>
+                  <p className="text-xs text-orange-200/80">
+                    Hora de decidir: vender agora ou renascer.
+                  </p>
+                </div>
+                <span className="shrink-0 text-xs text-orange-300">Ver elenco →</span>
+              </CardContent>
+            </Card>
+          </Link>
+        )}
         <div className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

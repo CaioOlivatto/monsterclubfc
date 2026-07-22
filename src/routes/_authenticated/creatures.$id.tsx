@@ -11,7 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, BatteryCharging, Coins, Dumbbell, Sparkles, Star } from "lucide-react";
+import { ArrowLeft, BatteryCharging, Clock, Coins, Dumbbell, Hourglass, Sparkles, Star } from "lucide-react";
+import { ageStatus, seasonsRemaining, rebirthHalfStarsPreview, sellValuePreview } from "@/lib/age";
 
 
 export const Route = createFileRoute("/_authenticated/creatures/$id")({
@@ -192,6 +193,120 @@ function CreatureDetail() {
             icon={<Coins className="h-4 w-4" />}
           />
         </div>
+
+        {(() => {
+          const age = (c as any).age ?? 18;
+          const status = ageStatus(age);
+          const seasons = seasonsRemaining(age);
+          const totalCareer = 5; // 18,21,24,27,30 (aposenta aos 33)
+          const filled = Math.min(totalCareer, Math.max(0, Math.floor((age - 18) / 3) + 1));
+          const showRetirementPreview = age >= 27;
+          const sellNow = sellValuePreview(c.market_value ?? 0);
+          const rebirthHs = rebirthHalfStarsPreview(c.half_stars_earned ?? 0);
+          const rebirthStars = (rebirthHs / 2).toFixed(1);
+          const currentStars = ((c.half_stars_earned ?? 0) / 2).toFixed(1);
+
+          const tone =
+            status === "last_season"
+              ? "border-orange-500/60 bg-orange-500/5"
+              : status === "veteran"
+              ? "border-amber-500/40 bg-amber-500/5"
+              : "border-border/60";
+
+          return (
+            <Card className={tone}>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+                  Carreira
+                  {status === "veteran" && (
+                    <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-300">
+                      <Clock className="h-3 w-3" /> Veterano
+                    </span>
+                  )}
+                  {status === "last_season" && (
+                    <span className="inline-flex items-center gap-1 rounded-md border border-orange-500/60 bg-orange-500/15 px-2 py-0.5 text-xs text-orange-200">
+                      <Hourglass className="h-3 w-3" /> Última temporada
+                    </span>
+                  )}
+                  {status === "retired" && (
+                    <span className="inline-flex items-center gap-1 rounded-md border border-muted bg-muted/30 px-2 py-0.5 text-xs text-muted-foreground">
+                      Aposentada
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Idade</span>
+                  <span className="font-medium">{age} anos</span>
+                </div>
+                <div>
+                  <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Progresso da carreira</span>
+                    <span>{filled} / {totalCareer} temporadas</span>
+                  </div>
+                  <div className="flex gap-1">
+                    {Array.from({ length: totalCareer }).map((_, i) => {
+                      const active = i < filled;
+                      const isLast = i === totalCareer - 1;
+                      return (
+                        <div
+                          key={i}
+                          className={
+                            "h-2 flex-1 rounded-sm " +
+                            (active
+                              ? isLast && status !== "normal"
+                                ? "bg-orange-500"
+                                : status === "veteran" && i >= filled - 1
+                                ? "bg-amber-500"
+                                : "bg-primary"
+                              : "bg-muted")
+                          }
+                        />
+                      );
+                    })}
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {status === "retired"
+                      ? "Aposentada — decida vender ou renascer."
+                      : status === "last_season"
+                      ? "Aposenta no fim desta temporada — hora de decidir."
+                      : status === "veteran"
+                      ? `Faltam ${seasons} temporadas. Valor de mercado começando a cair.`
+                      : `Temporadas restantes: ${seasons}.`}
+                  </p>
+                </div>
+
+                {showRetirementPreview && (
+                  <div className="grid gap-2 rounded-md border border-border/60 bg-card/40 p-3 text-sm sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                        Se vender agora
+                      </p>
+                      <p className="mt-0.5 font-semibold">
+                        $ {sellNow.toLocaleString("pt-BR")}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        75% do valor de mercado atual.
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                        Se renascer ao aposentar
+                      </p>
+                      <p className="mt-0.5 font-semibold">
+                        Volta aos 18 com {rebirthStars}★
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Hoje: {currentStars}★ · mais 5 temporadas de carreira.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         {(c.pending_half_stars ?? 0) > 0 && (
           <Card className="border-primary/50 bg-primary/5">
