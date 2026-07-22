@@ -494,6 +494,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
           unusedReserveIds,
           outcome: outcomeXp,
           energy_loss: result.energy_loss,
+          goalsByCreature: result.goals_by_creature,
           injuries: result.injuries.filter((i) => i.team_id === playerTeam.id),
           isOfficial: true,
         });
