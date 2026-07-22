@@ -2,6 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { BUILDINGS, BUILDING_TYPES, MAX_LEVEL, type BuildingType } from "./buildings.server";
+import { awardTrainerXp } from "./trainer-xp.server";
+
 
 async function getTrainer(supabase: any, userId: string) {
   const { data, error } = await supabase
