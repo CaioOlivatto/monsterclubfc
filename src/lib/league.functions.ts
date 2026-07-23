@@ -1139,7 +1139,6 @@ async function advanceOtherDivisionsForRound(
   round: number,
 ) {
   if (!seasonId) return;
-  // Todas as competições ativas da mesma temporada (exceto a do jogador)
   const { data: otherComps } = await supabase
     .from("competitions")
     .select("id, division")
@@ -1149,96 +1148,102 @@ async function advanceOtherDivisionsForRound(
     .eq("season_id", seasonId)
     .neq("id", playerCompetitionId);
   if (!otherComps || !otherComps.length) return;
-
   for (const comp of otherComps) {
-    const { data: matches } = await supabase
-      .from("matches")
-      .select("id, home_team_id, away_team_id")
-      .eq("competition_id", comp.id)
-      .eq("round", round)
-      .eq("status", "scheduled");
-    if (!matches || !matches.length) continue;
+    await fastAdvanceCompetitionRound(supabase, comp.id, round);
+  }
+}
 
-    // Carrega força dos times envolvidos (média overall do elenco)
-    const teamIds = Array.from(new Set(matches.flatMap((m: any) => [m.home_team_id, m.away_team_id])));
-    const { data: cr } = await supabase
-      .from("creatures")
-      .select("owner_team_id, overall")
-      .in("owner_team_id", teamIds);
-    const strength = new Map<string, number>();
-    const totals = new Map<string, { sum: number; n: number }>();
-    for (const c of cr ?? []) {
-      const t = totals.get(c.owner_team_id) ?? { sum: 0, n: 0 };
-      t.sum += c.overall; t.n += 1;
-      totals.set(c.owner_team_id, t);
-    }
-    for (const [id, t] of totals) strength.set(id, t.n ? t.sum / t.n : 45);
+/**
+ * Simulação rápida (fastPoisson) de todas as partidas `scheduled` de uma rodada
+ * específica em uma competição, e atualiza standings.
+ * Idempotente: filtra por status='scheduled'.
+ */
+async function fastAdvanceCompetitionRound(
+  supabase: any,
+  compId: string,
+  round: number,
+) {
+  const { data: matches } = await supabase
+    .from("matches")
+    .select("id, home_team_id, away_team_id")
+    .eq("competition_id", compId)
+    .eq("round", round)
+    .eq("status", "scheduled");
+  if (!matches || !matches.length) return;
 
-    // Standings atuais da competição
-    const { data: standRows } = await supabase
-      .from("standings")
-      .select("team_id, points, wins, draws, losses, goals_for, goals_against")
-      .eq("competition_id", comp.id);
-    const standMap = new Map<string, any>((standRows ?? []).map((r: any) => [r.team_id, r]));
+  const teamIds = Array.from(new Set(matches.flatMap((m: any) => [m.home_team_id, m.away_team_id])));
+  const { data: cr } = await supabase
+    .from("creatures")
+    .select("owner_team_id, overall")
+    .in("owner_team_id", teamIds);
+  const strength = new Map<string, number>();
+  const totals = new Map<string, { sum: number; n: number }>();
+  for (const c of cr ?? []) {
+    const t = totals.get(c.owner_team_id) ?? { sum: 0, n: 0 };
+    t.sum += c.overall; t.n += 1;
+    totals.set(c.owner_team_id, t);
+  }
+  for (const [id, t] of totals) strength.set(id, t.n ? t.sum / t.n : 45);
 
-    const matchUpdates: any[] = [];
-    for (const m of matches) {
-      const hs = strength.get(m.home_team_id) ?? 45;
-      const as = strength.get(m.away_team_id) ?? 45;
-      const rng = mulberry32Local(hashSeed(m.id));
-      // Bônus de mando 5%, lambda base = strength/28
-      const homeLambda = Math.max(0.2, (hs / 28) * 1.05);
-      const awayLambda = Math.max(0.2, as / 28);
-      const hg = fastPoisson(homeLambda, rng);
-      const ag = fastPoisson(awayLambda, rng);
-      matchUpdates.push({
-        id: m.id,
-        home_score: hg,
-        away_score: ag,
-        outcome: hg > ag ? "H" : hg < ag ? "A" : "D",
-      });
-      // Atualiza standings em memória
-      const hRow = standMap.get(m.home_team_id);
-      const aRow = standMap.get(m.away_team_id);
-      if (hRow) {
-        hRow.goals_for += hg; hRow.goals_against += ag;
-        if (hg > ag) { hRow.wins++; hRow.points += 3; }
-        else if (hg < ag) { hRow.losses++; }
-        else { hRow.draws++; hRow.points += 1; }
-      }
-      if (aRow) {
-        aRow.goals_for += ag; aRow.goals_against += hg;
-        if (ag > hg) { aRow.wins++; aRow.points += 3; }
-        else if (ag < hg) { aRow.losses++; }
-        else { aRow.draws++; aRow.points += 1; }
-      }
-    }
+  const { data: standRows } = await supabase
+    .from("standings")
+    .select("team_id, points, wins, draws, losses, goals_for, goals_against")
+    .eq("competition_id", compId);
+  const standMap = new Map<string, any>((standRows ?? []).map((r: any) => [r.team_id, r]));
 
-    // Persiste partidas (uma a uma; volume pequeno: 7 por rodada)
-    for (const u of matchUpdates) {
-      await supabase
+  const matchWrites: any[] = [];
+  for (const m of matches) {
+    const hs = strength.get(m.home_team_id) ?? 45;
+    const as = strength.get(m.away_team_id) ?? 45;
+    const rng = mulberry32Local(hashSeed(m.id));
+    const homeLambda = Math.max(0.2, (hs / 28) * 1.05);
+    const awayLambda = Math.max(0.2, as / 28);
+    const hg = fastPoisson(homeLambda, rng);
+    const ag = fastPoisson(awayLambda, rng);
+    matchWrites.push(
+      supabase
         .from("matches")
         .update({
-          home_score: u.home_score,
-          away_score: u.away_score,
+          home_score: hg,
+          away_score: ag,
           status: "finished",
           is_summary: true,
           played_at: new Date().toISOString(),
         })
-        .eq("id", u.id);
+        .eq("id", m.id)
+        .eq("status", "scheduled"),
+    );
+    const hRow = standMap.get(m.home_team_id);
+    const aRow = standMap.get(m.away_team_id);
+    if (hRow) {
+      hRow.goals_for += hg; hRow.goals_against += ag;
+      if (hg > ag) { hRow.wins++; hRow.points += 3; }
+      else if (hg < ag) { hRow.losses++; }
+      else { hRow.draws++; hRow.points += 1; }
     }
-    // Persiste standings
-    for (const [tid, row] of standMap) {
-      await supabase
+    if (aRow) {
+      aRow.goals_for += ag; aRow.goals_against += hg;
+      if (ag > hg) { aRow.wins++; aRow.points += 3; }
+      else if (ag < hg) { aRow.losses++; }
+      else { aRow.draws++; aRow.points += 1; }
+    }
+  }
+  await Promise.all(matchWrites);
+
+  const standWrites: any[] = [];
+  for (const [tid, row] of standMap) {
+    standWrites.push(
+      supabase
         .from("standings")
         .update({
           points: row.points, wins: row.wins, draws: row.draws, losses: row.losses,
           goals_for: row.goals_for, goals_against: row.goals_against,
         })
-        .eq("competition_id", comp.id)
-        .eq("team_id", tid);
-    }
+        .eq("competition_id", compId)
+        .eq("team_id", tid),
+    );
   }
+  await Promise.all(standWrites);
 }
 
 function mulberry32Local(seed: number) {
