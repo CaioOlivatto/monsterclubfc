@@ -225,10 +225,13 @@ export const getMatch = createServerFn({ method: "GET" })
         .maybeSingle(),
     ]);
 
+    const playerTeamId = home?.trainer_id === trainer.id ? home.id : away?.id ?? null;
+
     return {
       match,
       home: home ? { id: home.id, name: home.name } : null,
       away: away ? { id: away.id, name: away.name } : null,
+      player_team_id: playerTeamId,
       events: events ?? [],
       speed: {
         paid_4x: academy?.paid_4x ?? false,
