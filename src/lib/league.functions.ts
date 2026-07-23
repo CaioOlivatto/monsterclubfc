@@ -251,6 +251,8 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     const stamp = (label: string) =>
       console.log(`[playNextLeagueMatch] +${Date.now() - t0}ms ${label}`);
     const { supabase, userId } = context;
+    // Bestiário é independente do trainer — dispara já em paralelo.
+    const bestiaryPromise = loadEngineBestiary(supabase);
     const trainer = await getTrainer(supabase, userId);
     stamp("trainer");
 
@@ -288,15 +290,10 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     if (!competition) throw new Error("Nenhuma liga em andamento.");
     stamp("competition");
 
-    // RETRY-ON-ENTRY: se alguma rodada anterior (qualquer competição da temporada) tem
-    // partidas ainda `scheduled`, é porque advanceLeagueRoundBackground falhou antes.
-    // Recupera aqui antes de seguir. Idempotente pelo filtro status='scheduled'.
-    try {
-      await recoverStaleRounds(supabase, trainer.id, competition.season_id, competition.id);
-      stamp("recover stale");
-    } catch (e) {
-      console.error("[playNextLeagueMatch] ERRO na recuperação de rodadas anteriores:", e);
-    }
+    // recover stale (independente de `next`) roda em paralelo com o próximo bloco
+    const recoverPromise = recoverStaleRounds(supabase, trainer.id, competition.season_id, competition.id)
+      .then(() => stamp("recover stale"))
+      .catch((e) => console.error("[playNextLeagueMatch] ERRO na recuperação de rodadas anteriores:", e));
 
     const { data: next } = await supabase
       .from("matches")
@@ -316,7 +313,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     const home = teams!.find((t: any) => t.id === next.home_team_id) as any;
     const away = teams!.find((t: any) => t.id === next.away_team_id) as any;
 
-    const bestiary = await loadEngineBestiary(supabase);
+    const bestiary = await bestiaryPromise;
     stamp("bestiary");
     const playerSideRef: { current: EngineSide | null } = { current: null };
     async function buildSide(team: any): Promise<EngineSide> {
@@ -328,8 +325,10 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       const seed = hashSeed(team.id);
       return generateCpuSideFor(seed, team.id, team.name, team.cpu_strength ?? 45, bestiary);
     }
-    const homeSide = await buildSide(home);
-    const awaySide = await buildSide(away);
+    // Build both sides em paralelo — player usa DB, CPU é sync.
+    const [homeSide, awaySide] = await Promise.all([buildSide(home), buildSide(away)]);
+    // Garante recovery finalizado antes de claim (idempotência).
+    await recoverPromise;
     stamp("sides");
     const seed = hashSeed(next.id);
     const result = simulate(homeSide, awaySide, seed);
@@ -356,6 +355,18 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     }
 
 
+    stamp("claim");
+
+    // ============ POST-SIMULATION: TUDO EM PARALELO ============
+    // 4 blocos independentes (events / standings / payoff / xp+message).
+    // Cada bloco já é internamente paralelo com Promise.all.
+    const isHome = playerTeam.id === home.id;
+    const playerGf = isHome ? result.home_score : result.away_score;
+    const playerGa = isHome ? result.away_score : result.home_score;
+    const outcomeXp: "W" | "D" | "L" =
+      playerGf > playerGa ? "W" : playerGf < playerGa ? "L" : "D";
+
+    // Bloco 1: match_events (bulk insert, uma round-trip)
     const eventsToInsert = persistableSimulationEvents(result).map((e) => ({
       match_id: next.id,
       minute: e.minute,
@@ -365,196 +376,172 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         e.actor_creature_id && !e.actor_creature_id.startsWith("cpu-") ? e.actor_creature_id : null,
       actor_team_id: e.actor_team_id,
     }));
-    if (eventsToInsert.length) {
-      const { error: eErr } = await supabase.from("match_events").insert(eventsToInsert);
-      if (eErr) throw eErr;
-    }
+    const eventsJob = eventsToInsert.length
+      ? supabase.from("match_events").insert(eventsToInsert).then((r: any) => {
+          if (r.error) console.error("[playNextLeagueMatch] events insert", r.error);
+        })
+      : Promise.resolve();
 
-    const updates: Array<{ team_id: string; gf: number; ga: number; result: "W" | "D" | "L" }> = [
-      { team_id: home.id, gf: result.home_score, ga: result.away_score,
-        result: result.home_score > result.away_score ? "W" : result.home_score < result.away_score ? "L" : "D" },
-      { team_id: away.id, gf: result.away_score, ga: result.home_score,
-        result: result.away_score > result.home_score ? "W" : result.away_score < result.home_score ? "L" : "D" },
-    ];
-    // Standings: lê ambas as linhas de uma vez, aplica updates em paralelo.
-    const { data: standRowsForUpdate } = await supabase
-      .from("standings")
-      .select("team_id, points, wins, draws, losses, goals_for, goals_against")
-      .eq("competition_id", competition.id)
-      .in("team_id", [home.id, away.id]);
-    const standByTeam = new Map<string, any>((standRowsForUpdate ?? []).map((r: any) => [r.team_id, r]));
-    await Promise.all(updates.map(async (u) => {
-      const row = standByTeam.get(u.team_id);
-      if (!row) return;
-      await supabase
+    // Bloco 2: standings (1 SELECT + 2 UPDATEs paralelos)
+    const standingsJob = (async () => {
+      const updates: Array<{ team_id: string; gf: number; ga: number; result: "W" | "D" | "L" }> = [
+        { team_id: home.id, gf: result.home_score, ga: result.away_score,
+          result: result.home_score > result.away_score ? "W" : result.home_score < result.away_score ? "L" : "D" },
+        { team_id: away.id, gf: result.away_score, ga: result.home_score,
+          result: result.away_score > result.home_score ? "W" : result.away_score < result.home_score ? "L" : "D" },
+      ];
+      const { data: rows } = await supabase
         .from("standings")
-        .update({
+        .select("team_id, points, wins, draws, losses, goals_for, goals_against")
+        .eq("competition_id", competition.id)
+        .in("team_id", [home.id, away.id]);
+      const byTeam = new Map<string, any>((rows ?? []).map((r: any) => [r.team_id, r]));
+      await Promise.all(updates.map((u) => {
+        const row = byTeam.get(u.team_id);
+        if (!row) return Promise.resolve();
+        return supabase.from("standings").update({
           wins: row.wins + (u.result === "W" ? 1 : 0),
           draws: row.draws + (u.result === "D" ? 1 : 0),
           losses: row.losses + (u.result === "L" ? 1 : 0),
           points: row.points + (u.result === "W" ? 3 : u.result === "D" ? 1 : 0),
           goals_for: row.goals_for + u.gf,
           goals_against: row.goals_against + u.ga,
-        })
-        .eq("competition_id", competition.id)
-        .eq("team_id", u.team_id);
-    }));
+        }).eq("competition_id", competition.id).eq("team_id", u.team_id);
+      }));
+    })();
 
-    // Financeiro por partida — Balanceamento por partida (TV, Patrocínio, Merch,
-    // Bilheteria, Prêmio) menos (Salários da rodada + Manutenção de infraestrutura).
-    let financeSummary: any = null;
-    try {
-      const isHome = playerTeam.id === home.id;
-      const playerGf = isHome ? result.home_score : result.away_score;
-      const playerGa = isHome ? result.away_score : result.home_score;
-      const outcome: "W" | "D" | "L" =
-        playerGf > playerGa ? "W" : playerGf < playerGa ? "L" : "D";
-      const division = (competition.division as Division) ?? "bronze";
-      const [pw, pd, pl] = MATCH_PRIZE[division];
-      const matchPrize = outcome === "W" ? pw : outcome === "D" ? pd : pl;
+    // Bloco 3: financeiro (reads paralelas, writes paralelas)
+    const payoffJob = (async () => {
+      try {
+        const outcome = outcomeXp;
+        const division = (competition.division as Division) ?? "bronze";
+        const [pw, pd, pl] = MATCH_PRIZE[division];
+        const matchPrize = outcome === "W" ? pw : outcome === "D" ? pd : pl;
+        const rev = MATCH_REVENUE[division];
 
-      // Receitas passivas por partida (§Economia-Por-Partida)
-      const rev = MATCH_REVENUE[division];
+        const [bldgsRes, standRowsRes, rosterRes, acadRes] = await Promise.all([
+          supabase.from("buildings").select("building_type, level").eq("trainer_id", trainer.id),
+          isHome
+            ? supabase.from("standings").select("team_id, points, goals_for, goals_against").eq("competition_id", competition.id)
+            : Promise.resolve({ data: null }),
+          supabase.from("creatures").select("overall").eq("owner_trainer_id", trainer.id),
+          supabase.from("academies").select("money").eq("trainer_id", trainer.id).maybeSingle(),
+        ]);
+        const bldgs = (bldgsRes as any).data as Array<{ building_type: string; level: number }> | null;
+        const standRows = (standRowsRes as any).data as any[] | null;
+        const roster = (rosterRes as any).data as Array<{ overall: number }> | null;
+        const acad = (acadRes as any).data as { money: number } | null;
 
-      // Reads independentes em paralelo (buildings, standings do gate, roster, academies)
-      const [bldgsRes, standRowsRes, rosterRes, acadRes] = await Promise.all([
-        supabase.from("buildings").select("building_type, level").eq("trainer_id", trainer.id),
-        isHome
-          ? supabase
-              .from("standings")
-              .select("team_id, points, goals_for, goals_against")
-              .eq("competition_id", competition.id)
-          : Promise.resolve({ data: null }),
-        supabase.from("creatures").select("overall").eq("owner_trainer_id", trainer.id),
-        supabase.from("academies").select("money").eq("trainer_id", trainer.id).maybeSingle(),
-      ]);
-      const bldgs = (bldgsRes as any).data as Array<{ building_type: string; level: number }> | null;
-      const standRows = (standRowsRes as any).data as any[] | null;
-      const roster = (rosterRes as any).data as Array<{ overall: number }> | null;
-      const acad = (acadRes as any).data as { money: number } | null;
+        let gate = 0;
+        let stadiumLevel = 0;
+        if (isHome) {
+          stadiumLevel = (bldgs ?? []).find((b) => b.building_type === "estadio")?.level ?? 0;
+          const capacity = stadiumCapacity(stadiumLevel);
+          const rankedCur = [...(standRows ?? [])].sort((a: any, b: any) => {
+            if (b.points !== a.points) return b.points - a.points;
+            const gdA = a.goals_for - a.goals_against;
+            const gdB = b.goals_for - b.goals_against;
+            if (gdB !== gdA) return gdB - gdA;
+            return b.goals_for - a.goals_for;
+          });
+          const posIdx = rankedCur.findIndex((r: any) => r.team_id === playerTeam.id);
+          const pos = posIdx >= 0 ? posIdx + 1 : LEAGUE_SIZE;
+          const posInvertida = LEAGUE_SIZE + 1 - pos;
+          const fillRate = Math.min(1, 0.70 + 0.03 * posInvertida);
+          gate = Math.round(capacity * fillRate * 25);
+        }
 
-      // Bilheteria (só em casa)
-      let gate = 0;
-      let stadiumLevel = 0;
-      if (isHome) {
-        stadiumLevel = (bldgs ?? []).find((b) => b.building_type === "estadio")?.level ?? 0;
-        const capacity = stadiumCapacity(stadiumLevel);
-        const rankedCur = [...(standRows ?? [])].sort((a: any, b: any) => {
-          if (b.points !== a.points) return b.points - a.points;
-          const gdA = a.goals_for - a.goals_against;
-          const gdB = b.goals_for - b.goals_against;
-          if (gdB !== gdA) return gdB - gdA;
-          return b.goals_for - a.goals_for;
-        });
-        const posIdx = rankedCur.findIndex((r: any) => r.team_id === playerTeam.id);
-        const pos = posIdx >= 0 ? posIdx + 1 : LEAGUE_SIZE;
-        const posInvertida = LEAGUE_SIZE + 1 - pos;
-        const fillRate = Math.min(1, 0.70 + 0.03 * posInvertida);
-        gate = Math.round(capacity * fillRate * 25);
+        const salaries = (roster ?? []).reduce((a: number, c: any) => a + matchSalary(c.overall ?? 40), 0);
+        const maintenance = (bldgs ?? []).reduce((sum: number, b: any) => {
+          const table = (MAINTENANCE_PER_MATCH as any)[b.building_type] as number[] | undefined;
+          if (!table) return sum;
+          const lvl = Math.min(Math.max(b.level ?? 0, 0), table.length - 1);
+          return sum + (table[lvl] ?? 0);
+        }, 0);
+
+        const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch + gate;
+        const totalExpense = salaries + maintenance;
+        const net = totalIncome - totalExpense;
+
+        const label = outcome === "W" ? "vitória" : outcome === "D" ? "empate" : "derrota";
+        const roundTag = `Rodada ${next.round}`;
+        const txs: any[] = [
+          { trainer_id: trainer.id, transaction_type: "income", category: "premio_partida",
+            amount: matchPrize, description: `${roundTag} — premiação por ${label} (${division})` },
+          { trainer_id: trainer.id, transaction_type: "income", category: "tv",
+            amount: rev.tv, description: `${roundTag} — Direitos de TV` },
+          { trainer_id: trainer.id, transaction_type: "income", category: "patrocinio",
+            amount: rev.sponsor, description: `${roundTag} — Patrocínio` },
+          { trainer_id: trainer.id, transaction_type: "income", category: "merch",
+            amount: rev.merch, description: `${roundTag} — Merchandising` },
+        ];
+        if (isHome && gate > 0) {
+          txs.push({ trainer_id: trainer.id, transaction_type: "income", category: "bilheteria",
+            amount: gate, description: `${roundTag} — Bilheteria (estádio nv.${stadiumLevel})` });
+        }
+        if (salaries > 0) {
+          txs.push({ trainer_id: trainer.id, transaction_type: "expense", category: "salarios",
+            amount: salaries, description: `${roundTag} — Salários (${(roster ?? []).length} criaturas)` });
+        }
+        if (maintenance > 0) {
+          txs.push({ trainer_id: trainer.id, transaction_type: "expense", category: "manutencao",
+            amount: maintenance, description: `${roundTag} — Manutenção de infraestrutura` });
+        }
+
+        const financeSummary = {
+          outcome, division, round: next.round, is_home: isHome,
+          income: { match_prize: matchPrize, tv: rev.tv, sponsor: rev.sponsor, merch: rev.merch, gate },
+          expense: { salaries, maintenance },
+          totals: { income: totalIncome, expense: totalExpense, net },
+        };
+        // 3 writes em paralelo
+        await Promise.all([
+          supabase.from("academies").update({ money: (acad?.money ?? 0) + net }).eq("trainer_id", trainer.id),
+          supabase.from("financial_transactions").insert(txs),
+          supabase.from("matches").update({ finance_summary: financeSummary }).eq("id", next.id),
+        ]);
+      } catch (e) {
+        console.error("[playNextLeagueMatch] payoff error", e);
       }
+    })();
 
-      const salaries = (roster ?? []).reduce(
-        (a: number, c: any) => a + matchSalary(c.overall ?? 40),
-        0,
-      );
-
-      const maintenance = (bldgs ?? []).reduce((sum: number, b: any) => {
-        const table = (MAINTENANCE_PER_MATCH as any)[b.building_type] as number[] | undefined;
-        if (!table) return sum;
-        const lvl = Math.min(Math.max(b.level ?? 0, 0), table.length - 1);
-        return sum + (table[lvl] ?? 0);
-      }, 0);
-
-      const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch + gate;
-      const totalExpense = salaries + maintenance;
-      const net = totalIncome - totalExpense;
-
-      await supabase
-        .from("academies")
-        .update({ money: (acad?.money ?? 0) + net })
-        .eq("trainer_id", trainer.id);
-
-      const label = outcome === "W" ? "vitória" : outcome === "D" ? "empate" : "derrota";
-      const roundTag = `Rodada ${next.round}`;
-      const txs: any[] = [
-        { trainer_id: trainer.id, transaction_type: "income", category: "premio_partida",
-          amount: matchPrize, description: `${roundTag} — premiação por ${label} (${division})` },
-        { trainer_id: trainer.id, transaction_type: "income", category: "tv",
-          amount: rev.tv, description: `${roundTag} — Direitos de TV` },
-        { trainer_id: trainer.id, transaction_type: "income", category: "patrocinio",
-          amount: rev.sponsor, description: `${roundTag} — Patrocínio` },
-        { trainer_id: trainer.id, transaction_type: "income", category: "merch",
-          amount: rev.merch, description: `${roundTag} — Merchandising` },
-      ];
-      if (isHome && gate > 0) {
-        txs.push({ trainer_id: trainer.id, transaction_type: "income", category: "bilheteria",
-          amount: gate, description: `${roundTag} — Bilheteria (estádio nv.${stadiumLevel})` });
+    // Bloco 4: XP + mensagem de resultado
+    const xpMsgJob = (async () => {
+      try {
+        const side: EngineSide | null = playerSideRef.current;
+        const opponentName = isHome ? away.name : home.name;
+        const xpPromise = side
+          ? applyPostMatchXp(supabase, trainer.id, {
+              starterIds: side.starters.map((s) => s.creature.id),
+              enteredReserveIds: result.used_bench_ids.filter((id: string) =>
+                side.bench.some((b) => b.creature.id === id),
+              ),
+              unusedReserveIds: side.bench
+                .map((b) => b.creature.id)
+                .filter((id) => !result.used_bench_ids.includes(id)),
+              outcome: outcomeXp,
+              energy_loss: result.energy_loss,
+              goalsByCreature: result.goals_by_creature,
+              injuries: result.injuries.filter((i) => i.team_id === playerTeam.id),
+              isOfficial: true,
+            })
+          : Promise.resolve();
+        await Promise.all([
+          xpPromise,
+          insertMessage(
+            supabase,
+            trainer.id,
+            "match",
+            `Rodada ${next.round}: ${outcomeXp === "W" ? "Vitória" : outcomeXp === "D" ? "Empate" : "Derrota"} vs ${opponentName}`,
+            `${isHome ? home.name : away.name} ${playerGf} x ${playerGa} ${isHome ? away.name : home.name} — clima: ${result.weather}.`,
+          ),
+        ]);
+      } catch (e) {
+        console.error("[playNextLeagueMatch] xp/message error", e);
       }
-      if (salaries > 0) {
-        txs.push({ trainer_id: trainer.id, transaction_type: "expense", category: "salarios",
-          amount: salaries, description: `${roundTag} — Salários (${(roster ?? []).length} criaturas)` });
-      }
-      if (maintenance > 0) {
-        txs.push({ trainer_id: trainer.id, transaction_type: "expense", category: "manutencao",
-          amount: maintenance, description: `${roundTag} — Manutenção de infraestrutura` });
-      }
-      financeSummary = {
-        outcome,
-        division,
-        round: next.round,
-        is_home: isHome,
-        income: { match_prize: matchPrize, tv: rev.tv, sponsor: rev.sponsor, merch: rev.merch, gate },
-        expense: { salaries, maintenance },
-        totals: { income: totalIncome, expense: totalExpense, net },
-      };
-      await Promise.all([
-        supabase.from("financial_transactions").insert(txs),
-        supabase.from("matches").update({ finance_summary: financeSummary }).eq("id", next.id),
-      ]);
-    } catch (e) {
-      console.error("payoff error", e);
-    }
+    })();
 
-
-    // XP pós-partida e mensagem de resultado
-    try {
-      const isHome = playerTeam.id === home.id;
-      const playerGf = isHome ? result.home_score : result.away_score;
-      const playerGa = isHome ? result.away_score : result.home_score;
-      const outcomeXp: "W" | "D" | "L" =
-        playerGf > playerGa ? "W" : playerGf < playerGa ? "L" : "D";
-      const side: EngineSide | null = playerSideRef.current;
-      const opponentName = isHome ? away.name : home.name;
-      const xpJob = side
-        ? applyPostMatchXp(supabase, trainer.id, {
-            starterIds: side.starters.map((s) => s.creature.id),
-            enteredReserveIds: result.used_bench_ids.filter((id: string) =>
-              side.bench.some((b) => b.creature.id === id),
-            ),
-            unusedReserveIds: side.bench
-              .map((b) => b.creature.id)
-              .filter((id) => !result.used_bench_ids.includes(id)),
-            outcome: outcomeXp,
-            energy_loss: result.energy_loss,
-            goalsByCreature: result.goals_by_creature,
-            injuries: result.injuries.filter((i) => i.team_id === playerTeam.id),
-            isOfficial: true,
-          })
-        : Promise.resolve();
-      await Promise.all([
-        xpJob,
-        insertMessage(
-          supabase,
-          trainer.id,
-          "match",
-          `Rodada ${next.round}: ${outcomeXp === "W" ? "Vitória" : outcomeXp === "D" ? "Empate" : "Derrota"} vs ${opponentName}`,
-          `${isHome ? home.name : away.name} ${playerGf} x ${playerGa} ${isHome ? away.name : home.name} — clima: ${result.weather}.`,
-        ),
-      ]);
-    } catch (e) {
-      console.error("xp/message error", e);
-    }
-
+    await Promise.all([eventsJob, standingsJob, payoffJob, xpMsgJob]);
     stamp("player match persisted");
     return {
       match_id: next.id,
