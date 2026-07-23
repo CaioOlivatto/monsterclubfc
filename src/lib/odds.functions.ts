@@ -10,6 +10,8 @@ import {
 } from "./match-engine.server";
 import { buildPlayerSideFromDb, buildPlayerSideFromDraft } from "./player-side.server";
 import { loadBestiary } from "./bestiary.server";
+import { stadiumCapacity } from "./buildings.server";
+import { buildAttendance, rosterMoraleAverage, type AttendanceInfo } from "./attendance";
 import { WORLD_TEAMS, type DivisionSlug } from "./world/catalog";
 
 function hashSeed(s: string): number {
@@ -38,6 +40,8 @@ async function loadEngineBestiary(supabase: any): Promise<EngineBestiary> {
 export interface PrognosticResponse {
   analysis: PrognosticAnalysis;
   opponent: { name: string; is_next_official: boolean; round?: number | null; is_home: boolean };
+  /** Preview de público em jogos EM CASA (ocupação esperada, sem ruído). Null em jogos fora. */
+  stadium_preview: AttendanceInfo | null;
 }
 
 const DraftSchema = z.object({
