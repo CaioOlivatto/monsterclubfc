@@ -469,8 +469,22 @@ function LineupPage() {
     return <div className="p-6 text-center text-muted-foreground">Carregando…</div>;
   }
 
+  const COMP_LABELS: Record<string, string> = {
+    league: "Campeonato",
+    cup: "Copa",
+    world_league: "Liga Mundial",
+    world_cup: "Copa Mundial",
+  };
+
   return (
     <div className="min-h-screen bg-background">
+      {confirmPlayMut.isPending ? (
+        <MatchLoadingOverlay
+          homeName={upcomingMatch?.homeTeam}
+          awayName={upcomingMatch?.awayTeam}
+          competitionLabel={upcomingMatch ? COMP_LABELS[upcomingMatch.competition] : null}
+        />
+      ) : null}
       <header className="border-b bg-card">
         <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-2 px-3 py-3 sm:px-4">
           <div className="flex min-w-0 items-center gap-2">
