@@ -4,6 +4,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { getMyLineup, saveLineup } from "@/lib/lineup.functions";
 import { getLineupPrognostic } from "@/lib/odds.functions";
+import { playNextLeagueMatch } from "@/lib/league.functions";
+import { playNextCupMatch } from "@/lib/cup.functions";
+import { simulateWorldCupRound, simulateWorldLeagueRound } from "@/lib/world-competitions.functions";
+import { getUpcomingOfficialMatch, type OfficialMatchContext } from "@/lib/official-match.functions";
 import { PrognosticCard } from "@/components/PrognosticCard";
 import { buildSlots, FORMATIONS, MAX_BENCH, type Formation, type SlotRole } from "@/lib/lineup.server";
 import { Button } from "@/components/ui/button";
@@ -27,7 +31,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { ArrowLeft, Save, Shield, Swords, Scale, Wand2, AlertTriangle, HeartPulse, BedDouble } from "lucide-react";
+import { ArrowLeft, Save, Shield, Swords, Scale, Wand2, AlertTriangle, HeartPulse, BedDouble, Play } from "lucide-react";
 import { fatigueState, FATIGUE_LABEL, FATIGUE_CLASS, effectiveOverall, energyMultiplier } from "@/lib/fatigue";
 import { moraleState, MORALE_EMOJI, MORALE_LABEL, moraleMultiplier } from "@/lib/morale";
 import { StarRating, overallToStars } from "@/components/StarRating";
@@ -78,10 +82,19 @@ function LineupPage() {
   const fetchLineup = useServerFn(getMyLineup);
   const save = useServerFn(saveLineup);
   const fetchProg = useServerFn(getLineupPrognostic);
+  const fetchUpcoming = useServerFn(getUpcomingOfficialMatch);
+  const playLeague = useServerFn(playNextLeagueMatch);
+  const playCup = useServerFn(playNextCupMatch);
+  const playWorldLeague = useServerFn(simulateWorldLeagueRound);
+  const playWorldCup = useServerFn(simulateWorldCupRound);
 
   const { data, isLoading } = useQuery({
     queryKey: ["lineup"],
     queryFn: () => fetchLineup(),
+  });
+  const { data: upcomingMatch } = useQuery<OfficialMatchContext | null>({
+    queryKey: ["upcoming-official-match"],
+    queryFn: () => fetchUpcoming({ data: {} }),
   });
 
   const [formation, setFormation] = useState<Formation>("4-4-2");
@@ -312,6 +325,37 @@ function LineupPage() {
     onError: (e: any) => toast.error(e?.message ?? "Erro ao salvar."),
   });
 
+  const confirmPlayMut = useMutation({
+    mutationFn: async () => {
+      await save({ data: { formation, strategy, starters, bench } });
+      const match = upcomingMatch ?? await fetchUpcoming({ data: {} });
+      if (!match) throw new Error("Nenhuma partida oficial pronta para jogar.");
+
+      if (match.competition === "league") {
+        const res = await playLeague();
+        return res.match_id as string;
+      }
+      if (match.competition === "cup") {
+        const res = await playCup();
+        return res.match_id as string;
+      }
+      if (match.competition === "world_league") {
+        const res = await playWorldLeague();
+        if (!res.playerMatchId) throw new Error("A rodada da Liga Mundial não tem partida do seu time.");
+        return res.playerMatchId as string;
+      }
+      const res = await playWorldCup();
+      if (!res.playerMatchId) throw new Error("A rodada da Copa Mundial não tem partida do seu time.");
+      return res.playerMatchId as string;
+    },
+    onSuccess: (matchId) => {
+      qc.invalidateQueries({ queryKey: ["lineup"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      navigate({ to: "/match/$id", params: { id: matchId } });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Não foi possível iniciar a partida."),
+  });
+
 
   const filledStarters = starters.filter((s) => s.creature_id).length;
 
@@ -366,6 +410,14 @@ function LineupPage() {
       </header>
 
       <main className="mx-auto max-w-4xl space-y-4 px-3 py-4 sm:px-4">
+
+        <Card>
+          <MatchContextCard
+            match={upcomingMatch ?? null}
+            filledStarters={filledStarters}
+            pending={confirmPlayMut.isPending}
+            onConfirm={() => confirmPlayMut.mutate()}
+          />
 
         <Card>
           <CardHeader className="pb-3">
