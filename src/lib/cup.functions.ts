@@ -432,20 +432,20 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
         const opponentName = isHome ? away.name : home.name;
         const roundLabel = CUP_ROUND_NAMES[next.round as number] ?? `Rodada ${next.round}`;
         await Promise.all([
-          applyPostMatchXp(supabase, trainer.id, {
-            starterIds, enteredReserveIds, unusedReserveIds,
-            outcome: outcomeXp,
-            energy_loss: result.energy_loss,
-            goalsByCreature: result.goals_by_creature,
-            injuries: result.injuries.filter((i) => i.team_id === playerTeam.id),
-            isOfficial: true,
-          }),
-          insertMessage(
-            supabase, trainer.id, "match",
-            `Copa — ${roundLabel}: ${outcomeXp === "W" ? "Vitória" : "Derrota"} vs ${opponentName}`,
-            `${isHome ? home.name : away.name} ${playerGf} x ${playerGa} ${isHome ? away.name : home.name} — clima: ${result.weather}.`,
-          ),
-        ]);
+        await applyPostMatchXp(supabase, trainer.id, {
+          starterIds, enteredReserveIds, unusedReserveIds,
+          outcome: outcomeXp,
+          energy_loss: result.energy_loss,
+          goalsByCreature: result.goals_by_creature,
+          injuries: result.injuries.filter((i) => i.team_id === playerTeam.id),
+          isOfficial: true,
+        });
+        // inbox: fire-and-forget
+        void insertMessage(
+          supabase, trainer.id, "match",
+          `Copa — ${roundLabel}: ${outcomeXp === "W" ? "Vitória" : "Derrota"} vs ${opponentName}`,
+          `${isHome ? home.name : away.name} ${playerGf} x ${playerGa} ${isHome ? away.name : home.name} — clima: ${result.weather}.`,
+        ).catch((e) => console.error("[playNextCupMatch] insertMessage bg error", e));
       } catch (e) {
         console.error("[playNextCupMatch] xp/message error", e);
       }
