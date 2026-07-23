@@ -9,6 +9,7 @@ import { createFriendlyMatch } from "@/lib/match.functions";
 import { claimWeeklyGems } from "@/lib/progression.functions";
 import { getMyLineup } from "@/lib/lineup.functions";
 import { getConfidence, type ConfidenceInfo } from "@/lib/career.functions";
+import { startLeague, playNextLeagueMatch } from "@/lib/league.functions";
 import { ageStatus } from "@/lib/age";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
