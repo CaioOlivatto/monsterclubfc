@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { getMyLineup, saveLineup } from "@/lib/lineup.functions";
 import { getLineupPrognostic } from "@/lib/odds.functions";
-import { playNextLeagueMatch } from "@/lib/league.functions";
+import { playNextLeagueMatch, advanceLeagueRoundBackground } from "@/lib/league.functions";
 import { playNextCupMatch } from "@/lib/cup.functions";
 import { simulateWorldCupRound, simulateWorldLeagueRound } from "@/lib/world-competitions.functions";
 import { getUpcomingOfficialMatch, type OfficialCompetition, type OfficialMatchContext } from "@/lib/official-match.functions";
