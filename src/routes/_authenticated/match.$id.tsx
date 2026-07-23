@@ -439,6 +439,8 @@ function FinanceSummaryCard({ summary }: { summary: any }) {
   const inc = summary.income ?? {};
   const exp = summary.expense ?? {};
   const totals = summary.totals ?? { income: 0, expense: 0, net: 0 };
+  const att = summary.attendance ?? null;
+  const isHome = summary.is_home !== false;
   const rows: Array<{ label: string; value: number; kind: "in" | "out" }> = [
     { label: "Premiação da rodada", value: inc.match_prize ?? 0, kind: "in" },
     { label: "Direitos de TV", value: inc.tv ?? 0, kind: "in" },
@@ -460,6 +462,21 @@ function FinanceSummaryCard({ summary }: { summary: any }) {
             {totals.net >= 0 ? "+" : "−"} {money(Math.abs(totals.net))}
           </span>
         </div>
+        {/* Público (só em casa) */}
+        {isHome && att && att.capacity > 0 ? (
+          <div className="flex items-center justify-between rounded-md border bg-muted/30 px-2 py-1.5 text-[11px]">
+            <span className="text-muted-foreground">Público</span>
+            <span className="font-medium">
+              {att.attendance.toLocaleString("pt-BR")} / {att.capacity.toLocaleString("pt-BR")} torcedores
+              {" · "}{att.label?.label ?? "—"} {att.label?.icon ?? ""}
+            </span>
+          </div>
+        ) : !isHome ? (
+          <div className="flex items-center justify-between rounded-md border border-dashed px-2 py-1.5 text-[11px] text-muted-foreground">
+            <span>Público</span>
+            <span>Fora de casa — sem público pagante</span>
+          </div>
+        ) : null}
         <div className="space-y-1">
           {rows.map((r, i) => (
             <div key={i} className="flex items-center justify-between text-xs">
