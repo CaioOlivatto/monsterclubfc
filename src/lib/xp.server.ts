@@ -64,11 +64,12 @@ export async function applyPostMatchXp(
     (buildings ?? []).find((b: any) => b.building_type === "centro_medico")?.level ?? 1;
   const ctBonus = 1 + ctLevel * 0.05;
 
-  // Recuperação de energia (v2): valores FIXOS, iguais para todos. Centro Médico
-  // não afeta mais a energia — cuida exclusivamente de lesões. O revezamento é a
-  // única resposta ao cansaço.
-  const RECOVERY_PLAYED = 12;
-  const RECOVERY_RESTED = 42;
+  // Recuperação de energia v3 (evento-based): valores fixos, suaves.
+  // Quem jogou recupera +2; quem não jogou (banco não usado ou lesionado) +6.
+  // Combinado com o desgaste base de -3/-4/-5, um titular sem revezar estabiliza
+  // em ~45-50%; revezando a cada 3 rodadas, mantém ~98%.
+  const RECOVERY_PLAYED = 2;
+  const RECOVERY_RESTED = 6;
   // Redução de duração de lesão por Centro Médico (§Lesões): -15% a -50%.
   const MED_INJURY_REDUCE = [0, 0.15, 0.25, 0.35, 0.45, 0.5];
   const injReduce = MED_INJURY_REDUCE[Math.min(medLevel, 5)] ?? 0;
