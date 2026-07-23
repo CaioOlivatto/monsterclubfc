@@ -23,7 +23,7 @@ import {
 import { loadBestiary } from "./bestiary.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
-import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, type Division as EconDivision } from "./economy";
+import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, AWAY_WIN_BONUS, type Division as EconDivision } from "./economy";
 
 // Premiação por partida em competições MUNDIAIS — maiores que Campeonato.
 // Grupos: V/E/D. Mata-mata (avançar vale mais que a fase de grupos).
@@ -219,8 +219,9 @@ async function simulatePlayerMatch(
 
       const salaries = (roster ?? []).reduce((a: number, c: any) => a + matchSalary(c.overall ?? 40), 0);
       const maintenance = totalMaintenancePerMatch(div, bldgs ?? []);
+      const awayWinBonus = !isHome && outcome === "W" ? AWAY_WIN_BONUS : 0;
 
-      const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch;
+      const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch + awayWinBonus;
       const totalExpense = salaries + maintenance;
       const net = totalIncome - totalExpense;
 
@@ -237,6 +238,8 @@ async function simulatePlayerMatch(
         { trainer_id: trainerId, transaction_type: "income", category: "merch",
           amount: rev.merch, description: `${roundTag} — Merchandising` },
       ];
+      if (awayWinBonus > 0) txs.push({ trainer_id: trainerId, transaction_type: "income",
+        category: "bonus_visitante", amount: awayWinBonus, description: `${roundTag} — Prêmio de vitória fora` });
       if (salaries > 0) txs.push({ trainer_id: trainerId, transaction_type: "expense",
         category: "salarios", amount: salaries, description: `${roundTag} — Salários` });
       if (maintenance > 0) txs.push({ trainer_id: trainerId, transaction_type: "expense",
@@ -245,7 +248,7 @@ async function simulatePlayerMatch(
       const financeSummary = {
         outcome, division: div, round: ctx.round, is_home: isHome,
         competition: ctx.competition,
-        income: { match_prize: matchPrize, tv: rev.tv, sponsor: rev.sponsor, merch: rev.merch, gate: 0 },
+        income: { match_prize: matchPrize, tv: rev.tv, sponsor: rev.sponsor, merch: rev.merch, gate: 0, away_win_bonus: awayWinBonus },
         expense: { salaries, maintenance },
         totals: { income: totalIncome, expense: totalExpense, net },
       };
