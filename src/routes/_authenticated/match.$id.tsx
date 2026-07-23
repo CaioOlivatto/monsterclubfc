@@ -158,7 +158,7 @@ function MatchPage() {
       }
       setRevealed((r) => [
         ...r,
-        { ...buildRevealed(ev, homeId), narration: narration ?? ev.description },
+        { ...buildRevealed(ev, homeId), narration: narration ?? ev.description ?? undefined },
       ]);
     }
 
