@@ -1,6 +1,13 @@
 // Fase 3 — Carreira do Treinador: registrar temporada, decidir demissão e gerar propostas.
 // Chamado do fluxo de fim de temporada em league.functions.ts.
-import { insertMessage } from "./xp.server";
+//
+// ATOMICIDADE: todas as escritas deste bloco (trainer_career, qualifications,
+// trainers update, job_offers expirar/inserir, messages) são acumuladas em um
+// payload e aplicadas via a RPC `apply_end_of_season_block` numa única
+// transação Postgres. Se qualquer passo falhar, NADA fica persistido.
+// Débito técnico conhecido: as fases 1–2 do handler (standings, promoção,
+// calendário) ainda escrevem sem atomicidade. Reavaliar se novas escritas
+// forem adicionadas ao fim de temporada.
 
 const DIVISION_ORDER = ["bronze", "prata", "ouro", "diamante", "lendaria"] as const;
 type Division = typeof DIVISION_ORDER[number];
@@ -34,14 +41,6 @@ export interface SeasonOutcomeResult {
   isBadSeason: boolean;
 }
 
-/**
- * Regras (GDD):
- * - "Temporada ruim" = terminou na metade de baixo da tabela.
- * - Demissão: rebaixado OU 2 temporadas ruins consecutivas OU 3 temporadas ruins acumuladas.
- * - Propostas: Top 6 da mesma divisão (exceto o time atual) + qualquer time de divisão
- *   superior que terminou na metade de baixo (procura por técnico melhor).
- * - Se demitido, gera propostas mais fracas (após demissão) além das normais.
- */
 export async function applySeasonOutcome(input: SeasonOutcomeInput): Promise<SeasonOutcomeResult> {
   const {
     supabase,
@@ -56,7 +55,9 @@ export async function applySeasonOutcome(input: SeasonOutcomeInput): Promise<Sea
     isChampion,
   } = input;
 
-  // 1) Carrega treinador
+  const logPrefix = "[END_OF_SEASON]";
+
+  // ---- Leituras (fora da transação; apenas coletam dados) ----
   const { data: trainer } = await supabase
     .from("trainers")
     .select("id, trainer_name, seasons_at_current_club, consecutive_bad_seasons, status")
@@ -68,21 +69,15 @@ export async function applySeasonOutcome(input: SeasonOutcomeInput): Promise<Sea
   const isBadSeason = playerPosition > half;
   const newBadStreak = isBadSeason ? (trainer.consecutive_bad_seasons ?? 0) + 1 : 0;
 
-  // 2) Registra evento(s) de fim de temporada em trainer_career
-  const events: any[] = [];
   const teamNameRow = trainerCurrentTeamId
-    ? (
-        await supabase
-          .from("teams")
-          .select("name")
-          .eq("id", trainerCurrentTeamId)
-          .maybeSingle()
-      ).data
+    ? (await supabase.from("teams").select("name").eq("id", trainerCurrentTeamId).maybeSingle()).data
     : null;
   const currentTeamName = teamNameRow?.name ?? "—";
 
-  if (isChampion) {
-    events.push({
+  // ---- Buffer: eventos de carreira ----
+  const careerEvents: any[] = [];
+  const pushEvent = (event: string, title: string | null) =>
+    careerEvents.push({
       trainer_id: trainerId,
       team_id: trainerCurrentTeamId,
       team_name: currentTeamName,
@@ -90,70 +85,28 @@ export async function applySeasonOutcome(input: SeasonOutcomeInput): Promise<Sea
       season_start: seasonNumber,
       season_end: seasonNumber,
       final_position: playerPosition,
-      event: "champion",
-      title: `Campeão da ${playerDivision}`,
+      event,
+      title,
     });
-  }
-  if (promoted) {
-    events.push({
-      trainer_id: trainerId,
-      team_id: trainerCurrentTeamId,
-      team_name: currentTeamName,
-      division: playerDivision,
-      season_start: seasonNumber,
-      season_end: seasonNumber,
-      final_position: playerPosition,
-      event: "promoted",
-      title: `Promovido de ${playerDivision}`,
-    });
-  }
-  if (relegated) {
-    events.push({
-      trainer_id: trainerId,
-      team_id: trainerCurrentTeamId,
-      team_name: currentTeamName,
-      division: playerDivision,
-      season_start: seasonNumber,
-      season_end: seasonNumber,
-      final_position: playerPosition,
-      event: "relegated",
-      title: `Rebaixado da ${playerDivision}`,
-    });
-  }
 
-  // 3) Decide demissão
-  const fired = relegated || newBadStreak >= 2 || newBadStreak >= 3;
+  if (isChampion) pushEvent("champion", `Campeão da ${playerDivision}`);
+  if (promoted) pushEvent("promoted", `Promovido de ${playerDivision}`);
+  if (relegated) pushEvent("relegated", `Rebaixado da ${playerDivision}`);
+
+  // Decisão de demissão
+  const fired = relegated || newBadStreak >= 2;
   let reasonFired: string | null = null;
   if (fired) {
     if (relegated) reasonFired = "Rebaixamento da divisão";
-    else if (newBadStreak >= 2) reasonFired = `${newBadStreak} temporadas fracas seguidas`;
-    events.push({
-      trainer_id: trainerId,
-      team_id: trainerCurrentTeamId,
-      team_name: currentTeamName,
-      division: playerDivision,
-      season_start: seasonNumber,
-      season_end: seasonNumber,
-      final_position: playerPosition,
-      event: "fired",
-      title: reasonFired,
-    });
+    else reasonFired = `${newBadStreak} temporadas fracas seguidas`;
+    pushEvent("fired", reasonFired);
   }
 
-  if (events.length) await supabase.from("trainer_career").insert(events);
-
-  // 3.5) Qualificações para Liga/Copa Mundial na próxima temporada.
-  //  - Liga Mundial: top 4 de cada divisão.
-  //  - Copa Mundial: campeão de cada divisão (posição 1).
+  // ---- Buffer: qualificações para próxima temporada ----
   const nextSeason = seasonNumber + 1;
-  await supabase
-    .from("qualifications")
-    .delete()
-    .eq("trainer_id", trainerId)
-    .eq("season_number", nextSeason);
-  const quals: any[] = [];
+  const qualifications: any[] = [];
   if (playerPosition >= 1 && playerPosition <= 4) {
-    quals.push({
+    qualifications.push({
       trainer_id: trainerId,
       season_number: nextSeason,
       qualifies_for: "world_league",
@@ -162,7 +115,7 @@ export async function applySeasonOutcome(input: SeasonOutcomeInput): Promise<Sea
     });
   }
   if (isChampion) {
-    quals.push({
+    qualifications.push({
       trainer_id: trainerId,
       season_number: nextSeason,
       qualifies_for: "world_cup",
@@ -170,23 +123,18 @@ export async function applySeasonOutcome(input: SeasonOutcomeInput): Promise<Sea
       source_position: 1,
     });
   }
-  if (quals.length) await supabase.from("qualifications").insert(quals);
 
+  // ---- Buffer: atualização do treinador ----
+  const trainerUpdate = {
+    last_final_position: playerPosition,
+    consecutive_bad_seasons: newBadStreak,
+    seasons_at_current_club: fired ? 0 : (trainer.seasons_at_current_club ?? 0) + 1,
+    status: fired ? "dismissed" : "employed",
+    pending_transition: fired,
+  };
 
-  // 4) Atualiza contadores do treinador
-  await supabase
-    .from("trainers")
-    .update({
-      last_final_position: playerPosition,
-      consecutive_bad_seasons: newBadStreak,
-      seasons_at_current_club: fired ? 0 : (trainer.seasons_at_current_club ?? 0) + 1,
-      status: fired ? "dismissed" : "employed",
-      pending_transition: fired,
-    })
-    .eq("id", trainerId);
-
-  // 5) Gera propostas
-  const offersGenerated = await generateOffers({
+  // ---- Buffer: propostas de trabalho ----
+  const jobOffers = await buildOffers({
     supabase,
     trainerId,
     trainerCurrentTeamId,
@@ -195,29 +143,67 @@ export async function applySeasonOutcome(input: SeasonOutcomeInput): Promise<Sea
     fired,
   });
 
-  // 6) Mensagem no inbox
+  // ---- Buffer: mensagens do inbox ----
+  const messages: any[] = [];
   if (fired) {
-    await insertMessage(
-      supabase,
-      trainerId,
-      "career",
-      "Você foi demitido",
-      `Motivo: ${reasonFired}. ${offersGenerated} clube(s) demonstraram interesse.`,
-    );
-  } else if (offersGenerated > 0) {
-    await insertMessage(
-      supabase,
-      trainerId,
-      "career",
-      `${offersGenerated} proposta(s) de clubes recebidas`,
-      "Sondagens do mercado de treinadores. Aceite para deixar o clube atual.",
-    );
+    messages.push({
+      trainer_id: trainerId,
+      kind: "career",
+      title: "Você foi demitido",
+      body: `Motivo: ${reasonFired}. ${jobOffers.length} clube(s) demonstraram interesse.`,
+    });
+  } else if (jobOffers.length > 0) {
+    messages.push({
+      trainer_id: trainerId,
+      kind: "career",
+      title: `${jobOffers.length} proposta(s) de clubes recebidas`,
+      body: "Sondagens do mercado de treinadores. Aceite para deixar o clube atual.",
+    });
   }
 
-  return { fired, reasonFired, offersGenerated, isBadSeason };
+  // ---- Aplicação atômica via RPC ----
+  const payload = {
+    trainer_id: trainerId,
+    next_season: nextSeason,
+    expire_old_offers: true,
+    trainer_update: trainerUpdate,
+    career_events: careerEvents,
+    qualifications,
+    job_offers: jobOffers,
+    messages,
+  };
+
+  const { data: applied, error: rpcError } = await supabase.rpc("apply_end_of_season_block", {
+    payload,
+  });
+
+  if (rpcError) {
+    console.error(`${logPrefix} apply_end_of_season_block FAILED`, {
+      trainerId,
+      seasonNumber,
+      error: rpcError.message,
+      details: rpcError.details ?? null,
+      hint: rpcError.hint ?? null,
+    });
+    throw new Error(`Falha ao aplicar fim de temporada (bloco de carreira): ${rpcError.message}`);
+  }
+
+  console.log(`${logPrefix} block applied`, {
+    trainerId,
+    seasonNumber,
+    fired,
+    applied,
+  });
+
+  return {
+    fired,
+    reasonFired,
+    offersGenerated: jobOffers.length,
+    isBadSeason,
+  };
 }
 
-interface GenerateOffersInput {
+interface BuildOffersInput {
   supabase: any;
   trainerId: string;
   trainerCurrentTeamId: string | null;
@@ -226,17 +212,9 @@ interface GenerateOffersInput {
   fired: boolean;
 }
 
-async function generateOffers(input: GenerateOffersInput): Promise<number> {
+async function buildOffers(input: BuildOffersInput): Promise<any[]> {
   const { supabase, trainerId, trainerCurrentTeamId, seasonNumber, playerDivision, fired } = input;
 
-  // Marca propostas antigas como expiradas
-  await supabase
-    .from("job_offers")
-    .update({ status: "expired" })
-    .eq("trainer_id", trainerId)
-    .eq("status", "pending");
-
-  // Carrega standings + times para escolher candidatos
   const { data: teams } = await supabase
     .from("teams")
     .select("id, name, division, is_player");
@@ -244,10 +222,9 @@ async function generateOffers(input: GenerateOffersInput): Promise<number> {
     .from("standings")
     .select("team_id, points, goals_for, goals_against");
 
-  if (!teams || !standings) return 0;
+  if (!teams || !standings) return [];
 
   const teamById = new Map<string, any>(teams.map((t: any) => [t.id, t]));
-  // Rankings por divisão
   const rankedByDiv = new Map<Division, string[]>();
   for (const div of DIVISION_ORDER) {
     const inDiv = standings
@@ -264,17 +241,14 @@ async function generateOffers(input: GenerateOffersInput): Promise<number> {
   }
 
   const candidates: { teamId: string; reason: "top_finish" | "higher_division" | "after_dismissal"; division: Division }[] = [];
-
   const playerDivIdx = DIVISION_ORDER.indexOf(playerDivision);
 
-  // (a) Top 6 da divisão atual (exceto o próprio time)
   const topDiv = rankedByDiv.get(playerDivision) ?? [];
   for (const teamId of topDiv.slice(0, 6)) {
     if (teamId === trainerCurrentTeamId) continue;
     candidates.push({ teamId, reason: "top_finish", division: playerDivision });
   }
 
-  // (b) Times de divisão superior que ficaram na metade de baixo
   for (let i = playerDivIdx + 1; i < DIVISION_ORDER.length; i++) {
     const div = DIVISION_ORDER[i];
     const ranked = rankedByDiv.get(div) ?? [];
@@ -285,7 +259,6 @@ async function generateOffers(input: GenerateOffersInput): Promise<number> {
     }
   }
 
-  // Se demitido, adiciona clubes fracos como rede de segurança (final da divisão atual + inferior)
   if (fired) {
     const own = rankedByDiv.get(playerDivision) ?? [];
     for (const teamId of own.slice(-4)) {
@@ -300,14 +273,11 @@ async function generateOffers(input: GenerateOffersInput): Promise<number> {
     }
   }
 
-  // Limita quantidade final (3–6 propostas)
   const maxOffers = fired ? 6 : Math.min(4, 2 + Math.floor(Math.random() * 3));
-  // Ordena por prioridade: top_finish > higher_division > after_dismissal
   const priority = { top_finish: 0, higher_division: 1, after_dismissal: 2 } as const;
   candidates.sort((a, b) => priority[a.reason] - priority[b.reason]);
   const selected = candidates.slice(0, maxOffers);
-
-  if (!selected.length) return 0;
+  if (!selected.length) return [];
 
   const rows = selected.map((c) => {
     const team = teamById.get(c.teamId);
@@ -319,22 +289,17 @@ async function generateOffers(input: GenerateOffersInput): Promise<number> {
       season_offered: seasonNumber,
       reason: c.reason,
       status: "pending" as const,
-      signing_bonus: SIGNING_BONUS[c.division] * (c.reason === "after_dismissal" ? 0.5 : 1),
+      signing_bonus: Math.round(SIGNING_BONUS[c.division] * (c.reason === "after_dismissal" ? 0.5 : 1)),
       message: buildOfferMessage(c.reason, team?.name ?? "clube"),
     };
   });
 
-  // Deduplica por (team_id) — mantém a primeira (mais prioritária)
   const seen = new Set<string>();
-  const unique = rows.filter((r) => {
+  return rows.filter((r) => {
     if (seen.has(r.team_id)) return false;
     seen.add(r.team_id);
     return true;
   });
-
-  const { error } = await supabase.from("job_offers").insert(unique);
-  if (error) throw error;
-  return unique.length;
 }
 
 function buildOfferMessage(reason: "top_finish" | "higher_division" | "after_dismissal", teamName: string): string {

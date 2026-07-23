@@ -1391,7 +1391,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      apply_end_of_season_block: { Args: { payload: Json }; Returns: Json }
     }
     Enums: {
       building_type: "ct_treino" | "ct_elemental" | "estadio" | "centro_medico"
