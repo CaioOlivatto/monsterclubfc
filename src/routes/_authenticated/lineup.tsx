@@ -94,6 +94,7 @@ function LineupPage() {
   const fetchProg = useServerFn(getLineupPrognostic);
   const fetchUpcoming = useServerFn(getUpcomingOfficialMatch);
   const playLeague = useServerFn(playNextLeagueMatch);
+  const advanceLeagueBg = useServerFn(advanceLeagueRoundBackground);
   const playCup = useServerFn(playNextCupMatch);
   const playWorldLeague = useServerFn(simulateWorldLeagueRound);
   const playWorldCup = useServerFn(simulateWorldCupRound);
