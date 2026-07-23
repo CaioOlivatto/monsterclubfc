@@ -143,6 +143,22 @@ function Dashboard() {
     onSuccess: (res) => nav({ to: "/match/$id", params: { id: res.match_id } }),
     onError: (e: any) => toast.error(e?.message ?? "Não foi possível iniciar a partida."),
   });
+  const playLeague = useServerFn(playNextLeagueMatch);
+  const playMut = useMutation({
+    mutationFn: () => playLeague(),
+    onSuccess: (res: any) => nav({ to: "/match/$id", params: { id: res.match_id } }),
+    onError: (e: any) => toast.error(e?.message ?? "Não foi possível jogar a próxima partida."),
+  });
+  const startLeagueFn = useServerFn(startLeague);
+  const startSeasonMut = useMutation({
+    mutationFn: () => startLeagueFn(),
+    onSuccess: () => {
+      toast.success("Temporada iniciada! Boa sorte.");
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["league"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Não foi possível iniciar a temporada."),
+  });
   const weeklyMut = useMutation({
     mutationFn: () => claimWeekly(),
     onSuccess: (res: any) => {
