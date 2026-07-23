@@ -368,11 +368,12 @@ function LineupPage() {
 
   const mut = useMutation({
     mutationFn: async () => {
-      await save({
-        data: { formation, strategy, starters, bench },
-      });
+      const payload = { formation, strategy, starters, bench };
+      await save({ data: payload });
+      return JSON.stringify(payload);
     },
-    onSuccess: () => {
+    onSuccess: (key) => {
+      setLastSavedKey(key);
       toast.success("Escalação salva!");
       qc.invalidateQueries({ queryKey: ["lineup"] });
       qc.invalidateQueries({ queryKey: ["prognostic"] });
@@ -397,11 +398,14 @@ function LineupPage() {
            .catch((e) => { clearTimeout(t); reject(e); });
         });
 
-      await withTimeout(
-        save({ data: { formation, strategy, starters, bench } }),
-        20_000,
-        "salvar a escalação",
-      );
+      // Só salva se o draft tiver mudado desde o último save/carga (economiza ~500ms).
+      const payload = { formation, strategy, starters, bench };
+      const currentKey = JSON.stringify(payload);
+      if (currentKey !== lastSavedKey) {
+        await withTimeout(save({ data: payload }), 20_000, "salvar a escalação");
+        setLastSavedKey(currentKey);
+      }
+
       const match = upcomingMatch ?? await withTimeout(
         fetchUpcoming({ data: search.competition ? { competition: search.competition } : {} }),
         15_000,
