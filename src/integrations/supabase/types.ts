@@ -105,6 +105,7 @@ export type Database = {
           created_at: string
           division: Database["public"]["Enums"]["division_type"]
           id: string
+          metadata: Json
           season_id: string
           status: string
           trainer_id: string
@@ -115,6 +116,7 @@ export type Database = {
           created_at?: string
           division: Database["public"]["Enums"]["division_type"]
           id?: string
+          metadata?: Json
           season_id: string
           status?: string
           trainer_id: string
@@ -125,6 +127,7 @@ export type Database = {
           created_at?: string
           division?: Database["public"]["Enums"]["division_type"]
           id?: string
+          metadata?: Json
           season_id?: string
           status?: string
           trainer_id?: string
@@ -933,6 +936,7 @@ export type Database = {
           draws: number
           goals_against: number
           goals_for: number
+          group_key: string | null
           id: string
           losses: number
           points: number
@@ -945,6 +949,7 @@ export type Database = {
           draws?: number
           goals_against?: number
           goals_for?: number
+          group_key?: string | null
           id?: string
           losses?: number
           points?: number
@@ -957,6 +962,7 @@ export type Database = {
           draws?: number
           goals_against?: number
           goals_for?: number
+          group_key?: string | null
           id?: string
           losses?: number
           points?: number
