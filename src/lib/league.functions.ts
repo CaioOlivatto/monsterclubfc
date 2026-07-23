@@ -517,6 +517,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       try {
         const side: EngineSide | null = playerSideRef.current;
         const opponentName = isHome ? away.name : home.name;
+        const tXpStart = Date.now();
         const xpPromise = side
           ? applyPostMatchXp(supabase, trainer.id, {
               starterIds: side.starters.map((s) => s.creature.id),
@@ -533,21 +534,22 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
               isOfficial: true,
             })
           : Promise.resolve();
-        await Promise.all([
-          xpPromise,
-          insertMessage(
-            supabase,
-            trainer.id,
-            "match",
-            `Rodada ${next.round}: ${outcomeXp === "W" ? "Vitória" : outcomeXp === "D" ? "Empate" : "Derrota"} vs ${opponentName}`,
-            `${isHome ? home.name : away.name} ${playerGf} x ${playerGa} ${isHome ? away.name : home.name} — clima: ${result.weather}.`,
-          ),
-        ]);
+        await xpPromise;
+        console.log(`[playNextLeagueMatch·persist] xp only +${Date.now() - tXpStart}ms`);
+        // Mensagem da inbox NÃO é hot-path: fire-and-forget.
+        void insertMessage(
+          supabase,
+          trainer.id,
+          "match",
+          `Rodada ${next.round}: ${outcomeXp === "W" ? "Vitória" : outcomeXp === "D" ? "Empate" : "Derrota"} vs ${opponentName}`,
+          `${isHome ? home.name : away.name} ${playerGf} x ${playerGa} ${isHome ? away.name : home.name} — clima: ${result.weather}.`,
+        ).catch((e) => console.error("[playNextLeagueMatch] insertMessage bg error", e));
       } catch (e) {
         console.error("[playNextLeagueMatch] xp/message error", e);
       }
-      substamp("xp+message");
+      substamp("xp (message deferred)");
     })();
+
 
     await Promise.all([eventsJob, standingsJob, payoffJob, xpMsgJob]);
     stamp("player match persisted");
