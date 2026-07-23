@@ -399,7 +399,7 @@ function LineupPage() {
         // Avança o resto da rodada (outras partidas da divisão + 4 divisões) em background,
         // sem bloquear a navegação para a tela de partida ao vivo.
         if (res.background_advance) {
-          advanceLeagueBg({ data: res.background_advance }).catch((e) => {
+          advanceLeagueBg({ data: res.background_advance }).catch((e: any) => {
             console.warn("advanceLeagueRoundBackground failed", e);
           });
         }
