@@ -200,6 +200,13 @@ export async function applyPostMatchXp(
     );
   }
 
+  if (isOfficial && energyDebug.length) {
+    console.log(
+      `[applyPostMatchXp] trainer=${trainerId} outcome=${opts.outcome} energy_loss_keys=${Object.keys(opts.energy_loss).length}`,
+      energyDebug.slice(0, 20),
+    );
+  }
+
   // N+1 fix: dispara todas as escritas em paralelo (creatures + burst + XP treinador).
   const src = opts.outcome === "W" ? "match_win" : opts.outcome === "D" ? "match_draw" : "match_loss";
   await Promise.all([
