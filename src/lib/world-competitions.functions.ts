@@ -135,13 +135,20 @@ async function simulatePlayerMatch(
   const seed = hashSeed(matchRow.id);
   const result = simulate(homeSide, awaySide, seed);
 
-  await supabase.from("matches").update({
+  // IDEMPOTÊNCIA: só finaliza se ainda scheduled
+  const { data: claimed } = await supabase.from("matches").update({
     home_score: result.home_score,
     away_score: result.away_score,
     status: "finished",
     clima: result.weather,
     played_at: new Date().toISOString(),
-  }).eq("id", matchRow.id);
+  }).eq("id", matchRow.id).eq("status", "scheduled").select("id");
+  if (!claimed?.length) {
+    // Outra chamada já assumiu essa partida — retorna o placar já persistido.
+    const { data: existing } = await supabase
+      .from("matches").select("home_score, away_score").eq("id", matchRow.id).maybeSingle();
+    return { home_score: existing?.home_score ?? 0, away_score: existing?.away_score ?? 0 };
+  }
 
   const ev = persistableSimulationEvents(result).map((e) => ({
     match_id: matchRow.id,
