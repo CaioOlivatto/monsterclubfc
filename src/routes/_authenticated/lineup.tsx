@@ -465,21 +465,23 @@ function LineupPage() {
                       value={current ?? "__none"}
                       onValueChange={(v) => setSlotCreature(s.index, v === "__none" ? null : v)}
                     >
-                      <SelectTrigger className="flex-1">
+                      <SelectTrigger className="min-w-0 flex-1">
                         <SelectValue placeholder="Vazio">
                           {currentCreature ? (
-                            <span className="inline-flex items-center gap-1.5">
-                              <span className="font-medium">{currentCreature.name}</span>
-                              <span className="text-muted-foreground">
-                                · {ELEMENT_LABEL[currentCreature.element] ?? currentCreature.element} · OVR {currentCreature.overall}{currEff !== currentCreature.overall ? `→${currEff}` : ""}
+                            <span className="flex min-w-0 items-center gap-1.5 truncate text-xs sm:text-sm">
+                              <span className="truncate font-medium">{currentCreature.name}</span>
+                              <span className="hidden truncate text-muted-foreground sm:inline">
+                                · {ELEMENT_LABEL[currentCreature.element] ?? currentCreature.element}
                               </span>
-                              <StarRating value={overallToStars(currentCreature.overall ?? 0)} size={0.75} />
-                              <span>{MORALE_EMOJI[moraleState(currentCreature.morale)]}</span>
-                              <span className="text-muted-foreground">· {currentCreature.energy ?? 100}%</span>
+                              <span className="shrink-0 text-muted-foreground">· OVR {currentCreature.overall}{currEff !== currentCreature.overall ? `→${currEff}` : ""}</span>
+                              <span className="hidden sm:inline"><StarRating value={overallToStars(currentCreature.overall ?? 0)} size={0.75} /></span>
+                              <span className="shrink-0">{MORALE_EMOJI[moraleState(currentCreature.morale)]}</span>
+                              <span className="shrink-0 text-muted-foreground">· {currentCreature.energy ?? 100}%</span>
                             </span>
                           ) : null}
                         </SelectValue>
                       </SelectTrigger>
+
                       <SelectContent>
                         <SelectItem value="__none">— Vazio —</SelectItem>
                         {inPos.length === 0 ? (
