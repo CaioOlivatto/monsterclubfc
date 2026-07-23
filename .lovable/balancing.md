@@ -74,9 +74,14 @@ Recebida em **toda** partida oficial (casa ou fora). `Sponsor` unifica Master + 
 | Diamante | $85.000 | $88.000 | $36.000 | **$209.000** |
 | Lendária | $160.000 | $168.000 | $70.000 | **$398.000** |
 
-### 2.3 Bilheteria (só em casa)
-- `Bilheteria = capacidade × ocupação × $25`
-- Ocupação = `min(100%, 70% + 3% × posição_invertida)` — líder lota (100%), lanterna ≈ 70%
+### 2.3 Bilheteria (só em casa) — atrelada à moral do elenco
+- `Bilheteria = attendance × $25` onde `attendance = capacidade × ocupação`.
+- **Ocupação (%)** = `clamp(10 + moral_média_do_elenco × 0,9, 10, 100)`, com ±5% de ruído por partida.
+- Consome a MESMA moral já calculada pelo sistema existente (0–100); piso 10% (estádio nunca fica literalmente vazio).
+- Âncora prática: moral 70 → ~73% (próxima do 75% em que a economia foi calibrada). Moral 40 → 46%; moral 100 → 100%.
+- Rótulos de UI: `<20 Vazio 🪑 · 20–39 Poucas 🙁 · 40–59 Metade 😐 · 60–84 Muitas 🙂 · ≥85 Lotado 🔥`.
+- Fora de casa continua sem bilheteria (regra intocada).
+- Substituiu a ocupação por posição na tabela (`0.70 + 0.03 × pos_invertida`, média ~87%). A nova fórmula tende a produzir ocupação **igual ou menor** para times bem administrados (moral 70–90 → 73–91%), então não reabre o problema de excesso de lucro corrigido antes.
 - 13 jogos em casa por temporada.
 
 ### 2.4 Bônus de fim de temporada — Campeonato Nacional (× prêmio de vitória da divisão)
