@@ -114,9 +114,9 @@ const WEATHER_LABEL: Record<Weather, string> = {
 };
 
 const K_DUEL = 24;              // sensibilidade do duelo logístico
-const GOALIE_BONUS = 18;        // vantagem do goleiro no duelo 2
+const GOALIE_BONUS = 20;        // vantagem do goleiro no duelo 2
 const HOME_ATK_BONUS = 4;       // fator casa somado à força ofensiva
-const CHANCE_RATE = 0.10;       // taxa-base de criação de lance por minuto (normalizada pela divisão)
+const CHANCE_RATE = 0.09;       // taxa-base de criação de lance por minuto (normalizada pela divisão)
 
 /** OVR médio de cada divisão — usado para normalizar a chance de lance por minuto. */
 const DIVISION_OVR: Record<Division, number> = {
