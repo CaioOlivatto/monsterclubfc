@@ -319,21 +319,11 @@ function MatchPage() {
                 size="sm"
                 variant={speed === 0 ? "default" : "outline"}
                 onClick={() => {
-                  const go = () => {
-                    setSpeed(0);
-                    setPlaying(true);
-                  };
-                  if (paidInstant) go();
-                  else payMut.mutate("instant", { onSuccess: go });
+                  setSpeed(0);
+                  setPlaying(true);
                 }}
-                disabled={payMut.isPending}
               >
                 <SkipForward className="mr-1 h-3 w-3" /> Instantâneo
-                {!paidInstant && (
-                  <span className="ml-1 flex items-center text-[10px] text-primary">
-                    <Gem className="h-3 w-3" /> {costInstant}
-                  </span>
-                )}
               </Button>
               <TacticsSheet />
             </div>
