@@ -714,30 +714,39 @@ async function recoverStaleRounds(
   playerCompetitionId: string,
 ) {
   if (!seasonId) return;
-  // Próxima rodada pendente do jogador (é a rodada que vamos jogar agora)
-  const { data: nextPlayer } = await supabase
-    .from("matches")
-    .select("round")
-    .eq("competition_id", playerCompetitionId)
-    .eq("status", "scheduled")
-    .order("round", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  const playerNextRound = (nextPlayer?.round as number | undefined) ?? Infinity;
-
-  // Todas as competições ativas da temporada (inclui a do jogador para outras partidas
-  // da MESMA rodada anterior que possam ter ficado presas).
-  const { data: comps } = await supabase
-    .from("competitions")
-    .select("id")
-    .eq("trainer_id", trainerId)
-    .eq("type", "league")
-    .eq("status", "active")
-    .eq("season_id", seasonId);
+  // Duas queries independentes em paralelo (era sequencial: -1 round-trip)
+  const [nextPlayerRes, compsRes] = await Promise.all([
+    supabase
+      .from("matches")
+      .select("round")
+      .eq("competition_id", playerCompetitionId)
+      .eq("status", "scheduled")
+      .order("round", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("competitions")
+      .select("id")
+      .eq("trainer_id", trainerId)
+      .eq("type", "league")
+      .eq("status", "active")
+      .eq("season_id", seasonId),
+  ]);
+  const playerNextRound = ((nextPlayerRes as any).data?.round as number | undefined) ?? Infinity;
+  const comps = (compsRes as any).data as Array<{ id: string }> | null;
   if (!comps?.length) return;
 
-  const compIds = comps.map((c: any) => c.id);
-  // Partidas presas em rodadas ESTRITAMENTE anteriores à próxima do jogador
+  const compIds = comps.map((c) => c.id);
+  // Fast path: LIMIT 1 confirma se há qualquer partida presa antes de baixar tudo.
+  const { data: probe } = await supabase
+    .from("matches")
+    .select("id")
+    .in("competition_id", compIds)
+    .eq("status", "scheduled")
+    .lt("round", playerNextRound)
+    .limit(1);
+  if (!probe?.length) return;
+
   const { data: stale } = await supabase
     .from("matches")
     .select("id, competition_id, round, home_team_id, away_team_id")
