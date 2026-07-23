@@ -160,7 +160,8 @@ function MatchPage() {
     if (!pending) return;
     const p = pending;
     const parts = narrRef.current.buildPlay(p.outcome, p.meta, p.minute);
-    const isPlayerHome = data?.home?.id === homeId; // sempre true; home = jogador
+    const playerTeamId = (data as any)?.player_team_id ?? homeId;
+    const isPlayerHome = playerTeamId === homeId;
     const currentHome = revealed.filter(
       (e) => e.event_type === "goal" && e.raw_team_id === homeId,
     ).length;
@@ -184,7 +185,7 @@ function MatchPage() {
     const reaction = narrRef.current.maybeReaction(p.minute, {
       homeGoals: newHome,
       awayGoals: newAway,
-      isPlayerHome: true,
+      isPlayerHome,
     });
     if (reaction) {
       setRevealed((r) => [
