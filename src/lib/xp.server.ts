@@ -43,12 +43,16 @@ export async function applyPostMatchXp(
     energy_loss: Record<string, number>;
     injuries?: Array<{ creature_id: string; severity: "leve" | "moderada" | "grave"; matches: number }>;
     isOfficial?: boolean;
+    /** Se true (amistoso): NADA de energia/lesão/XP/moral. Retorna imediatamente. */
+    skipRewards?: boolean;
     /** Gols por creature_id na partida — usados para bônus de moral. */
     goalsByCreature?: Record<string, number>;
   },
 ) {
+  if (opts.skipRewards) return; // Amistoso: sem efeitos colaterais.
   const base = opts.outcome === "W" ? 100 : opts.outcome === "D" ? 50 : 0;
   const isOfficial = opts.isOfficial ?? false;
+
 
   const { data: buildings } = await supabase
     .from("buildings")

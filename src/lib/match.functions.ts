@@ -176,10 +176,11 @@ export const createFriendlyMatch = createServerFn({ method: "POST" })
       enteredReserveIds,
       unusedReserveIds,
       outcome,
-      energy_loss: result.energy_loss,
-          goalsByCreature: result.goals_by_creature,
-      injuries: result.injuries.filter((i) => i.team_id === homeTeamId),
+      energy_loss: {},
+      goalsByCreature: {},
+      injuries: [],
       isOfficial: false,
+      skipRewards: true, // Amistoso: sem energia, lesão, moral ou XP.
     });
 
     return { match_id: match.id };

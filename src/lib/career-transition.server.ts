@@ -142,6 +142,37 @@ export async function applySeasonOutcome(input: SeasonOutcomeInput): Promise<Sea
 
   if (events.length) await supabase.from("trainer_career").insert(events);
 
+  // 3.5) Qualificações para Liga/Copa Mundial na próxima temporada.
+  //  - Liga Mundial: top 4 de cada divisão.
+  //  - Copa Mundial: campeão de cada divisão (posição 1).
+  const nextSeason = seasonNumber + 1;
+  await supabase
+    .from("qualifications")
+    .delete()
+    .eq("trainer_id", trainerId)
+    .eq("season_number", nextSeason);
+  const quals: any[] = [];
+  if (playerPosition >= 1 && playerPosition <= 4) {
+    quals.push({
+      trainer_id: trainerId,
+      season_number: nextSeason,
+      qualifies_for: "world_league",
+      source_division: playerDivision,
+      source_position: playerPosition,
+    });
+  }
+  if (isChampion) {
+    quals.push({
+      trainer_id: trainerId,
+      season_number: nextSeason,
+      qualifies_for: "world_cup",
+      source_division: playerDivision,
+      source_position: 1,
+    });
+  }
+  if (quals.length) await supabase.from("qualifications").insert(quals);
+
+
   // 4) Atualiza contadores do treinador
   await supabase
     .from("trainers")

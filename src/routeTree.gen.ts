@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedWorldLeagueRouteImport } from './routes/_authenticated/world-league'
+import { Route as AuthenticatedWorldCupRouteImport } from './routes/_authenticated/world-cup'
 import { Route as AuthenticatedShopRouteImport } from './routes/_authenticated/shop'
 import { Route as AuthenticatedRosterRouteImport } from './routes/_authenticated/roster'
 import { Route as AuthenticatedRankingRouteImport } from './routes/_authenticated/ranking'
@@ -41,6 +43,17 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedWorldLeagueRoute =
+  AuthenticatedWorldLeagueRouteImport.update({
+    id: '/world-league',
+    path: '/world-league',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedWorldCupRoute = AuthenticatedWorldCupRouteImport.update({
+  id: '/world-cup',
+  path: '/world-cup',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedShopRoute = AuthenticatedShopRouteImport.update({
   id: '/shop',
@@ -135,6 +148,8 @@ export interface FileRoutesByFullPath {
   '/ranking': typeof AuthenticatedRankingRoute
   '/roster': typeof AuthenticatedRosterRoute
   '/shop': typeof AuthenticatedShopRoute
+  '/world-cup': typeof AuthenticatedWorldCupRoute
+  '/world-league': typeof AuthenticatedWorldLeagueRoute
   '/creatures/$id': typeof AuthenticatedCreaturesIdRoute
   '/match/$id': typeof AuthenticatedMatchIdRoute
 }
@@ -154,6 +169,8 @@ export interface FileRoutesByTo {
   '/ranking': typeof AuthenticatedRankingRoute
   '/roster': typeof AuthenticatedRosterRoute
   '/shop': typeof AuthenticatedShopRoute
+  '/world-cup': typeof AuthenticatedWorldCupRoute
+  '/world-league': typeof AuthenticatedWorldLeagueRoute
   '/creatures/$id': typeof AuthenticatedCreaturesIdRoute
   '/match/$id': typeof AuthenticatedMatchIdRoute
 }
@@ -175,6 +192,8 @@ export interface FileRoutesById {
   '/_authenticated/ranking': typeof AuthenticatedRankingRoute
   '/_authenticated/roster': typeof AuthenticatedRosterRoute
   '/_authenticated/shop': typeof AuthenticatedShopRoute
+  '/_authenticated/world-cup': typeof AuthenticatedWorldCupRoute
+  '/_authenticated/world-league': typeof AuthenticatedWorldLeagueRoute
   '/_authenticated/creatures/$id': typeof AuthenticatedCreaturesIdRoute
   '/_authenticated/match/$id': typeof AuthenticatedMatchIdRoute
 }
@@ -196,6 +215,8 @@ export interface FileRouteTypes {
     | '/ranking'
     | '/roster'
     | '/shop'
+    | '/world-cup'
+    | '/world-league'
     | '/creatures/$id'
     | '/match/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -215,6 +236,8 @@ export interface FileRouteTypes {
     | '/ranking'
     | '/roster'
     | '/shop'
+    | '/world-cup'
+    | '/world-league'
     | '/creatures/$id'
     | '/match/$id'
   id:
@@ -235,6 +258,8 @@ export interface FileRouteTypes {
     | '/_authenticated/ranking'
     | '/_authenticated/roster'
     | '/_authenticated/shop'
+    | '/_authenticated/world-cup'
+    | '/_authenticated/world-league'
     | '/_authenticated/creatures/$id'
     | '/_authenticated/match/$id'
   fileRoutesById: FileRoutesById
@@ -267,6 +292,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/world-league': {
+      id: '/_authenticated/world-league'
+      path: '/world-league'
+      fullPath: '/world-league'
+      preLoaderRoute: typeof AuthenticatedWorldLeagueRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/world-cup': {
+      id: '/_authenticated/world-cup'
+      path: '/world-cup'
+      fullPath: '/world-cup'
+      preLoaderRoute: typeof AuthenticatedWorldCupRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/shop': {
       id: '/_authenticated/shop'
@@ -390,6 +429,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedRankingRoute: typeof AuthenticatedRankingRoute
   AuthenticatedRosterRoute: typeof AuthenticatedRosterRoute
   AuthenticatedShopRoute: typeof AuthenticatedShopRoute
+  AuthenticatedWorldCupRoute: typeof AuthenticatedWorldCupRoute
+  AuthenticatedWorldLeagueRoute: typeof AuthenticatedWorldLeagueRoute
   AuthenticatedCreaturesIdRoute: typeof AuthenticatedCreaturesIdRoute
   AuthenticatedMatchIdRoute: typeof AuthenticatedMatchIdRoute
 }
@@ -408,6 +449,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedRankingRoute: AuthenticatedRankingRoute,
   AuthenticatedRosterRoute: AuthenticatedRosterRoute,
   AuthenticatedShopRoute: AuthenticatedShopRoute,
+  AuthenticatedWorldCupRoute: AuthenticatedWorldCupRoute,
+  AuthenticatedWorldLeagueRoute: AuthenticatedWorldLeagueRoute,
   AuthenticatedCreaturesIdRoute: AuthenticatedCreaturesIdRoute,
   AuthenticatedMatchIdRoute: AuthenticatedMatchIdRoute,
 }
@@ -423,13 +466,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
