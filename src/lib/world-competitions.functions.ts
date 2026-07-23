@@ -218,12 +218,7 @@ async function simulatePlayerMatch(
       const acad = (acadRes as any).data as { money: number } | null;
 
       const salaries = (roster ?? []).reduce((a: number, c: any) => a + matchSalary(c.overall ?? 40), 0);
-      const maintenance = (bldgs ?? []).reduce((sum: number, b: any) => {
-        const table = (MAINTENANCE_PER_MATCH as any)[b.building_type] as number[] | undefined;
-        if (!table) return sum;
-        const lvl = Math.min(Math.max(b.level ?? 0, 0), table.length - 1);
-        return sum + (table[lvl] ?? 0);
-      }, 0);
+      const maintenance = totalMaintenancePerMatch(div, bldgs ?? []);
 
       const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch;
       const totalExpense = salaries + maintenance;
