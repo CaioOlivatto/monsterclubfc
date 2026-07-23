@@ -220,7 +220,22 @@ function MatchPage() {
   // Constrói NarrationParts sob demanda para o banner ativo (hook antes de qualquer return)
   const bannerParts = useMemo(() => {
     if (!pending) return null;
-    return narrRef.current.buildPlay(pending.outcome, pending.meta, pending.minute);
+    if ((pending.outcome as any) === "red_card") {
+      const line = capFirst(
+        pending.meta?.attacker
+          ? `${pending.meta.attacker} está expulso! Vermelho direto!`
+          : "Vermelho direto! Que expulsão!",
+      );
+      return {
+        p1: "",
+        p2: "",
+        p3: line,
+        is_golaco: false,
+        fast_beat: false,
+        callbacks: [],
+      };
+    }
+    return narrRef.current.buildPlay(pending.outcome as Outcome, pending.meta, pending.minute);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending?.minute, pending?.raw?.actor_creature_id]);
 
