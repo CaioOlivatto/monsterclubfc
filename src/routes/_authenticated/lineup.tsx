@@ -726,7 +726,7 @@ function MatchContextCard({
                 Rodada {match.round}{match.phaseLabel ? ` · ${match.phaseLabel}` : ""}
               </p>
               <h2 className="mt-1 text-lg font-bold leading-tight sm:text-xl">
-                {match.homeTeam} <span className="text-muted-foreground">vs</span> {match.awayTeam}
+                {match.playerTeam} <span className="text-muted-foreground">vs</span> {match.opponent}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {match.isHome ? "Em casa" : "Fora"} · adversário: {match.opponent}
