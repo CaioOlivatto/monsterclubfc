@@ -376,14 +376,16 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       { team_id: away.id, gf: result.away_score, ga: result.home_score,
         result: result.away_score > result.home_score ? "W" : result.away_score < result.home_score ? "L" : "D" },
     ];
-    for (const u of updates) {
-      const { data: row } = await supabase
-        .from("standings")
-        .select("points, wins, draws, losses, goals_for, goals_against")
-        .eq("competition_id", competition.id)
-        .eq("team_id", u.team_id)
-        .maybeSingle();
-      if (!row) continue;
+    // Standings: lê ambas as linhas de uma vez, aplica updates em paralelo.
+    const { data: standRowsForUpdate } = await supabase
+      .from("standings")
+      .select("team_id, points, wins, draws, losses, goals_for, goals_against")
+      .eq("competition_id", competition.id)
+      .in("team_id", [home.id, away.id]);
+    const standByTeam = new Map<string, any>((standRowsForUpdate ?? []).map((r: any) => [r.team_id, r]));
+    await Promise.all(updates.map(async (u) => {
+      const row = standByTeam.get(u.team_id);
+      if (!row) return;
       await supabase
         .from("standings")
         .update({
@@ -396,7 +398,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         })
         .eq("competition_id", competition.id)
         .eq("team_id", u.team_id);
-    }
+    }));
 
     // Financeiro por partida — Balanceamento por partida (TV, Patrocínio, Merch,
     // Bilheteria, Prêmio) menos (Salários da rodada + Manutenção de infraestrutura).
@@ -414,22 +416,29 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       // Receitas passivas por partida (§Economia-Por-Partida)
       const rev = MATCH_REVENUE[division];
 
+      // Reads independentes em paralelo (buildings, standings do gate, roster, academies)
+      const [bldgsRes, standRowsRes, rosterRes, acadRes] = await Promise.all([
+        supabase.from("buildings").select("building_type, level").eq("trainer_id", trainer.id),
+        isHome
+          ? supabase
+              .from("standings")
+              .select("team_id, points, goals_for, goals_against")
+              .eq("competition_id", competition.id)
+          : Promise.resolve({ data: null }),
+        supabase.from("creatures").select("overall").eq("owner_trainer_id", trainer.id),
+        supabase.from("academies").select("money").eq("trainer_id", trainer.id).maybeSingle(),
+      ]);
+      const bldgs = (bldgsRes as any).data as Array<{ building_type: string; level: number }> | null;
+      const standRows = (standRowsRes as any).data as any[] | null;
+      const roster = (rosterRes as any).data as Array<{ overall: number }> | null;
+      const acad = (acadRes as any).data as { money: number } | null;
+
       // Bilheteria (só em casa)
       let gate = 0;
       let stadiumLevel = 0;
       if (isHome) {
-        const { data: est } = await supabase
-          .from("buildings")
-          .select("level")
-          .eq("trainer_id", trainer.id)
-          .eq("building_type", "estadio")
-          .maybeSingle();
-        stadiumLevel = est?.level ?? 0;
+        stadiumLevel = (bldgs ?? []).find((b) => b.building_type === "estadio")?.level ?? 0;
         const capacity = stadiumCapacity(stadiumLevel);
-        const { data: standRows } = await supabase
-          .from("standings")
-          .select("team_id, points, goals_for, goals_against")
-          .eq("competition_id", competition.id);
         const rankedCur = [...(standRows ?? [])].sort((a: any, b: any) => {
           if (b.points !== a.points) return b.points - a.points;
           const gdA = a.goals_for - a.goals_against;
@@ -444,21 +453,11 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         gate = Math.round(capacity * fillRate * 25);
       }
 
-      // Salários por partida — elenco atual
-      const { data: roster } = await supabase
-        .from("creatures")
-        .select("overall")
-        .eq("owner_trainer_id", trainer.id);
       const salaries = (roster ?? []).reduce(
         (a: number, c: any) => a + matchSalary(c.overall ?? 40),
         0,
       );
 
-      // Manutenção de infraestrutura por partida
-      const { data: bldgs } = await supabase
-        .from("buildings")
-        .select("building_type, level")
-        .eq("trainer_id", trainer.id);
       const maintenance = (bldgs ?? []).reduce((sum: number, b: any) => {
         const table = (MAINTENANCE_PER_MATCH as any)[b.building_type] as number[] | undefined;
         if (!table) return sum;
@@ -470,11 +469,6 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       const totalExpense = salaries + maintenance;
       const net = totalIncome - totalExpense;
 
-      const { data: acad } = await supabase
-        .from("academies")
-        .select("money")
-        .eq("trainer_id", trainer.id)
-        .maybeSingle();
       await supabase
         .from("academies")
         .update({ money: (acad?.money ?? 0) + net })
@@ -504,27 +498,19 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         txs.push({ trainer_id: trainer.id, transaction_type: "expense", category: "manutencao",
           amount: maintenance, description: `${roundTag} — Manutenção de infraestrutura` });
       }
-      await supabase.from("financial_transactions").insert(txs);
-
       financeSummary = {
         outcome,
         division,
         round: next.round,
         is_home: isHome,
-        income: {
-          match_prize: matchPrize,
-          tv: rev.tv,
-          sponsor: rev.sponsor,
-          merch: rev.merch,
-          gate,
-        },
-        expense: {
-          salaries,
-          maintenance,
-        },
+        income: { match_prize: matchPrize, tv: rev.tv, sponsor: rev.sponsor, merch: rev.merch, gate },
+        expense: { salaries, maintenance },
         totals: { income: totalIncome, expense: totalExpense, net },
       };
-      await supabase.from("matches").update({ finance_summary: financeSummary }).eq("id", next.id);
+      await Promise.all([
+        supabase.from("financial_transactions").insert(txs),
+        supabase.from("matches").update({ finance_summary: financeSummary }).eq("id", next.id),
+      ]);
     } catch (e) {
       console.error("payoff error", e);
     }
@@ -538,33 +524,33 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       const outcomeXp: "W" | "D" | "L" =
         playerGf > playerGa ? "W" : playerGf < playerGa ? "L" : "D";
       const side: EngineSide | null = playerSideRef.current;
-      if (side) {
-        const starterIds = side.starters.map((s) => s.creature.id);
-        const enteredReserveIds = result.used_bench_ids.filter((id: string) =>
-          side.bench.some((b) => b.creature.id === id),
-        );
-        const unusedReserveIds = side.bench
-          .map((b) => b.creature.id)
-          .filter((id) => !enteredReserveIds.includes(id));
-        await applyPostMatchXp(supabase, trainer.id, {
-          starterIds,
-          enteredReserveIds,
-          unusedReserveIds,
-          outcome: outcomeXp,
-          energy_loss: result.energy_loss,
-          goalsByCreature: result.goals_by_creature,
-          injuries: result.injuries.filter((i) => i.team_id === playerTeam.id),
-          isOfficial: true,
-        });
-      }
       const opponentName = isHome ? away.name : home.name;
-      await insertMessage(
-        supabase,
-        trainer.id,
-        "match",
-        `Rodada ${next.round}: ${outcomeXp === "W" ? "Vitória" : outcomeXp === "D" ? "Empate" : "Derrota"} vs ${opponentName}`,
-        `${isHome ? home.name : away.name} ${playerGf} x ${playerGa} ${isHome ? away.name : home.name} — clima: ${result.weather}.`,
-      );
+      const xpJob = side
+        ? applyPostMatchXp(supabase, trainer.id, {
+            starterIds: side.starters.map((s) => s.creature.id),
+            enteredReserveIds: result.used_bench_ids.filter((id: string) =>
+              side.bench.some((b) => b.creature.id === id),
+            ),
+            unusedReserveIds: side.bench
+              .map((b) => b.creature.id)
+              .filter((id) => !result.used_bench_ids.includes(id)),
+            outcome: outcomeXp,
+            energy_loss: result.energy_loss,
+            goalsByCreature: result.goals_by_creature,
+            injuries: result.injuries.filter((i) => i.team_id === playerTeam.id),
+            isOfficial: true,
+          })
+        : Promise.resolve();
+      await Promise.all([
+        xpJob,
+        insertMessage(
+          supabase,
+          trainer.id,
+          "match",
+          `Rodada ${next.round}: ${outcomeXp === "W" ? "Vitória" : outcomeXp === "D" ? "Empate" : "Derrota"} vs ${opponentName}`,
+          `${isHome ? home.name : away.name} ${playerGf} x ${playerGa} ${isHome ? away.name : home.name} — clima: ${result.weather}.`,
+        ),
+      ]);
     } catch (e) {
       console.error("xp/message error", e);
     }
@@ -728,30 +714,39 @@ async function recoverStaleRounds(
   playerCompetitionId: string,
 ) {
   if (!seasonId) return;
-  // Próxima rodada pendente do jogador (é a rodada que vamos jogar agora)
-  const { data: nextPlayer } = await supabase
-    .from("matches")
-    .select("round")
-    .eq("competition_id", playerCompetitionId)
-    .eq("status", "scheduled")
-    .order("round", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  const playerNextRound = (nextPlayer?.round as number | undefined) ?? Infinity;
-
-  // Todas as competições ativas da temporada (inclui a do jogador para outras partidas
-  // da MESMA rodada anterior que possam ter ficado presas).
-  const { data: comps } = await supabase
-    .from("competitions")
-    .select("id")
-    .eq("trainer_id", trainerId)
-    .eq("type", "league")
-    .eq("status", "active")
-    .eq("season_id", seasonId);
+  // Duas queries independentes em paralelo (era sequencial: -1 round-trip)
+  const [nextPlayerRes, compsRes] = await Promise.all([
+    supabase
+      .from("matches")
+      .select("round")
+      .eq("competition_id", playerCompetitionId)
+      .eq("status", "scheduled")
+      .order("round", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("competitions")
+      .select("id")
+      .eq("trainer_id", trainerId)
+      .eq("type", "league")
+      .eq("status", "active")
+      .eq("season_id", seasonId),
+  ]);
+  const playerNextRound = ((nextPlayerRes as any).data?.round as number | undefined) ?? Infinity;
+  const comps = (compsRes as any).data as Array<{ id: string }> | null;
   if (!comps?.length) return;
 
-  const compIds = comps.map((c: any) => c.id);
-  // Partidas presas em rodadas ESTRITAMENTE anteriores à próxima do jogador
+  const compIds = comps.map((c) => c.id);
+  // Fast path: LIMIT 1 confirma se há qualquer partida presa antes de baixar tudo.
+  const { data: probe } = await supabase
+    .from("matches")
+    .select("id")
+    .in("competition_id", compIds)
+    .eq("status", "scheduled")
+    .lt("round", playerNextRound)
+    .limit(1);
+  if (!probe?.length) return;
+
   const { data: stale } = await supabase
     .from("matches")
     .select("id, competition_id, round, home_team_id, away_team_id")
