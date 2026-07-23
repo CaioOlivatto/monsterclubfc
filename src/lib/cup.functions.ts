@@ -431,7 +431,6 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
           .filter((id) => !enteredReserveIds.includes(id));
         const opponentName = isHome ? away.name : home.name;
         const roundLabel = CUP_ROUND_NAMES[next.round as number] ?? `Rodada ${next.round}`;
-        await Promise.all([
         await applyPostMatchXp(supabase, trainer.id, {
           starterIds, enteredReserveIds, unusedReserveIds,
           outcome: outcomeXp,
