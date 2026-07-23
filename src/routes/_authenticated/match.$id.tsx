@@ -40,11 +40,12 @@ function teamColor(id: string | undefined | null): string {
 
 interface PendingPlay {
   minute: number;
-  outcome: Outcome;
+  outcome: Outcome | "red_card";
   meta: PlayMeta;
   teamColor: string;
   raw: any;
 }
+
 
 function MatchPage() {
   const { id } = Route.useParams();
