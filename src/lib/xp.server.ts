@@ -136,6 +136,7 @@ export async function applyPostMatchXp(
   const goalsByCreature = opts.goalsByCreature ?? {};
   const outcomeMorale = opts.outcome === "W" ? +3 : opts.outcome === "D" ? 0 : -4;
 
+  const energyDebug: Array<{ id: string; prev: number; loss: number; rec: number; next: number; played: boolean }> = [];
   const updatePromises: Promise<any>[] = [];
   for (const c of creatures ?? []) {
     const add = targets.filter((t) => t.id === c.id).reduce((a, t) => a + t.add, 0);
@@ -146,7 +147,9 @@ export async function applyPostMatchXp(
     const loss = opts.energy_loss[c.id] ?? 0;
     const played = starterSet.has(c.id) || enteredSet.has(c.id);
     const rec = played ? RECOVERY_PLAYED : RECOVERY_RESTED;
-    const newEnergy = Math.max(30, Math.min(100, (c.energy ?? 100) - loss + rec));
+    const prevEnergy = c.energy ?? 100;
+    const newEnergy = Math.max(30, Math.min(100, prevEnergy - loss + rec));
+    energyDebug.push({ id: c.id, prev: prevEnergy, loss, rec, next: newEnergy, played });
 
     let injRemaining = c.injury_matches_remaining ?? 0;
     let injSeverity: string | null = c.injury_severity ?? null;
@@ -194,6 +197,13 @@ export async function applyPostMatchXp(
           injury_severity: injSeverity,
         })
         .eq("id", c.id),
+    );
+  }
+
+  if (isOfficial && energyDebug.length) {
+    console.log(
+      `[applyPostMatchXp] trainer=${trainerId} outcome=${opts.outcome} energy_loss_keys=${Object.keys(opts.energy_loss).length}`,
+      energyDebug.slice(0, 20),
     );
   }
 

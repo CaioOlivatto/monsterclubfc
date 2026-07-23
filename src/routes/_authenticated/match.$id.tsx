@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getMatch } from "@/lib/match.functions";
 import { Button } from "@/components/ui/button";
@@ -51,11 +51,24 @@ function MatchPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const fetchMatch = useServerFn(getMatch);
+  const qc = useQueryClient();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["match", id],
     queryFn: () => fetchMatch({ data: { id } }),
   });
+
+  // Invalida caches dependentes de energia/moral/lesão assim que o jogo termina.
+  // Sem isso, /roster e /dashboard exibiam o snapshot pré-partida em cache.
+  const invalidatedRef = useRef(false);
+  useEffect(() => {
+    if (invalidatedRef.current) return;
+    if (!data || data.match?.status !== "finished") return;
+    invalidatedRef.current = true;
+    qc.invalidateQueries({ queryKey: ["my-creatures"] });
+    qc.invalidateQueries({ queryKey: ["dashboard"] });
+    qc.invalidateQueries({ queryKey: ["lineup"] });
+  }, [data, qc]);
 
 
   const [minute, setMinute] = useState(0);
