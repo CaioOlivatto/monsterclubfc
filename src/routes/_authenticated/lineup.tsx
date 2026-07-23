@@ -684,25 +684,40 @@ function LineupPage() {
                 <Select value="" onValueChange={(v) => v && addToBench(v)}>
                   <SelectTrigger><SelectValue placeholder="Escolher criatura…" /></SelectTrigger>
                   <SelectContent>
-                    {creatures
-                      .filter((c) => !bench.includes(c.id))
+                    {allCreatures
+                      .filter((c: any) => !bench.includes(c.id))
                       .sort(sortByEff)
-                      .map((c) => {
+                      .map((c: any) => {
                         const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100, c.morale);
                         const ms = moraleState(c.morale);
+                        const isInjured = (c.injury_matches_remaining ?? 0) > 0;
+                        const usedElsewhere = !isInjured && usedIds.has(c.id);
+                        const disabled = isInjured || usedElsewhere;
+                        const nameClass =
+                          (isInjured ? "line-through " : "") + (disabled ? "opacity-60" : "font-medium");
                         return (
-                          <SelectItem key={c.id} value={c.id}>
-                            <span className="inline-flex items-center gap-1.5">
+                          <SelectItem key={c.id} value={c.id} disabled={disabled}>
+                            <span className="inline-flex items-center gap-1.5 flex-wrap">
                               <Badge variant="outline" className="w-12 shrink-0 justify-center text-[10px]">
                                 {ROLE_LABEL[naturalRoleOf(c.suggested_position)]}
                               </Badge>
-                              <span className="font-medium">{c.name}</span>
-                              <span className="text-muted-foreground">
+                              <span className={nameClass}>{c.name}</span>
+                              <span className={"text-muted-foreground" + (disabled ? " opacity-70" : "")}>
                                 · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}{eff !== c.overall ? `→${eff}` : ""}
                               </span>
                               <StarRating value={overallToStars(c.overall ?? 0)} size={0.75} />
                               <span>{MORALE_EMOJI[ms]}</span>
                               <span className="text-muted-foreground">· {c.energy ?? 100}%</span>
+                              {isInjured && (
+                                <span className="rounded border border-red-500/60 bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-300">
+                                  Lesionada · {c.injury_matches_remaining} {c.injury_matches_remaining === 1 ? "partida" : "partidas"}
+                                </span>
+                              )}
+                              {usedElsewhere && (
+                                <span className="rounded border border-amber-500/60 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
+                                  Já escalado em {usedLabelById.get(c.id)}
+                                </span>
+                              )}
                             </span>
                           </SelectItem>
                         );
