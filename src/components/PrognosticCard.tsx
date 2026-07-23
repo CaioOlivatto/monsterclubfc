@@ -3,10 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CheckCircle2, Info, Zap } from "lucide-react";
 import type { PrognosticAnalysis } from "@/lib/match-engine.server";
+import type { AttendanceInfo } from "@/lib/attendance";
 
 interface PrognosticResponse {
   analysis: PrognosticAnalysis;
   opponent: { name: string; is_next_official: boolean; round?: number | null; is_home: boolean };
+  stadium_preview?: AttendanceInfo | null;
 }
 
 const ELEMENT_LABEL: Record<string, string> = {
@@ -70,6 +72,24 @@ export function PrognosticCard({ state }: { state: UseQueryResult<PrognosticResp
           </div>
           <div className="mt-1 text-[11px] text-muted-foreground">{gapMsg}</div>
         </div>
+
+        {/* Preview de público (só em jogos EM CASA) */}
+        {opponent.is_home && state.data.stadium_preview ? (
+          <div className="flex items-center justify-between rounded-md border bg-muted/30 px-2 py-1.5 text-[11px]">
+            <span className="text-muted-foreground">Público esperado</span>
+            <span className="font-medium">
+              {state.data.stadium_preview.attendance.toLocaleString("pt-BR")}
+              {" / "}
+              {state.data.stadium_preview.capacity.toLocaleString("pt-BR")}
+              {" · "}
+              {state.data.stadium_preview.label.label} {state.data.stadium_preview.label.icon}
+            </span>
+          </div>
+        ) : !opponent.is_home && opponent.is_next_official ? (
+          <div className="flex items-center justify-between rounded-md border border-dashed px-2 py-1.5 text-[11px] text-muted-foreground">
+            <span>Público</span><span>Fora de casa — sem público pagante</span>
+          </div>
+        ) : null}
 
         {/* Pontos de atenção */}
         {analysis.alerts.length > 0 && (

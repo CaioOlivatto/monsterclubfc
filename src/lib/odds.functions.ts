@@ -10,6 +10,8 @@ import {
 } from "./match-engine.server";
 import { buildPlayerSideFromDb, buildPlayerSideFromDraft } from "./player-side.server";
 import { loadBestiary } from "./bestiary.server";
+import { stadiumCapacity } from "./buildings.server";
+import { buildAttendance, rosterMoraleAverage, type AttendanceInfo } from "./attendance";
 import { WORLD_TEAMS, type DivisionSlug } from "./world/catalog";
 
 function hashSeed(s: string): number {
@@ -38,6 +40,8 @@ async function loadEngineBestiary(supabase: any): Promise<EngineBestiary> {
 export interface PrognosticResponse {
   analysis: PrognosticAnalysis;
   opponent: { name: string; is_next_official: boolean; round?: number | null; is_home: boolean };
+  /** Preview de público em jogos EM CASA (ocupação esperada, sem ruído). Null em jogos fora. */
+  stadium_preview: AttendanceInfo | null;
 }
 
 const DraftSchema = z.object({
@@ -134,6 +138,22 @@ export const getLineupPrognostic = createServerFn({ method: "POST" })
     const seed = hashSeed(playerTeamId + opponentInfo.name);
     const analysis = analyzeMatchup(home, away, seed, 400);
 
+    // Preview de público — só faz sentido em jogos EM CASA.
+    // Sem ruído aleatório: mostra a ocupação ESPERADA a partir da moral média atual.
+    let stadiumPreview: AttendanceInfo | null = null;
+    if (playerIsHome) {
+      const [{ data: bldgs }, { data: rosterMor }] = await Promise.all([
+        supabase.from("buildings").select("building_type, level").eq("trainer_id", trainer.id),
+        supabase.from("creatures").select("morale").eq("owner_trainer_id", trainer.id),
+      ]);
+      const stadiumLevel = (bldgs ?? []).find((b: any) => b.building_type === "estadio")?.level ?? 0;
+      const capacity = stadiumCapacity(stadiumLevel);
+      if (capacity > 0) {
+        const moraleAvg = rosterMoraleAverage(rosterMor ?? []);
+        stadiumPreview = buildAttendance(capacity, moraleAvg); // sem RNG → esperado
+      }
+    }
+
     if (!playerIsHome) {
       const swapped: PrognosticAnalysis = {
         ...analysis,
@@ -146,8 +166,8 @@ export const getLineupPrognostic = createServerFn({ method: "POST" })
         },
         sector_summary: { home: analysis.sector_summary.away, away: analysis.sector_summary.home },
       };
-      return { analysis: swapped, opponent: opponentInfo };
+      return { analysis: swapped, opponent: opponentInfo, stadium_preview: stadiumPreview };
     }
-    return { analysis, opponent: opponentInfo };
+    return { analysis, opponent: opponentInfo, stadium_preview: stadiumPreview };
   });
 
