@@ -494,6 +494,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
           income: { match_prize: matchPrize, tv: rev.tv, sponsor: rev.sponsor, merch: rev.merch, gate, away_win_bonus: awayWinBonus },
           expense: { salaries, maintenance },
           totals: { income: totalIncome, expense: totalExpense, net },
+          attendance: attendanceInfo, // { capacity, attendance, occupancy, morale_avg, label } | null
         };
         // 3 writes em paralelo
         await Promise.all([
