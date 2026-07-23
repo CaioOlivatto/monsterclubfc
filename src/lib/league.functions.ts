@@ -546,6 +546,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       } catch (e) {
         console.error("[playNextLeagueMatch] xp/message error", e);
       }
+      substamp("xp+message");
     })();
 
     await Promise.all([eventsJob, standingsJob, payoffJob, xpMsgJob]);
