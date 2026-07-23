@@ -20,7 +20,7 @@ import {
 } from "./match-engine.server";
 import { loadBestiary } from "./bestiary.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
-import { generateCpuSideFor } from "./league.functions";
+
 
 /* ------------- helpers ------------- */
 
