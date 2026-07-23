@@ -708,11 +708,79 @@ export const advanceLeagueRoundBackground = createServerFn({ method: "POST" })
       );
       stamp("other divisions advanced");
     } catch (e) {
-      console.error("world advance error", e);
+      console.error(`[advanceLeagueRoundBackground] ERRO ao avançar outras divisões (comp=${competition_id}, round=${round}):`, e);
+      return { ok: false, reason: "other_divisions_failed", error: String((e as any)?.message ?? e) };
     }
 
     return { ok: true };
   });
+
+/**
+ * Recupera rodadas cujos backgrounds falharam anteriormente.
+ * Para cada competição da temporada com partidas ainda `scheduled` em rounds < próximo
+ * round do jogador, roda uma simulação rápida (fastPoisson) para fechá-las e atualizar
+ * standings. Idempotente: filtra por status='scheduled'.
+ */
+async function recoverStaleRounds(
+  supabase: any,
+  trainerId: string,
+  seasonId: string | null,
+  playerCompetitionId: string,
+) {
+  if (!seasonId) return;
+  // Próxima rodada pendente do jogador (é a rodada que vamos jogar agora)
+  const { data: nextPlayer } = await supabase
+    .from("matches")
+    .select("round")
+    .eq("competition_id", playerCompetitionId)
+    .eq("status", "scheduled")
+    .order("round", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  const playerNextRound = (nextPlayer?.round as number | undefined) ?? Infinity;
+
+  // Todas as competições ativas da temporada (inclui a do jogador para outras partidas
+  // da MESMA rodada anterior que possam ter ficado presas).
+  const { data: comps } = await supabase
+    .from("competitions")
+    .select("id")
+    .eq("trainer_id", trainerId)
+    .eq("type", "league")
+    .eq("status", "active")
+    .eq("season_id", seasonId);
+  if (!comps?.length) return;
+
+  const compIds = comps.map((c: any) => c.id);
+  // Partidas presas em rodadas ESTRITAMENTE anteriores à próxima do jogador
+  const { data: stale } = await supabase
+    .from("matches")
+    .select("id, competition_id, round, home_team_id, away_team_id")
+    .in("competition_id", compIds)
+    .eq("status", "scheduled")
+    .lt("round", playerNextRound);
+  if (!stale?.length) return;
+
+  console.warn(`[playNextLeagueMatch] RECUPERANDO ${stale.length} partidas de rodadas anteriores`);
+
+  // Agrupa por competição e delega para o mesmo helper de outras divisões
+  const byComp = new Map<string, Map<number, any[]>>();
+  for (const m of stale) {
+    const c = byComp.get(m.competition_id) ?? new Map<number, any[]>();
+    const r = c.get(m.round) ?? [];
+    r.push(m);
+    c.set(m.round, r);
+    byComp.set(m.competition_id, c);
+  }
+  for (const [compId, rounds] of byComp) {
+    for (const round of rounds.keys()) {
+      try {
+        await advanceOtherDivisionsForRound(supabase, trainerId, seasonId, compId, round);
+      } catch (e) {
+        console.error(`[recoverStaleRounds] ERRO comp=${compId} round=${round}:`, e);
+      }
+    }
+  }
+}
 
 
 export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
