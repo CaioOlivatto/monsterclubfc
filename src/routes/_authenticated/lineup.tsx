@@ -157,22 +157,39 @@ function LineupPage() {
 
 
   const setSlotCreature = (slotIdx: number, creatureId: string | null) => {
-    if (creatureId) {
-      // Se a criatura já está em outro slot, esvazia esse slot antes.
-      setStarters((prev) =>
-        prev.map((s) => {
-          if (s.slot === slotIdx) return { ...s, creature_id: creatureId };
-          if (s.creature_id === creatureId) return { ...s, creature_id: null };
-          return s;
-        }),
-      );
-      // Se estava no banco, remove do banco.
-      setBench((b) => b.filter((x) => x !== creatureId));
-    } else {
+    if (!creatureId) {
       setStarters((prev) =>
         prev.map((s) => (s.slot === slotIdx ? { ...s, creature_id: null } : s)),
       );
+      return;
     }
+    // Swap semântico: preserva o total de 11 titulares ao trocar por outro titular.
+    let displaced: string | null = null;
+    let cameFromStarter = false;
+    setStarters((prev) => {
+      const target = prev.find((s) => s.slot === slotIdx);
+      displaced = target?.creature_id ?? null;
+      const source = prev.find((s) => s.creature_id === creatureId);
+      cameFromStarter = !!source;
+      const sourceSlot = source?.slot ?? null;
+      return prev.map((s) => {
+        if (s.slot === slotIdx) return { ...s, creature_id: creatureId };
+        if (sourceSlot != null && s.slot === sourceSlot) {
+          // A criatura deslocada assume o slot de origem (swap real entre titulares).
+          return { ...s, creature_id: displaced };
+        }
+        return s;
+      });
+    });
+    setBench((b) => {
+      const cameFromBench = b.includes(creatureId);
+      let next = b.filter((x) => x !== creatureId);
+      // Veio do banco e havia titular no slot alvo → deslocado vai para o banco.
+      if (cameFromBench && !cameFromStarter && displaced && !next.includes(displaced) && next.length < MAX_BENCH) {
+        next = [...next, displaced];
+      }
+      return next;
+    });
   };
 
   const addToBench = (id: string) => {
@@ -305,22 +322,23 @@ function LineupPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-2 px-3 py-3 sm:px-4">
+          <div className="flex min-w-0 items-center gap-2">
             <Button variant="ghost" size="icon" onClick={() => navigate({ to: "/dashboard" })}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <h1 className="text-lg font-semibold">Escalação</h1>
+            <h1 className="truncate text-base font-semibold sm:text-lg">Escalação</h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5 sm:gap-2">
             <Button
               onClick={autoFill}
               disabled={creatures.length === 0}
               size="sm"
               variant="secondary"
             >
-              <Wand2 className="mr-2 h-4 w-4" />
-              Auto definir
+              <Wand2 className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Auto definir</span>
+              <span className="sr-only sm:hidden">Auto definir</span>
             </Button>
             <Button
               onClick={openPoupar}
@@ -329,8 +347,9 @@ function LineupPage() {
               variant="outline"
               title="Escala os reservas e mantém seus 5 melhores descansados para a próxima partida"
             >
-              <BedDouble className="mr-2 h-4 w-4" />
-              {poupPending ? "Calculando…" : "Poupar titulares"}
+              <BedDouble className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">{poupPending ? "Calculando…" : "Poupar titulares"}</span>
+              <span className="sr-only sm:hidden">Poupar titulares</span>
             </Button>
 
 
@@ -339,14 +358,15 @@ function LineupPage() {
               disabled={mut.isPending || filledStarters !== 11}
               size="sm"
             >
-              <Save className="mr-2 h-4 w-4" />
-              Salvar
+              <Save className="h-4 w-4 sm:mr-2" />
+              <span>Salvar</span>
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-4xl space-y-4 px-4 py-4">
+      <main className="mx-auto max-w-4xl space-y-4 px-3 py-4 sm:px-4">
+
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Tática</CardTitle>
@@ -445,21 +465,23 @@ function LineupPage() {
                       value={current ?? "__none"}
                       onValueChange={(v) => setSlotCreature(s.index, v === "__none" ? null : v)}
                     >
-                      <SelectTrigger className="flex-1">
+                      <SelectTrigger className="min-w-0 flex-1">
                         <SelectValue placeholder="Vazio">
                           {currentCreature ? (
-                            <span className="inline-flex items-center gap-1.5">
-                              <span className="font-medium">{currentCreature.name}</span>
-                              <span className="text-muted-foreground">
-                                · {ELEMENT_LABEL[currentCreature.element] ?? currentCreature.element} · OVR {currentCreature.overall}{currEff !== currentCreature.overall ? `→${currEff}` : ""}
+                            <span className="flex min-w-0 items-center gap-1.5 truncate text-xs sm:text-sm">
+                              <span className="truncate font-medium">{currentCreature.name}</span>
+                              <span className="hidden truncate text-muted-foreground sm:inline">
+                                · {ELEMENT_LABEL[currentCreature.element] ?? currentCreature.element}
                               </span>
-                              <StarRating value={overallToStars(currentCreature.overall ?? 0)} size={0.75} />
-                              <span>{MORALE_EMOJI[moraleState(currentCreature.morale)]}</span>
-                              <span className="text-muted-foreground">· {currentCreature.energy ?? 100}%</span>
+                              <span className="shrink-0 text-muted-foreground">· OVR {currentCreature.overall}{currEff !== currentCreature.overall ? `→${currEff}` : ""}</span>
+                              <span className="hidden sm:inline"><StarRating value={overallToStars(currentCreature.overall ?? 0)} size={0.75} /></span>
+                              <span className="shrink-0">{MORALE_EMOJI[moraleState(currentCreature.morale)]}</span>
+                              <span className="shrink-0 text-muted-foreground">· {currentCreature.energy ?? 100}%</span>
                             </span>
                           ) : null}
                         </SelectValue>
                       </SelectTrigger>
+
                       <SelectContent>
                         <SelectItem value="__none">— Vazio —</SelectItem>
                         {inPos.length === 0 ? (
