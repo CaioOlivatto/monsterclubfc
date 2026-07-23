@@ -288,6 +288,16 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     if (!competition) throw new Error("Nenhuma liga em andamento.");
     stamp("competition");
 
+    // RETRY-ON-ENTRY: se alguma rodada anterior (qualquer competição da temporada) tem
+    // partidas ainda `scheduled`, é porque advanceLeagueRoundBackground falhou antes.
+    // Recupera aqui antes de seguir. Idempotente pelo filtro status='scheduled'.
+    try {
+      await recoverStaleRounds(supabase, trainer.id, competition.season_id, competition.id);
+      stamp("recover stale");
+    } catch (e) {
+      console.error("[playNextLeagueMatch] ERRO na recuperação de rodadas anteriores:", e);
+    }
+
     const { data: next } = await supabase
       .from("matches")
       .select("id, round, home_team_id, away_team_id")
@@ -326,7 +336,9 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     stamp("simulate");
 
 
-    const { error: uErr } = await supabase
+    // IDEMPOTÊNCIA: só marca como finished se ainda estiver scheduled. Se outra chamada
+    // concorrente já assumiu essa partida, abortamos aqui e não duplicamos XP/finanças.
+    const { data: claimed, error: uErr } = await supabase
       .from("matches")
       .update({
         home_score: result.home_score,
@@ -335,8 +347,14 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         clima: result.weather,
         played_at: new Date().toISOString(),
       })
-      .eq("id", next.id);
+      .eq("id", next.id)
+      .eq("status", "scheduled")
+      .select("id");
     if (uErr) throw uErr;
+    if (!claimed || claimed.length === 0) {
+      throw new Error("Esta partida já foi iniciada em outra aba. Recarregue a página.");
+    }
+
 
     const eventsToInsert = persistableSimulationEvents(result).map((e) => ({
       match_id: next.id,
