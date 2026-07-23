@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Lock, Play, Trophy } from "lucide-react";
@@ -23,6 +23,7 @@ export const Route = createFileRoute("/_authenticated/world-cup")({
 const PHASE_NAMES: Record<number, string> = { 1: "Pré-oitavas", 2: "Quartas", 3: "Semifinal", 4: "Final" };
 
 function WorldCupPage() {
+  const navigate = useNavigate();
   const fetchWC = useServerFn(getWorldCup);
   const simulateFn = useServerFn(simulateWorldCupRound);
   const qc = useQueryClient();
@@ -33,6 +34,11 @@ function WorldCupPage() {
     setSimulating(true);
     try {
       const res = await simulateFn();
+      if (res.playerMatchId) {
+        toast.success(`${res.phase}: sua partida está pronta — abrindo narração…`);
+        navigate({ to: "/match/$id", params: { id: res.playerMatchId } });
+        return;
+      }
       toast.success(`${res.phase}: ${res.matchesPlayed} jogos simulados`);
       await qc.invalidateQueries({ queryKey: ["world-cup"] });
     } catch (e: any) {
@@ -41,6 +47,7 @@ function WorldCupPage() {
       setSimulating(false);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-background pb-24">

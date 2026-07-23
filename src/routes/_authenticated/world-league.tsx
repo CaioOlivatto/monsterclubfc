@@ -195,7 +195,7 @@ function GroupsSection({ data }: any) {
 }
 
 function KnockoutSection({ data }: any) {
-  const koMatches = data.matches.filter((m: any) => m.round >= 4);
+  const koMatches = data.matches.filter((m: any) => m.round >= 6);
   if (!koMatches.length) return null;
   const teamsById = new Map<string, any>(data.teams.map((t: any) => [t.id, t]));
   const byRound: Record<number, any[]> = {};
