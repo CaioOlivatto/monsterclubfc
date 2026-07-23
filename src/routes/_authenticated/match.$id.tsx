@@ -117,23 +117,51 @@ function MatchPage() {
     for (const ev of events) {
       processedRef.current.add(indexKey(ev));
       const meta = ev.meta as PlayMeta | null | undefined;
-      const isDanger =
-        (ev.event_type === "goal" || ev.event_type === "shot_saved") && !!meta?.is_danger;
 
-      if (isDanger) {
-        const outcome = (meta?.outcome ?? (ev.event_type === "goal" ? "goal" : "save")) as Outcome;
+      // Só GOL pausa com revelação completa em 3 tempos.
+      // CARTÃO VERMELHO recebe pausa breve (só o desfecho).
+      if (ev.event_type === "goal") {
         setPending({
           minute: ev.minute,
-          outcome,
+          outcome: "goal",
           meta: meta ?? {},
           teamColor: teamColor(ev.actor_team_id),
           raw: ev,
         });
-        return; // pausa aqui — o restante do minuto processa após o banner
+        return;
       }
-      // Eventos secundários vão direto para o painel
-      setRevealed((r) => [...r, buildRevealed(ev, homeId)]);
+      if (ev.event_type === "red_card") {
+        setPending({
+          minute: ev.minute,
+          outcome: "red_card" as any,
+          meta: meta ?? {},
+          teamColor: teamColor(ev.actor_team_id),
+          raw: ev,
+        });
+        return;
+      }
+
+      // Lances secundários (chance perdida, defesa, corte, amarelo, sub, lesão):
+      // aparecem como uma única linha no painel, sem pausar o relógio.
+      const isDanger =
+        (ev.event_type === "shot_saved" || ev.event_type === "shot_missed" ||
+          ev.event_type === "shot_blocked") && !!meta?.is_danger;
+      let narration: string | undefined;
+      if (isDanger && meta) {
+        const outcome = (meta.outcome ??
+          (ev.event_type === "shot_saved"
+            ? "save"
+            : ev.event_type === "shot_missed"
+              ? "miss"
+              : "block")) as Outcome;
+        narration = capFirst(narrRef.current.buildSingleOutcome(outcome, meta));
+      }
+      setRevealed((r) => [
+        ...r,
+        { ...buildRevealed(ev, homeId), narration: narration ?? ev.description },
+      ]);
     }
+
   }, [minute, data, pending, homeId]);
 
   function handleBannerFinished() {
