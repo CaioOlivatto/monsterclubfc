@@ -97,10 +97,10 @@ export function PrognosticCard({ state }: { state: UseQueryResult<PrognosticResp
                 const roleLabel = d.role_defender === "GOL" ? "Goleiro" : "Zagueiro";
                 return (
                   <div key={i} className="rounded-md border p-2 text-[11px]">
-                    <div className="flex items-center justify-between">
-                      <span><b>{d.attacker.name}</b> · {d.attacker.overall} ({d.attacker.energy}%) · {ELEMENT_LABEL[d.attacker.element]}</span>
-                      <span className="text-muted-foreground">→</span>
-                      <span className="text-right"><b>{d.defender.name}</b> · {d.defender.overall} ({d.defender.energy}%) · {ELEMENT_LABEL[d.defender.element]} <Badge variant="outline" className="ml-1 text-[9px]">{roleLabel}</Badge></span>
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="min-w-0 break-words"><b>{d.attacker.name}</b> · {d.attacker.overall} ({d.attacker.energy}%) · {ELEMENT_LABEL[d.attacker.element]}</span>
+                      <span className="hidden text-muted-foreground sm:inline">→</span>
+                      <span className="min-w-0 break-words sm:text-right"><b>{d.defender.name}</b> · {d.defender.overall} ({d.defender.energy}%) · {ELEMENT_LABEL[d.defender.element]} <Badge variant="outline" className="ml-1 text-[9px]">{roleLabel}</Badge></span>
                     </div>
                     <div className={"mt-1 text-center font-semibold " + favorClass}>{favorLabel} · finaliza {pct(d.p_attacker)}</div>
                   </div>
