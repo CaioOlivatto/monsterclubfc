@@ -111,7 +111,7 @@ function MatchPage() {
       setPlaying(false);
       return;
     }
-    const stepMs = 900 / speed;
+    const stepMs = 500 / speed;
     timerRef.current = window.setInterval(() => {
       setMinute((m) => {
         if (m >= 90) {
