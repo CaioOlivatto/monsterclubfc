@@ -6,6 +6,17 @@ import { simulate, persistableSimulationEvents, generateCpuSideFor, type EngineS
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { loadBestiary } from "./bestiary.server";
+import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, AWAY_WIN_BONUS, type Division as EconDivision } from "./economy";
+
+// Prêmio por partida da Copa por divisão (V / E / D). Empate resolvido em pênaltis
+// no motor, portanto D raramente é pago — mantido para compatibilidade.
+const CUP_MATCH_PRIZE: Record<EconDivision, [number, number, number]> = {
+  bronze:   [20_000,  8_000,  3_000],
+  prata:    [36_000, 14_000,  5_000],
+  ouro:     [64_000, 25_000,  9_000],
+  diamante:[115_000, 46_000, 16_000],
+  lendaria:[200_000, 80_000, 28_000],
+};
 
 async function loadEngineBestiary(supabase: any): Promise<EngineBestiary> {
   const b = await loadBestiary(supabase);
@@ -25,11 +36,11 @@ const CUP_ROUND_NAMES: Record<number, string> = { 1: "Quartas", 2: "Semifinal", 
 async function getTrainer(supabase: any, userId: string) {
   const { data: trainer } = await supabase
     .from("trainers")
-    .select("id, academy_name")
+    .select("id, academy_name, division")
     .eq("user_id", userId)
     .maybeSingle();
   if (!trainer) throw new Error("Treinador não encontrado.");
-  return trainer as { id: string; academy_name: string };
+  return trainer as { id: string; academy_name: string; division: EconDivision | null };
 }
 
 async function playerAverage(supabase: any, trainerId: string): Promise<number> {
@@ -450,7 +461,74 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
       }
     })();
 
-    await Promise.all([eventsJob, xpMsgJob]);
+    const financeJob = (async () => {
+      try {
+        const isHome = home.is_player;
+        const playerGf = isHome ? result.home_score : result.away_score;
+        const playerGa = isHome ? result.away_score : result.home_score;
+        const outcome: "W" | "D" | "L" =
+          playerGf > playerGa ? "W" : playerGf < playerGa ? "L" : "D";
+        const division = (trainer.division ?? "bronze") as EconDivision;
+        const [pw, pd, pl] = CUP_MATCH_PRIZE[division];
+        const matchPrize = outcome === "W" ? pw : outcome === "D" ? pd : pl;
+        const rev = MATCH_REVENUE[division];
+
+        const [rosterRes, bldgsRes, acadRes] = await Promise.all([
+          supabase.from("creatures").select("overall").eq("owner_trainer_id", trainer.id),
+          supabase.from("buildings").select("building_type, level").eq("trainer_id", trainer.id),
+          supabase.from("academies").select("money").eq("trainer_id", trainer.id).maybeSingle(),
+        ]);
+        const roster = (rosterRes as any).data as Array<{ overall: number }> | null;
+        const bldgs = (bldgsRes as any).data as Array<{ building_type: string; level: number }> | null;
+        const acad = (acadRes as any).data as { money: number } | null;
+
+        const salaries = (roster ?? []).reduce((a: number, c: any) => a + matchSalary(c.overall ?? 40), 0);
+        const maintenance = totalMaintenancePerMatch(division, bldgs ?? []);
+        const awayWinBonus = !isHome && outcome === "W" ? AWAY_WIN_BONUS : 0;
+
+        const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch + awayWinBonus;
+        const totalExpense = salaries + maintenance;
+        const net = totalIncome - totalExpense;
+
+        const roundLabel = CUP_ROUND_NAMES[next.round as number] ?? `R${next.round}`;
+        const roundTag = `Copa — ${roundLabel}`;
+        const label = outcome === "W" ? "vitória" : outcome === "D" ? "empate" : "derrota";
+        const txs: any[] = [
+          { trainer_id: trainer.id, transaction_type: "income", category: "premio_partida",
+            amount: matchPrize, description: `${roundTag} — premiação por ${label}` },
+          { trainer_id: trainer.id, transaction_type: "income", category: "tv",
+            amount: rev.tv, description: `${roundTag} — Direitos de TV` },
+          { trainer_id: trainer.id, transaction_type: "income", category: "patrocinio",
+            amount: rev.sponsor, description: `${roundTag} — Patrocínio` },
+          { trainer_id: trainer.id, transaction_type: "income", category: "merch",
+            amount: rev.merch, description: `${roundTag} — Merchandising` },
+        ];
+        if (awayWinBonus > 0) txs.push({ trainer_id: trainer.id, transaction_type: "income",
+          category: "bonus_visitante", amount: awayWinBonus, description: `${roundTag} — Prêmio de vitória fora` });
+        if (salaries > 0) txs.push({ trainer_id: trainer.id, transaction_type: "expense",
+          category: "salarios", amount: salaries, description: `${roundTag} — Salários` });
+        if (maintenance > 0) txs.push({ trainer_id: trainer.id, transaction_type: "expense",
+          category: "manutencao", amount: maintenance, description: `${roundTag} — Manutenção` });
+
+        const financeSummary = {
+          outcome, division, round: next.round, is_home: isHome,
+          competition: "cup",
+          income: { match_prize: matchPrize, tv: rev.tv, sponsor: rev.sponsor, merch: rev.merch, gate: 0, away_win_bonus: awayWinBonus },
+          expense: { salaries, maintenance },
+          totals: { income: totalIncome, expense: totalExpense, net },
+        };
+
+        await Promise.all([
+          supabase.from("academies").update({ money: (acad?.money ?? 0) + net }).eq("trainer_id", trainer.id),
+          supabase.from("financial_transactions").insert(txs),
+          supabase.from("matches").update({ finance_summary: financeSummary }).eq("id", next.id),
+        ]);
+      } catch (e) {
+        console.error("[playNextCupMatch] finance error", e);
+      }
+    })();
+
+    await Promise.all([eventsJob, xpMsgJob, financeJob]);
     stamp("player match persisted");
 
     return {
