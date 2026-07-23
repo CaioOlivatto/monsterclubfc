@@ -583,20 +583,53 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
     actor_creature_id: null, actor_team_id: null,
   });
 
+  // ---------- Fadiga v3: desgaste POR EVENTO (não por minuto) ----------
+  // Base por resultado (só quem jogou): V=-3, E=-4, D=-5.
+  // Pressão: alta -2 extra, baixa poupa 1. Cartões: amarelo -5, vermelho -10.
+  // Lesão: leve/1=-4, moderada/2=-7, moderada/3=-15, grave/4=-20, grave/5=-25.
   const energy_loss: Record<string, number> = {};
   const usedHome = new Set([...initialHomeIds, ...liveHome.starters.map((s) => s.creature.id)]);
   const usedAway = new Set([...initialAwayIds, ...liveAway.starters.map((s) => s.creature.id)]);
-  const wearFactor = (p: number) => Math.max(0.5, 1 - (p / 100) * 0.15);
-  const allSlots: EngineSlot[] = [...home.starters, ...home.bench, ...away.starters, ...away.bench];
-  const physById = new Map<string, number>(allSlots.map((s) => [s.creature.id, s.creature.physical ?? 40]));
-  for (const id of initialHomeIds) energy_loss[id] = Math.round(36 * wearFactor(physById.get(id) ?? 40));
-  for (const id of initialAwayIds) energy_loss[id] = Math.round(36 * wearFactor(physById.get(id) ?? 40));
-  for (const s of liveHome.starters)
-    if (!initialHomeIds.has(s.creature.id))
-      energy_loss[s.creature.id] = Math.round(18 * wearFactor(s.creature.physical ?? 40));
-  for (const s of liveAway.starters)
-    if (!initialAwayIds.has(s.creature.id))
-      energy_loss[s.creature.id] = Math.round(18 * wearFactor(s.creature.physical ?? 40));
+
+  const outcomeLoss = (isHome: boolean): number => {
+    if (hs === as) return 4;
+    const won = isHome ? hs > as : as > hs;
+    return won ? 3 : 5;
+  };
+  const pressureAdj = (t: Tactics | undefined): number => {
+    const p = t?.pressao ?? 0;
+    if (p >= 1) return 2;      // Pressão alta: -2 extra
+    if (p <= -1) return -1;    // Pressão baixa: poupa 1
+    return 0;
+  };
+  const homeBase = outcomeLoss(true) + pressureAdj(home.tactics);
+  const awayBase = outcomeLoss(false) + pressureAdj(away.tactics);
+
+  // Toda criatura que jogou (titular do início OU reserva que entrou) sofre o base.
+  for (const id of usedHome) energy_loss[id] = (energy_loss[id] ?? 0) + homeBase;
+  for (const id of usedAway) energy_loss[id] = (energy_loss[id] ?? 0) + awayBase;
+
+  // Cartões cumulativos.
+  for (const e of events) {
+    if (!e.actor_creature_id) continue;
+    if (e.event_type === "yellow_card") {
+      energy_loss[e.actor_creature_id] = (energy_loss[e.actor_creature_id] ?? 0) + 5;
+    } else if (e.event_type === "red_card") {
+      energy_loss[e.actor_creature_id] = (energy_loss[e.actor_creature_id] ?? 0) + 10;
+    }
+  }
+
+  // Lesões: custo fisiológico único (além da indisponibilidade).
+  const injuryDrain = (sev: InjurySeverity, matches: number): number => {
+    if (sev === "leve") return 4;
+    if (sev === "moderada") return matches >= 3 ? 15 : 7;
+    return matches >= 5 ? 25 : 20; // grave
+  };
+  for (const inj of injuries) {
+    energy_loss[inj.creature_id] =
+      (energy_loss[inj.creature_id] ?? 0) + injuryDrain(inj.severity, inj.matches);
+  }
+
   const used_home_bench = [...usedHome].filter((id) => !initialHomeIds.has(id));
   const used_away_bench = [...usedAway].filter((id) => !initialAwayIds.has(id));
 
