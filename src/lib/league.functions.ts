@@ -376,11 +376,16 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         e.actor_creature_id && !e.actor_creature_id.startsWith("cpu-") ? e.actor_creature_id : null,
       actor_team_id: e.actor_team_id,
     }));
-    const eventsJob = eventsToInsert.length
-      ? supabase.from("match_events").insert(eventsToInsert).then((r: any) => {
-          if (r.error) console.error("[playNextLeagueMatch] events insert", r.error);
-        })
-      : Promise.resolve();
+    const t1 = Date.now();
+    const substamp = (label: string) =>
+      console.log(`[playNextLeagueMatch·persist] +${Date.now() - t1}ms ${label}`);
+    const eventsJob = (async () => {
+      if (!eventsToInsert.length) return;
+      const r: any = await supabase.from("match_events").insert(eventsToInsert);
+      if (r.error) console.error("[playNextLeagueMatch] events insert", r.error);
+      substamp("events");
+    })();
+
 
     // Bloco 2: standings (1 SELECT + 2 UPDATEs paralelos)
     const standingsJob = (async () => {
@@ -408,6 +413,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
           goals_against: row.goals_against + u.ga,
         }).eq("competition_id", competition.id).eq("team_id", u.team_id);
       }));
+      substamp("standings");
     })();
 
     // Bloco 3: financeiro (reads paralelas, writes paralelas)
@@ -503,6 +509,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       } catch (e) {
         console.error("[playNextLeagueMatch] payoff error", e);
       }
+      substamp("payoff");
     })();
 
     // Bloco 4: XP + mensagem de resultado
@@ -539,6 +546,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       } catch (e) {
         console.error("[playNextLeagueMatch] xp/message error", e);
       }
+      substamp("xp+message");
     })();
 
     await Promise.all([eventsJob, standingsJob, payoffJob, xpMsgJob]);

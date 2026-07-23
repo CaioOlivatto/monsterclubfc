@@ -148,6 +148,11 @@ function LineupPage() {
   const slots = useMemo(() => buildSlots(formation), [formation]);
 
 
+  // "Ponto de referência" do que já está salvo no servidor. Enquanto o draft
+  // atual bater com este key, o save no clique "Confirmar e jogar" é pulado
+  // (economiza ~500ms na hot path).
+  const [lastSavedKey, setLastSavedKey] = useState<string | null>(null);
+
   // Sincroniza estado quando dados carregam
   useEffect(() => {
     if (!data) return;
@@ -158,14 +163,21 @@ function LineupPage() {
       ? (data.lineup.starters as unknown as StarterSlot[])
       : [];
     const newSlots = buildSlots(savedFormation);
-    setStarters(
-      newSlots.map((s) => {
-        const found = savedStarters.find((x) => x.slot === s.index);
-        return { slot: s.index, role: s.role, creature_id: found?.creature_id ?? null };
-      }),
-    );
-    setBench(Array.isArray(data.lineup.bench) ? (data.lineup.bench as unknown as string[]) : []);
+    const nextStarters = newSlots.map((s) => {
+      const found = savedStarters.find((x) => x.slot === s.index);
+      return { slot: s.index, role: s.role, creature_id: found?.creature_id ?? null };
+    });
+    const nextBench = Array.isArray(data.lineup.bench) ? (data.lineup.bench as unknown as string[]) : [];
+    setStarters(nextStarters);
+    setBench(nextBench);
+    setLastSavedKey(JSON.stringify({
+      formation: savedFormation,
+      strategy: (data.lineup.strategy as any) ?? "equilibrada",
+      starters: nextStarters,
+      bench: nextBench,
+    }));
   }, [data]);
+
 
   // Se o usuário mudar a formação depois, refaz os slots preservando IDs por índice quando possível
   useEffect(() => {
@@ -356,11 +368,12 @@ function LineupPage() {
 
   const mut = useMutation({
     mutationFn: async () => {
-      await save({
-        data: { formation, strategy, starters, bench },
-      });
+      const payload = { formation, strategy, starters, bench };
+      await save({ data: payload });
+      return JSON.stringify(payload);
     },
-    onSuccess: () => {
+    onSuccess: (key) => {
+      setLastSavedKey(key);
       toast.success("Escalação salva!");
       qc.invalidateQueries({ queryKey: ["lineup"] });
       qc.invalidateQueries({ queryKey: ["prognostic"] });
@@ -385,11 +398,14 @@ function LineupPage() {
            .catch((e) => { clearTimeout(t); reject(e); });
         });
 
-      await withTimeout(
-        save({ data: { formation, strategy, starters, bench } }),
-        20_000,
-        "salvar a escalação",
-      );
+      // Só salva se o draft tiver mudado desde o último save/carga (economiza ~500ms).
+      const payload = { formation, strategy, starters, bench };
+      const currentKey = JSON.stringify(payload);
+      if (currentKey !== lastSavedKey) {
+        await withTimeout(save({ data: payload }), 20_000, "salvar a escalação");
+        setLastSavedKey(currentKey);
+      }
+
       const match = upcomingMatch ?? await withTimeout(
         fetchUpcoming({ data: search.competition ? { competition: search.competition } : {} }),
         15_000,
