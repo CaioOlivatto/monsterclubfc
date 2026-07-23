@@ -311,18 +311,9 @@ function MatchPage() {
               <Button
                 size="sm"
                 variant={speed === 4 ? "default" : "outline"}
-                onClick={() => {
-                  if (paid4x) setSpeed(4);
-                  else payMut.mutate("4x", { onSuccess: () => setSpeed(4) });
-                }}
-                disabled={payMut.isPending}
+                onClick={() => setSpeed(4)}
               >
                 <FastForward className="mr-1 h-3 w-3" /> 4x
-                {!paid4x && (
-                  <span className="ml-1 flex items-center text-[10px] text-primary">
-                    <Gem className="h-3 w-3" /> {cost4x}
-                  </span>
-                )}
               </Button>
               <Button
                 size="sm"
