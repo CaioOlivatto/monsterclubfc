@@ -355,20 +355,21 @@ function MatchPage() {
           <FinanceSummaryCard summary={(data.match as any).finance_summary} />
         )}
 
-        {isFinal && (
-          <Card>
-            <CardContent className="py-4 text-center">
-              <p className="mb-3 text-sm">
-                {homeGoals > awayGoals
-                  ? "Vitória! 🏆"
-                  : homeGoals < awayGoals
-                    ? "Derrota."
-                    : "Empate."}
-              </p>
-              <Button onClick={() => navigate({ to: "/dashboard" })}>Voltar ao painel</Button>
-            </CardContent>
-          </Card>
-        )}
+        {isFinal && (() => {
+          const playerTeamId = (data as any)?.player_team_id ?? homeId;
+          const playerIsHome = playerTeamId === homeId;
+          const myGoals = playerIsHome ? homeGoals : awayGoals;
+          const theirGoals = playerIsHome ? awayGoals : homeGoals;
+          const label = myGoals > theirGoals ? "Vitória! 🏆" : myGoals < theirGoals ? "Derrota." : "Empate.";
+          return (
+            <Card>
+              <CardContent className="py-4 text-center">
+                <p className="mb-3 text-sm">{label}</p>
+                <Button onClick={() => navigate({ to: "/dashboard" })}>Voltar ao painel</Button>
+              </CardContent>
+            </Card>
+          );
+        })()}
       </main>
     </div>
   );
