@@ -111,6 +111,7 @@ function LineupPage() {
   const [strategy, setStrategy] = useState<"ofensiva" | "equilibrada" | "defensiva">("equilibrada");
   const [starters, setStarters] = useState<StarterSlot[]>([]);
   const [bench, setBench] = useState<string[]>([]);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   // Draft enviado ao servidor para recalcular odds ao vivo (sem precisar salvar).
   const draft = useMemo(() => ({
@@ -125,7 +126,7 @@ function LineupPage() {
     enabled:
       !!data &&
       starters.filter((s) => s.creature_id).length === 11 &&
-      !confirmPlayMut.isPending,
+      !isConfirming,
     staleTime: 30_000,
   });
 
