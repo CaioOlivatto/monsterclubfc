@@ -11,6 +11,7 @@ import {
 } from "./starter-teams";
 import { overallToStars } from "./bestiary";
 import { generateSchedule } from "./league.server";
+import { getNextOfficialMatchForTrainer } from "./official-match.server";
 
 
 // ---------- gerador de criatura inicial ----------
@@ -180,6 +181,10 @@ export const getDashboard = createServerFn({ method: "GET" })
       total: number;
     };
     let nextMatch = null as null | {
+      competition?: "league" | "cup" | "world_league" | "world_cup";
+      competitionLabel?: string;
+      phaseLabel?: string | null;
+      sourcePath?: string;
       id: string;
       round: number;
       played_at: string | null;
@@ -187,6 +192,22 @@ export const getDashboard = createServerFn({ method: "GET" })
       away_team: string;
       is_home: boolean;
     };
+
+    const officialMatch = await getNextOfficialMatchForTrainer(supabase, trainer);
+    if (officialMatch) {
+      nextMatch = {
+        competition: officialMatch.competition,
+        competitionLabel: officialMatch.competitionLabel,
+        phaseLabel: officialMatch.phaseLabel,
+        sourcePath: officialMatch.sourcePath,
+        id: officialMatch.matchId,
+        round: officialMatch.round,
+        played_at: null,
+        home_team: officialMatch.homeTeam,
+        away_team: officialMatch.awayTeam,
+        is_home: officialMatch.isHome,
+      };
+    }
 
     if (playerTeam && playerTeam.competition_id) {
       const { data: standings } = await supabase
@@ -212,36 +233,6 @@ export const getDashboard = createServerFn({ method: "GET" })
         }
       }
 
-      const { data: matches } = await supabase
-        .from("matches")
-        .select("id, round, played_at, status, home_team_id, away_team_id, home_team:teams!matches_home_team_id_fkey(name), away_team:teams!matches_away_team_id_fkey(name)")
-        .eq("competition_id", playerTeam.competition_id)
-        .eq("status", "scheduled")
-        .or(`home_team_id.eq.${playerTeam.id},away_team_id.eq.${playerTeam.id}`)
-        .order("round", { ascending: true })
-        .limit(1);
-
-      const m = matches?.[0] as
-        | {
-            id: string;
-            round: number;
-            played_at: string | null;
-            home_team_id: string;
-            away_team_id: string;
-            home_team: { name: string } | null;
-            away_team: { name: string } | null;
-          }
-        | undefined;
-      if (m) {
-        nextMatch = {
-          id: m.id,
-          round: m.round,
-          played_at: m.played_at,
-          home_team: m.home_team?.name ?? "?",
-          away_team: m.away_team?.name ?? "?",
-          is_home: m.home_team_id === playerTeam.id,
-        };
-      }
     }
 
     const { levelProgress } = await import("./trainer-xp.server");

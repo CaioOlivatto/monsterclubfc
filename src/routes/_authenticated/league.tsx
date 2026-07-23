@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { getLeague, startLeague, playNextLeagueMatch, finishSeasonAndAdvance } from "@/lib/league.functions";
+import { getLeague, startLeague, finishSeasonAndAdvance } from "@/lib/league.functions";
 import { recomputeWorldRanking } from "@/lib/ranking.functions";
 
 const DIV_LABEL: Record<string, string> = {
@@ -38,7 +38,6 @@ function LeaguePage() {
   const qc = useQueryClient();
   const fetchLeague = useServerFn(getLeague);
   const start = useServerFn(startLeague);
-  const playNext = useServerFn(playNextLeagueMatch);
 
   const [division, setDivision] = useState<string | undefined>(undefined);
 
@@ -56,12 +55,6 @@ function LeaguePage() {
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Não foi possível iniciar a liga."),
-  });
-
-  const playMut = useMutation({
-    mutationFn: () => playNext(),
-    onSuccess: (res: any) => nav({ to: "/match/$id", params: { id: res.match_id } }),
-    onError: (e: any) => toast.error(e?.message ?? "Não foi possível jogar a próxima partida."),
   });
 
   const finishSeasonFn = useServerFn(finishSeasonAndAdvance);
@@ -125,8 +118,7 @@ function LeaguePage() {
             data={data}
             division={division ?? (data as any).selectedDivision ?? "bronze"}
             setDivision={setDivision}
-            onPlayNext={() => playMut.mutate()}
-            isPlaying={playMut.isPending}
+            onPlayNext={() => nav({ to: "/lineup", search: { competition: "league" } })}
             onFinishSeason={() => finishMut.mutate()}
             isFinishing={finishMut.isPending}
           />
@@ -217,7 +209,6 @@ function LeagueBody({
   division,
   setDivision,
   onPlayNext,
-  isPlaying,
   onFinishSeason,
   isFinishing,
 }: {
@@ -225,7 +216,6 @@ function LeagueBody({
   division: string;
   setDivision: (v: string) => void;
   onPlayNext: () => void;
-  isPlaying: boolean;
   onFinishSeason: () => void;
   isFinishing: boolean;
 }) {
@@ -288,9 +278,9 @@ function LeagueBody({
                 {isFinishing ? "Encerrando..." : "Encerrar temporada"}
               </Button>
             ) : (
-              <Button onClick={onPlayNext} disabled={isPlaying}>
+              <Button onClick={onPlayNext}>
                 <Play className="mr-2 h-4 w-4" />
-                {isPlaying ? "Jogando..." : "Jogar próxima"}
+                Jogar próxima
               </Button>
             )
           )}

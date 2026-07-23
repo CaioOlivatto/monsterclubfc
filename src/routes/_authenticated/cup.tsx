@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getCup, startCup, playNextCupMatch } from "@/lib/cup.functions";
+import { getCup, startCup } from "@/lib/cup.functions";
 
 export const Route = createFileRoute("/_authenticated/cup")({
   head: () => ({
@@ -26,7 +26,6 @@ function CupPage() {
   const qc = useQueryClient();
   const fetchCup = useServerFn(getCup);
   const start = useServerFn(startCup);
-  const playNext = useServerFn(playNextCupMatch);
 
   const { data, isLoading } = useQuery({ queryKey: ["cup"], queryFn: () => fetchCup() });
 
@@ -37,11 +36,6 @@ function CupPage() {
       qc.invalidateQueries({ queryKey: ["cup"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Erro ao iniciar a copa."),
-  });
-  const playMut = useMutation({
-    mutationFn: () => playNext(),
-    onSuccess: (res: any) => nav({ to: "/match/$id", params: { id: res.match_id } }),
-    onError: (e: any) => toast.error(e?.message ?? "Erro ao jogar."),
   });
 
   if (isLoading) {
@@ -78,13 +72,13 @@ function CupPage() {
             </CardContent>
           </Card>
         )}
-        {cup && data && <CupBody data={data} onPlay={() => playMut.mutate()} isPlaying={playMut.isPending} />}
+        {cup && data && <CupBody data={data} onPlay={() => nav({ to: "/lineup", search: { competition: "cup" } })} />}
       </main>
     </div>
   );
 }
 
-function CupBody({ data, onPlay, isPlaying }: any) {
+function CupBody({ data, onPlay }: any) {
   const teamsById = new Map<string, any>((data.teams ?? []).map((t: any) => [t.id, t]));
   const playerTeam = (data.teams ?? []).find((t: any) => t.is_player);
   const byRound = new Map<number, any[]>();
@@ -107,9 +101,9 @@ function CupBody({ data, onPlay, isPlaying }: any) {
               {nextPlayerMatch ? ROUND_NAMES[nextPlayerMatch.round] : "Você não tem mais partidas"}
             </p>
           </div>
-          <Button onClick={onPlay} disabled={!nextPlayerMatch || isPlaying}>
+          <Button onClick={onPlay} disabled={!nextPlayerMatch}>
             <Play className="mr-2 h-4 w-4" />
-            {isPlaying ? "Jogando..." : "Jogar"}
+            Jogar
           </Button>
         </CardHeader>
       </Card>

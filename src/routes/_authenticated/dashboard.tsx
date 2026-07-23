@@ -9,7 +9,7 @@ import { createFriendlyMatch } from "@/lib/match.functions";
 import { claimWeeklyGems } from "@/lib/progression.functions";
 import { getMyLineup } from "@/lib/lineup.functions";
 import { getConfidence, type ConfidenceInfo } from "@/lib/career.functions";
-import { startLeague, playNextLeagueMatch } from "@/lib/league.functions";
+import { startLeague } from "@/lib/league.functions";
 import { ageStatus } from "@/lib/age";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -144,12 +144,6 @@ function Dashboard() {
     onSuccess: (res) => nav({ to: "/match/$id", params: { id: res.match_id } }),
     onError: (e: any) => toast.error(e?.message ?? "Não foi possível iniciar a partida."),
   });
-  const playLeague = useServerFn(playNextLeagueMatch);
-  const playMut = useMutation({
-    mutationFn: () => playLeague(),
-    onSuccess: (res: any) => nav({ to: "/match/$id", params: { id: res.match_id } }),
-    onError: (e: any) => toast.error(e?.message ?? "Não foi possível jogar a próxima partida."),
-  });
   const startLeagueFn = useServerFn(startLeague);
   const startSeasonMut = useMutation({
     mutationFn: () => startLeagueFn(),
@@ -231,8 +225,7 @@ function Dashboard() {
         <NextMatchHero
           nextMatch={nextMatch}
           hasLeague={hasLeague}
-          onPlay={() => playMut.mutate()}
-          playPending={playMut.isPending}
+          onPlay={() => nav({ to: "/lineup" })}
           onStartSeason={() => startSeasonMut.mutate()}
           startSeasonPending={startSeasonMut.isPending}
           onFriendly={() => friendlyMut.mutate()}
@@ -265,7 +258,6 @@ function NextMatchHero({
   nextMatch,
   hasLeague,
   onPlay,
-  playPending,
   onStartSeason,
   startSeasonPending,
   onFriendly,
@@ -274,7 +266,6 @@ function NextMatchHero({
   nextMatch: any;
   hasLeague: boolean;
   onPlay: () => void;
-  playPending: boolean;
   onStartSeason: () => void;
   startSeasonPending: boolean;
   onFriendly: () => void;
@@ -293,7 +284,9 @@ function NextMatchHero({
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-medium uppercase tracking-wider text-primary">
-              {hasMatch ? `Rodada ${nextMatch.round} · Campeonato` : "Campeonato"}
+              {hasMatch
+                ? `Rodada ${nextMatch.round} · ${nextMatch.competitionLabel ?? "Campeonato"}${nextMatch.phaseLabel ? ` · ${nextMatch.phaseLabel}` : ""}`
+                : "Campeonato"}
             </p>
             {hasMatch ? (
               <>
@@ -325,10 +318,9 @@ function NextMatchHero({
             size="lg"
             className="h-12 w-full text-base font-semibold"
             onClick={onPlay}
-            disabled={playPending}
           >
             <Swords className="mr-2 h-5 w-5" />
-            {playPending ? "Entrando na partida..." : "Jogar partida"}
+            Jogar partida
           </Button>
         ) : seasonNotStarted ? (
           <Button
