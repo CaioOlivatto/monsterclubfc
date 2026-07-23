@@ -395,6 +395,13 @@ function LineupPage() {
 
       if (match.competition === "league") {
         const res = await withTimeout(playLeague(), 60_000, "iniciar a partida");
+        // Avança o resto da rodada (outras partidas da divisão + 4 divisões) em background,
+        // sem bloquear a navegação para a tela de partida ao vivo.
+        if (res.background_advance) {
+          advanceLeagueBg({ data: res.background_advance }).catch((e) => {
+            console.warn("advanceLeagueRoundBackground failed", e);
+          });
+        }
         return res.match_id as string;
       }
       if (match.competition === "cup") {
