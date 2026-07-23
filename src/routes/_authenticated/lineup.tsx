@@ -410,15 +410,30 @@ function LineupPage() {
       }
       if (match.competition === "cup") {
         const res = await withTimeout(playCup(), 60_000, "iniciar a partida");
+        if ((res as any).background_advance) {
+          advanceCupBg({ data: (res as any).background_advance }).catch((e: any) => {
+            console.warn("advanceCupRoundBackground failed", e);
+          });
+        }
         return res.match_id as string;
       }
       if (match.competition === "world_league") {
         const res = await withTimeout(playWorldLeague(), 60_000, "iniciar a partida");
         if (!res.playerMatchId) throw new Error("A rodada da Liga Mundial não tem partida do seu time.");
+        if ((res as any).background_advance) {
+          advanceWorldLeagueBg({ data: (res as any).background_advance }).catch((e: any) => {
+            console.warn("advanceWorldLeagueRoundBackground failed", e);
+          });
+        }
         return res.playerMatchId as string;
       }
       const res = await withTimeout(playWorldCup(), 60_000, "iniciar a partida");
       if (!res.playerMatchId) throw new Error("A rodada da Copa Mundial não tem partida do seu time.");
+      if ((res as any).background_advance) {
+        advanceWorldCupBg({ data: (res as any).background_advance }).catch((e: any) => {
+          console.warn("advanceWorldCupRoundBackground failed", e);
+        });
+      }
       return res.playerMatchId as string;
     },
     onSuccess: (matchId) => {
