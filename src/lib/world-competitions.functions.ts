@@ -816,7 +816,10 @@ export const simulateWorldCupRound = createServerFn({ method: "POST" })
       const involvesPlayer = playerTeamId && (m.home_team_id === playerTeamId || m.away_team_id === playerTeamId);
       let hg = 0, ag = 0;
       if (involvesPlayer) {
-        const r = await simulatePlayerMatch(supabase, trainer.id, m, playerTeamId!, bestiary);
+        const r = await simulatePlayerMatch(supabase, trainer.id, m, playerTeamId!, bestiary, {
+          competition: "world_cup", round: nextRound, isGroupPhase: false,
+          division: ((comp as any).division as string) ?? "bronze",
+        });
         hg = r.home_score; ag = r.away_score;
         playerMatchId = m.id;
       } else {
