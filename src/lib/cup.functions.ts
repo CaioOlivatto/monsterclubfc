@@ -521,9 +521,9 @@ export const advanceCupRoundBackground = createServerFn({ method: "POST" })
           .eq("competition_id", competition_id)
           .eq("round", 3);
         if (finalMatches?.length && finalMatches.every((m: any) => m.status === "finished")) {
-          const f = finalMatches[0];
+          const f = finalMatches[0] as any;
           const championTeamId =
-            f.home_score >= f.away_score ? f.home_team_id : f.away_team_id;
+            (f.home_score ?? 0) >= (f.away_score ?? 0) ? f.home_team_id : f.away_team_id;
           const { data: updated } = await supabase
             .from("competitions")
             .update({ status: "finished", champion_team_id: championTeamId })
