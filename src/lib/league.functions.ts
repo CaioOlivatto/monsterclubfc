@@ -774,7 +774,7 @@ async function recoverStaleRounds(
   for (const [compId, rounds] of byComp) {
     for (const round of rounds.keys()) {
       try {
-        await advanceOtherDivisionsForRound(supabase, trainerId, seasonId, compId, round);
+        await fastAdvanceCompetitionRound(supabase, compId, round);
       } catch (e) {
         console.error(`[recoverStaleRounds] ERRO comp=${compId} round=${round}:`, e);
       }
