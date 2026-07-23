@@ -63,11 +63,12 @@ export const devFastForwardCurrentSeason = createServerFn({ method: "POST" })
     for (const m of pending ?? []) {
       const home = m.home_team_id as string | null;
       const away = m.away_team_id as string | null;
-      if (!home || !away) continue;
+      const comp = m.competition_id as string | null;
+      if (!home || !away || !comp) continue;
       const hg = Math.floor(rng() * 4);
       const ag = Math.floor(rng() * 4);
-      bump(m.competition_id, home, hg, ag);
-      bump(m.competition_id, away, ag, hg);
+      bump(comp, home, hg, ag);
+      bump(comp, away, ag, hg);
       updates.push(
         supabase.from("matches").update({
           home_score: hg, away_score: ag,
