@@ -34,11 +34,11 @@ async function loadEngineBestiary(supabase: any): Promise<EngineBestiary> {
 async function getTrainer(supabase: any, userId: string) {
   const { data: trainer } = await supabase
     .from("trainers")
-    .select("id, academy_name")
+    .select("id, academy_name, current_team_id")
     .eq("user_id", userId)
     .maybeSingle();
   if (!trainer) throw new Error("Treinador não encontrado.");
-  return trainer as { id: string; academy_name: string };
+  return trainer as { id: string; academy_name: string; current_team_id: string | null };
 }
 
 async function ensureCurrentSeason(supabase: any, trainerId: string) {
@@ -186,13 +186,27 @@ export const getLeague = createServerFn({ method: "GET" })
     if (!allComps || !allComps.length) return { competition: null };
 
     // Divisão do jogador = a que tem o time do jogador
-    const { data: playerTeamRow } = await supabase
-      .from("teams")
-      .select("id, competition_id, division")
-      .eq("trainer_id", trainer.id)
-      .eq("is_player", true)
-      .in("competition_id", allComps.map((c: any) => c.id))
-      .maybeSingle();
+    let playerTeamRow: null | { id: string; competition_id: string | null; division: Division | null } = null;
+    if (trainer.current_team_id) {
+      const { data: currentTeam } = await supabase
+        .from("teams")
+        .select("id, competition_id, division")
+        .eq("id", trainer.current_team_id)
+        .eq("trainer_id", trainer.id)
+        .maybeSingle();
+      playerTeamRow = currentTeam as typeof playerTeamRow;
+    }
+    if (!playerTeamRow?.competition_id) {
+      const { data: fallbackTeam } = await supabase
+        .from("teams")
+        .select("id, competition_id, division")
+        .eq("trainer_id", trainer.id)
+        .eq("is_player", true)
+        .in("competition_id", allComps.map((c: any) => c.id))
+        .limit(1)
+        .maybeSingle();
+      playerTeamRow = fallbackTeam as typeof playerTeamRow;
+    }
 
     const playerDiv = (playerTeamRow?.division as Division | undefined) ?? "bronze";
     const requested = (data.division ?? playerDiv) as Division;
@@ -235,22 +249,38 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const trainer = await getTrainer(supabase, userId);
 
+    let playerTeam: null | { id: string; competition_id: string | null } = null;
+    if (trainer.current_team_id) {
+      const { data: currentTeam } = await supabase
+        .from("teams")
+        .select("id, competition_id")
+        .eq("id", trainer.current_team_id)
+        .eq("trainer_id", trainer.id)
+        .maybeSingle();
+      playerTeam = currentTeam ?? null;
+    }
+    if (!playerTeam?.competition_id) {
+      const { data: fallbackTeam } = await supabase
+        .from("teams")
+        .select("id, competition_id")
+        .eq("trainer_id", trainer.id)
+        .eq("is_player", true)
+        .not("competition_id", "is", null)
+        .limit(1)
+        .maybeSingle();
+      playerTeam = fallbackTeam ?? null;
+    }
+    if (!playerTeam?.competition_id) throw new Error("Time do jogador não encontrado nesta liga.");
+
     const { data: competition } = await supabase
       .from("competitions")
       .select("id, division, season_id")
+      .eq("id", playerTeam.competition_id)
       .eq("trainer_id", trainer.id)
       .eq("type", "league")
       .eq("status", "active")
       .maybeSingle();
     if (!competition) throw new Error("Nenhuma liga em andamento.");
-
-    const { data: playerTeam } = await supabase
-      .from("teams")
-      .select("id")
-      .eq("competition_id", competition.id)
-      .eq("is_player", true)
-      .maybeSingle();
-    if (!playerTeam) throw new Error("Time do jogador não encontrado nesta liga.");
 
     const { data: next } = await supabase
       .from("matches")
