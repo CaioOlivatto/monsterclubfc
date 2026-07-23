@@ -7,7 +7,7 @@ import { getLineupPrognostic } from "@/lib/odds.functions";
 import { playNextLeagueMatch } from "@/lib/league.functions";
 import { playNextCupMatch } from "@/lib/cup.functions";
 import { simulateWorldCupRound, simulateWorldLeagueRound } from "@/lib/world-competitions.functions";
-import { getUpcomingOfficialMatch, type OfficialMatchContext } from "@/lib/official-match.functions";
+import { getUpcomingOfficialMatch, type OfficialCompetition, type OfficialMatchContext } from "@/lib/official-match.functions";
 import { PrognosticCard } from "@/components/PrognosticCard";
 import { buildSlots, FORMATIONS, MAX_BENCH, type Formation, type SlotRole } from "@/lib/lineup.server";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,16 @@ import { moraleState, MORALE_EMOJI, MORALE_LABEL, moraleMultiplier } from "@/lib
 import { StarRating, overallToStars } from "@/components/StarRating";
 
 
+const OFFICIAL_COMPETITIONS: OfficialCompetition[] = ["league", "cup", "world_league", "world_cup"];
+
+function isOfficialCompetition(value: unknown): value is OfficialCompetition {
+  return typeof value === "string" && OFFICIAL_COMPETITIONS.includes(value as OfficialCompetition);
+}
+
 export const Route = createFileRoute("/_authenticated/lineup")({
+  validateSearch: (search) => ({
+    competition: isOfficialCompetition(search.competition) ? search.competition : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Escalação — Monster Club Manager" },
@@ -77,6 +86,7 @@ interface StarterSlot {
 }
 
 function LineupPage() {
+  const search = Route.useSearch();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const fetchLineup = useServerFn(getMyLineup);
@@ -93,8 +103,8 @@ function LineupPage() {
     queryFn: () => fetchLineup(),
   });
   const { data: upcomingMatch } = useQuery<OfficialMatchContext | null>({
-    queryKey: ["upcoming-official-match"],
-    queryFn: () => fetchUpcoming({ data: {} }),
+    queryKey: ["upcoming-official-match", search.competition ?? "auto"],
+    queryFn: () => fetchUpcoming({ data: search.competition ? { competition: search.competition } : {} }),
   });
 
   const [formation, setFormation] = useState<Formation>("4-4-2");
@@ -328,7 +338,7 @@ function LineupPage() {
   const confirmPlayMut = useMutation({
     mutationFn: async () => {
       await save({ data: { formation, strategy, starters, bench } });
-      const match = upcomingMatch ?? await fetchUpcoming({ data: {} });
+      const match = upcomingMatch ?? await fetchUpcoming({ data: search.competition ? { competition: search.competition } : {} });
       if (!match) throw new Error("Nenhuma partida oficial pronta para jogar.");
 
       if (match.competition === "league") {
