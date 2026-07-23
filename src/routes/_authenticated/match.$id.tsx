@@ -270,10 +270,12 @@ function MatchPage() {
         <PlayBanner
           parts={bannerParts}
           teamColor={pending.teamColor}
-          outcome={pending.outcome}
+          outcome={pending.outcome as any}
           elementalAdvantage={pending.meta.elemental_advantage}
+          brief={(pending.outcome as any) === "red_card"}
           onFinished={handleBannerFinished}
         />
+
       )}
 
       <header className="border-b bg-card">
