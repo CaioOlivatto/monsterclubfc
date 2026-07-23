@@ -500,7 +500,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         await Promise.all([
           supabase.from("academies").update({ money: (acad?.money ?? 0) + net }).eq("trainer_id", trainer.id),
           supabase.from("financial_transactions").insert(txs),
-          supabase.from("matches").update({ finance_summary: financeSummary }).eq("id", next.id),
+          supabase.from("matches").update({ finance_summary: financeSummary as any }).eq("id", next.id),
         ]);
       } catch (e) {
         console.error("[playNextLeagueMatch] payoff error", e);
