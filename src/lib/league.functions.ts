@@ -251,6 +251,8 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     const stamp = (label: string) =>
       console.log(`[playNextLeagueMatch] +${Date.now() - t0}ms ${label}`);
     const { supabase, userId } = context;
+    // Bestiário é independente do trainer — dispara já em paralelo.
+    const bestiaryPromise = loadEngineBestiary(supabase);
     const trainer = await getTrainer(supabase, userId);
     stamp("trainer");
 
@@ -288,15 +290,10 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     if (!competition) throw new Error("Nenhuma liga em andamento.");
     stamp("competition");
 
-    // RETRY-ON-ENTRY: se alguma rodada anterior (qualquer competição da temporada) tem
-    // partidas ainda `scheduled`, é porque advanceLeagueRoundBackground falhou antes.
-    // Recupera aqui antes de seguir. Idempotente pelo filtro status='scheduled'.
-    try {
-      await recoverStaleRounds(supabase, trainer.id, competition.season_id, competition.id);
-      stamp("recover stale");
-    } catch (e) {
-      console.error("[playNextLeagueMatch] ERRO na recuperação de rodadas anteriores:", e);
-    }
+    // recover stale (independente de `next`) roda em paralelo com o próximo bloco
+    const recoverPromise = recoverStaleRounds(supabase, trainer.id, competition.season_id, competition.id)
+      .then(() => stamp("recover stale"))
+      .catch((e) => console.error("[playNextLeagueMatch] ERRO na recuperação de rodadas anteriores:", e));
 
     const { data: next } = await supabase
       .from("matches")
@@ -316,7 +313,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     const home = teams!.find((t: any) => t.id === next.home_team_id) as any;
     const away = teams!.find((t: any) => t.id === next.away_team_id) as any;
 
-    const bestiary = await loadEngineBestiary(supabase);
+    const bestiary = await bestiaryPromise;
     stamp("bestiary");
     const playerSideRef: { current: EngineSide | null } = { current: null };
     async function buildSide(team: any): Promise<EngineSide> {
@@ -328,8 +325,10 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       const seed = hashSeed(team.id);
       return generateCpuSideFor(seed, team.id, team.name, team.cpu_strength ?? 45, bestiary);
     }
-    const homeSide = await buildSide(home);
-    const awaySide = await buildSide(away);
+    // Build both sides em paralelo — player usa DB, CPU é sync.
+    const [homeSide, awaySide] = await Promise.all([buildSide(home), buildSide(away)]);
+    // Garante recovery finalizado antes de claim (idempotência).
+    await recoverPromise;
     stamp("sides");
     const seed = hashSeed(next.id);
     const result = simulate(homeSide, awaySide, seed);
