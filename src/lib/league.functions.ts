@@ -413,6 +413,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
           goals_against: row.goals_against + u.ga,
         }).eq("competition_id", competition.id).eq("team_id", u.team_id);
       }));
+      substamp("standings");
     })();
 
     // Bloco 3: financeiro (reads paralelas, writes paralelas)
