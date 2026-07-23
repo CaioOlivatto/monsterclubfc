@@ -411,13 +411,12 @@ function LineupPage() {
 
       <main className="mx-auto max-w-4xl space-y-4 px-3 py-4 sm:px-4">
 
-        <Card>
-          <MatchContextCard
-            match={upcomingMatch ?? null}
-            filledStarters={filledStarters}
-            pending={confirmPlayMut.isPending}
-            onConfirm={() => confirmPlayMut.mutate()}
-          />
+        <MatchContextCard
+          match={upcomingMatch ?? null}
+          filledStarters={filledStarters}
+          pending={confirmPlayMut.isPending}
+          onConfirm={() => confirmPlayMut.mutate()}
+        />
 
         <Card>
           <CardHeader className="pb-3">
@@ -679,4 +678,65 @@ function LineupPage() {
     </div>
   );
 
+}
+
+function MatchContextCard({
+  match,
+  filledStarters,
+  pending,
+  onConfirm,
+}: {
+  match: OfficialMatchContext | null;
+  filledStarters: number;
+  pending: boolean;
+  onConfirm: () => void;
+}) {
+  if (!match) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="flex flex-col gap-2 p-4 sm:p-5">
+          <Badge variant="outline" className="w-fit">Sem partida oficial</Badge>
+          <div>
+            <p className="font-semibold">Nenhuma partida oficial pronta agora</p>
+            <p className="text-sm text-muted-foreground">Use esta tela para preparar sua escalação padrão.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-primary/40 bg-primary/5">
+      <CardContent className="space-y-4 p-4 sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 space-y-2">
+            <Badge className="w-fit">{match.competitionLabel}</Badge>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Rodada {match.round}{match.phaseLabel ? ` · ${match.phaseLabel}` : ""}
+              </p>
+              <h2 className="mt-1 text-lg font-bold leading-tight sm:text-xl">
+                {match.homeTeam} <span className="text-muted-foreground">vs</span> {match.awayTeam}
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {match.isHome ? "Em casa" : "Fora"} · adversário: {match.opponent}
+              </p>
+            </div>
+          </div>
+          <Button
+            className="w-full sm:w-auto"
+            size="lg"
+            onClick={onConfirm}
+            disabled={pending || filledStarters !== 11}
+          >
+            <Play className="mr-2 h-4 w-4" />
+            {pending ? "Iniciando..." : "Confirmar e jogar"}
+          </Button>
+        </div>
+        {filledStarters !== 11 && (
+          <p className="text-xs text-muted-foreground">Preencha 11 titulares para liberar a confirmação.</p>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
