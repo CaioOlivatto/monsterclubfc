@@ -50,11 +50,11 @@ Uma carreira inteira (~7.750 XP) sobe ~2 estrelas. 5★ exige nascimento excepci
 - **CT de Treinamento**: `XP_efetivo = XP_base × (1 + 0,05 × nível_CT + bônus_burst)`
 - **Burst de XP** (Gemas): +5%, +10% ou +15% por um período.
 
-## 2. Economia — Dinheiro
+## 2. Economia — Por Partida
 
-> ⚠️ **A seção 2 será SUBSTITUÍDA pelo documento `Economia-Por-Partida.md`**, que introduz salário por partida, Direitos de TV, Patrocínios, Merchandising e Manutenção de infraestrutura. Os valores abaixo ficam como referência histórica até a migração.
+Modelo vigente ("Economia por Partida"): salários, receitas fixas e manutenção são processados **a cada rodada**, não por temporada. Valores refletidos em `src/lib/economy.ts` (`MATCH_REVENUE`, `MAINTENANCE_PER_MATCH`, `seasonSalary`/`matchSalary`).
 
-### 2.1 Premiação por rodada
+### 2.1 Premiação por rodada (aplicada em `league.functions.ts`)
 | Divisão | V | E | D |
 |---|---|---|---|
 | Bronze | $15.000 | $6.000 | $2.000 |
@@ -63,12 +63,23 @@ Uma carreira inteira (~7.750 XP) sobe ~2 estrelas. 5★ exige nascimento excepci
 | Diamante | $90.000 | $36.000 | $13.000 |
 | Lendária | $160.000 | $64.000 | $24.000 |
 
-### 2.2 Bilheteria (só em casa)
+### 2.2 Receita fixa por partida (`MATCH_REVENUE`)
+Recebida em **toda** partida oficial (casa ou fora). `Sponsor` unifica Master + Camisa da spec original — o jogador vê o extrato agregado.
+
+| Divisão | TV | Sponsor | Merch | **Total/partida** |
+|---|---|---|---|---|
+| Bronze | $8.000 | $9.000 | $4.000 | **$21.000** |
+| Prata | $20.000 | $21.000 | $9.000 | **$50.000** |
+| Ouro | $42.000 | $43.000 | $18.000 | **$103.000** |
+| Diamante | $85.000 | $88.000 | $36.000 | **$209.000** |
+| Lendária | $160.000 | $168.000 | $70.000 | **$398.000** |
+
+### 2.3 Bilheteria (só em casa)
 - `Bilheteria = capacidade × ocupação × $25`
 - Ocupação = `min(100%, 70% + 3% × posição_invertida)` — líder lota (100%), lanterna ≈ 70%
-- 13 jogos em casa por temporada (turno/returno em liga de 14).
+- 13 jogos em casa por temporada.
 
-### 2.3 Bônus de fim de temporada (× prêmio de vitória da divisão)
+### 2.4 Bônus de fim de temporada (× prêmio de vitória da divisão)
 | Posição | Multiplicador |
 |---|---|
 | 1º | ×10 (+50💎 campeão) |
@@ -78,14 +89,34 @@ Uma carreira inteira (~7.750 XP) sobe ~2 estrelas. 5★ exige nascimento excepci
 | 7º–8º | ×0,5 |
 | 9º–14º | 0 |
 
-### 2.4 Salários (por temporada)
-| Estrelas | Salário |
-|---|---|
-| 0–1★ | $4.000 |
-| 1,5–2★ | $9.000 |
-| 2,5–3★ | $20.000 |
-| 3,5–4★ | $45.000 |
-| 4,5–5★ | $90.000 |
+### 2.5 Salários (por partida, `matchSalary = seasonSalary / 26`)
+| Overall (~★) | Salário/temp | Salário/partida |
+|---|---|---|
+| <30 (0–1★) | $4.000 | ~$154 |
+| 30–49 (1,5–2★) | $12.000 | ~$462 |
+| 50–69 (2,5–3★) | $35.000 | ~$1.346 |
+| 70–89 (3,5–4★) | $110.000 | ~$4.231 |
+| 90+ (4,5–5★) | $400.000 | ~$15.385 |
+
+### 2.6 Manutenção por partida (`MAINTENANCE_PER_MATCH`, por nível 1–5)
+| Prédio | Nv1 | Nv2 | Nv3 | Nv4 | Nv5 |
+|---|---|---|---|---|---|
+| Estádio | 2.000 | 4.500 | 9.000 | 16.000 | 27.000 |
+| CT Treino | 1.000 | 2.200 | 4.500 | 9.000 | 16.000 |
+| CT Elemental | 1.000 | 2.200 | 4.500 | 9.000 | 16.000 |
+| Centro Médico | 800 | 1.800 | 3.600 | 6.500 | 12.000 |
+
+### 2.7 Sanity check (temporada mediana 13V/5E/8D, estádio dimensionado à divisão, 80% ocupação)
+| Divisão | Fixo | Prêmio | Bilheteria | **Receita** | Teto §8.2 | folha/rec |
+|---|---|---|---|---|---|---|
+| Bronze | 546k | 241k | 2.080k | 2.867k | 770k | 26,9% |
+| Prata | 1.300k | 451k | 3.900k | 5.651k | 1.440k | 25,5% |
+| Ouro | 2.678k | 806k | 6.500k | 9.984k | 2.410k | 24,1% |
+| Diamante | 5.434k | 1.454k | 10.400k | 17.288k | 3.920k | 22,7% |
+| Lendária | 10.348k | 2.592k | 15.600k | 28.540k | 6.020k | 21,1% |
+
+Teto de folha §8.2 fica com margem (21–27%) sobre o alvo de 35% quando o estádio está maxed. Alinha-se aos 35% assumindo estádio Nv1 baseline; upgrade do estádio vira alavanca de receita, não pressuposto.
+
 
 ## 3. Gemas
 
