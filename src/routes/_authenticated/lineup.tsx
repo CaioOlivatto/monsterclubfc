@@ -157,22 +157,39 @@ function LineupPage() {
 
 
   const setSlotCreature = (slotIdx: number, creatureId: string | null) => {
-    if (creatureId) {
-      // Se a criatura já está em outro slot, esvazia esse slot antes.
-      setStarters((prev) =>
-        prev.map((s) => {
-          if (s.slot === slotIdx) return { ...s, creature_id: creatureId };
-          if (s.creature_id === creatureId) return { ...s, creature_id: null };
-          return s;
-        }),
-      );
-      // Se estava no banco, remove do banco.
-      setBench((b) => b.filter((x) => x !== creatureId));
-    } else {
+    if (!creatureId) {
       setStarters((prev) =>
         prev.map((s) => (s.slot === slotIdx ? { ...s, creature_id: null } : s)),
       );
+      return;
     }
+    // Swap semântico: preserva o total de 11 titulares ao trocar por outro titular.
+    let displaced: string | null = null;
+    let cameFromStarter = false;
+    setStarters((prev) => {
+      const target = prev.find((s) => s.slot === slotIdx);
+      displaced = target?.creature_id ?? null;
+      const source = prev.find((s) => s.creature_id === creatureId);
+      cameFromStarter = !!source;
+      const sourceSlot = source?.slot ?? null;
+      return prev.map((s) => {
+        if (s.slot === slotIdx) return { ...s, creature_id: creatureId };
+        if (sourceSlot != null && s.slot === sourceSlot) {
+          // A criatura deslocada assume o slot de origem (swap real entre titulares).
+          return { ...s, creature_id: displaced };
+        }
+        return s;
+      });
+    });
+    setBench((b) => {
+      const cameFromBench = b.includes(creatureId);
+      let next = b.filter((x) => x !== creatureId);
+      // Veio do banco e havia titular no slot alvo → deslocado vai para o banco.
+      if (cameFromBench && !cameFromStarter && displaced && !next.includes(displaced) && next.length < MAX_BENCH) {
+        next = [...next, displaced];
+      }
+      return next;
+    });
   };
 
   const addToBench = (id: string) => {
