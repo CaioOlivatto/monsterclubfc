@@ -13,7 +13,7 @@ import { stadiumCapacity } from "./buildings.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { awardTrainerXp, resetSeasonBreakdown } from "./trainer-xp.server";
-import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, type Division as EconDivision } from "./economy";
+import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, AWAY_WIN_BONUS, type Division as EconDivision } from "./economy";
 import { loadBestiary } from "./bestiary.server";
 import { applySeasonOutcome } from "./career-transition.server";
 
@@ -459,8 +459,9 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
 
         const salaries = (roster ?? []).reduce((a: number, c: any) => a + matchSalary(c.overall ?? 40), 0);
         const maintenance = totalMaintenancePerMatch(division as EconDivision, bldgs ?? []);
+        const awayWinBonus = !isHome && outcome === "W" ? AWAY_WIN_BONUS : 0;
 
-        const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch + gate;
+        const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch + gate + awayWinBonus;
         const totalExpense = salaries + maintenance;
         const net = totalIncome - totalExpense;
 
@@ -480,6 +481,10 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
           txs.push({ trainer_id: trainer.id, transaction_type: "income", category: "bilheteria",
             amount: gate, description: `${roundTag} — Bilheteria (estádio nv.${stadiumLevel})` });
         }
+        if (awayWinBonus > 0) {
+          txs.push({ trainer_id: trainer.id, transaction_type: "income", category: "bonus_visitante",
+            amount: awayWinBonus, description: `${roundTag} — Prêmio de vitória fora` });
+        }
         if (salaries > 0) {
           txs.push({ trainer_id: trainer.id, transaction_type: "expense", category: "salarios",
             amount: salaries, description: `${roundTag} — Salários (${(roster ?? []).length} criaturas)` });
@@ -491,7 +496,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
 
         const financeSummary = {
           outcome, division, round: next.round, is_home: isHome,
-          income: { match_prize: matchPrize, tv: rev.tv, sponsor: rev.sponsor, merch: rev.merch, gate },
+          income: { match_prize: matchPrize, tv: rev.tv, sponsor: rev.sponsor, merch: rev.merch, gate, away_win_bonus: awayWinBonus },
           expense: { salaries, maintenance },
           totals: { income: totalIncome, expense: totalExpense, net },
         };

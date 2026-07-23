@@ -446,6 +446,7 @@ function FinanceSummaryCard({ summary }: { summary: any }) {
     { label: "Merchandising", value: inc.merch ?? 0, kind: "in" },
   ];
   if ((inc.gate ?? 0) > 0) rows.push({ label: "Bilheteria", value: inc.gate, kind: "in" });
+  if ((inc.away_win_bonus ?? 0) > 0) rows.push({ label: "Prêmio de vitória fora", value: inc.away_win_bonus, kind: "in" });
   if ((exp.salaries ?? 0) > 0) rows.push({ label: "Salários", value: exp.salaries, kind: "out" });
   if ((exp.maintenance ?? 0) > 0) rows.push({ label: "Manutenção", value: exp.maintenance, kind: "out" });
 
