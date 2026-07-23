@@ -436,7 +436,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         ]);
         const bldgs = (bldgsRes as any).data as Array<{ building_type: string; level: number }> | null;
         const standRows = (standRowsRes as any).data as any[] | null;
-        const roster = (rosterRes as any).data as Array<{ overall: number }> | null;
+        const roster = (rosterRes as any).data as Array<{ overall: number; morale?: number | null }> | null;
         const acad = (acadRes as any).data as { money: number } | null;
 
         let gate = 0;
