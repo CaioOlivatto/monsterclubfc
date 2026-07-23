@@ -524,33 +524,33 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       const outcomeXp: "W" | "D" | "L" =
         playerGf > playerGa ? "W" : playerGf < playerGa ? "L" : "D";
       const side: EngineSide | null = playerSideRef.current;
-      if (side) {
-        const starterIds = side.starters.map((s) => s.creature.id);
-        const enteredReserveIds = result.used_bench_ids.filter((id: string) =>
-          side.bench.some((b) => b.creature.id === id),
-        );
-        const unusedReserveIds = side.bench
-          .map((b) => b.creature.id)
-          .filter((id) => !enteredReserveIds.includes(id));
-        await applyPostMatchXp(supabase, trainer.id, {
-          starterIds,
-          enteredReserveIds,
-          unusedReserveIds,
-          outcome: outcomeXp,
-          energy_loss: result.energy_loss,
-          goalsByCreature: result.goals_by_creature,
-          injuries: result.injuries.filter((i) => i.team_id === playerTeam.id),
-          isOfficial: true,
-        });
-      }
       const opponentName = isHome ? away.name : home.name;
-      await insertMessage(
-        supabase,
-        trainer.id,
-        "match",
-        `Rodada ${next.round}: ${outcomeXp === "W" ? "Vitória" : outcomeXp === "D" ? "Empate" : "Derrota"} vs ${opponentName}`,
-        `${isHome ? home.name : away.name} ${playerGf} x ${playerGa} ${isHome ? away.name : home.name} — clima: ${result.weather}.`,
-      );
+      const xpJob = side
+        ? applyPostMatchXp(supabase, trainer.id, {
+            starterIds: side.starters.map((s) => s.creature.id),
+            enteredReserveIds: result.used_bench_ids.filter((id: string) =>
+              side.bench.some((b) => b.creature.id === id),
+            ),
+            unusedReserveIds: side.bench
+              .map((b) => b.creature.id)
+              .filter((id) => !result.used_bench_ids.includes(id)),
+            outcome: outcomeXp,
+            energy_loss: result.energy_loss,
+            goalsByCreature: result.goals_by_creature,
+            injuries: result.injuries.filter((i) => i.team_id === playerTeam.id),
+            isOfficial: true,
+          })
+        : Promise.resolve();
+      await Promise.all([
+        xpJob,
+        insertMessage(
+          supabase,
+          trainer.id,
+          "match",
+          `Rodada ${next.round}: ${outcomeXp === "W" ? "Vitória" : outcomeXp === "D" ? "Empate" : "Derrota"} vs ${opponentName}`,
+          `${isHome ? home.name : away.name} ${playerGf} x ${playerGa} ${isHome ? away.name : home.name} — clima: ${result.weather}.`,
+        ),
+      ]);
     } catch (e) {
       console.error("xp/message error", e);
     }
