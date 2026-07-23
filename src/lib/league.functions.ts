@@ -376,14 +376,16 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       { team_id: away.id, gf: result.away_score, ga: result.home_score,
         result: result.away_score > result.home_score ? "W" : result.away_score < result.home_score ? "L" : "D" },
     ];
-    for (const u of updates) {
-      const { data: row } = await supabase
-        .from("standings")
-        .select("points, wins, draws, losses, goals_for, goals_against")
-        .eq("competition_id", competition.id)
-        .eq("team_id", u.team_id)
-        .maybeSingle();
-      if (!row) continue;
+    // Standings: lê ambas as linhas de uma vez, aplica updates em paralelo.
+    const { data: standRowsForUpdate } = await supabase
+      .from("standings")
+      .select("team_id, points, wins, draws, losses, goals_for, goals_against")
+      .eq("competition_id", competition.id)
+      .in("team_id", [home.id, away.id]);
+    const standByTeam = new Map<string, any>((standRowsForUpdate ?? []).map((r: any) => [r.team_id, r]));
+    await Promise.all(updates.map(async (u) => {
+      const row = standByTeam.get(u.team_id);
+      if (!row) return;
       await supabase
         .from("standings")
         .update({
@@ -396,7 +398,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         })
         .eq("competition_id", competition.id)
         .eq("team_id", u.team_id);
-    }
+    }));
 
     // Financeiro por partida — Balanceamento por partida (TV, Patrocínio, Merch,
     // Bilheteria, Prêmio) menos (Salários da rodada + Manutenção de infraestrutura).
