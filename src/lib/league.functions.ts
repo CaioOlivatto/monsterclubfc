@@ -10,6 +10,7 @@ import {
   type EngineBestiary,
 } from "./match-engine.server";
 import { stadiumCapacity } from "./buildings.server";
+import { buildAttendance, rosterMoraleAverage } from "./attendance";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { awardTrainerXp, resetSeasonBreakdown } from "./trainer-xp.server";
