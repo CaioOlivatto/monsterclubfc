@@ -322,22 +322,23 @@ function LineupPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-2 px-3 py-3 sm:px-4">
+          <div className="flex min-w-0 items-center gap-2">
             <Button variant="ghost" size="icon" onClick={() => navigate({ to: "/dashboard" })}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <h1 className="text-lg font-semibold">Escalação</h1>
+            <h1 className="truncate text-base font-semibold sm:text-lg">Escalação</h1>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5 sm:gap-2">
             <Button
               onClick={autoFill}
               disabled={creatures.length === 0}
               size="sm"
               variant="secondary"
             >
-              <Wand2 className="mr-2 h-4 w-4" />
-              Auto definir
+              <Wand2 className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Auto definir</span>
+              <span className="sr-only sm:hidden">Auto definir</span>
             </Button>
             <Button
               onClick={openPoupar}
@@ -346,8 +347,9 @@ function LineupPage() {
               variant="outline"
               title="Escala os reservas e mantém seus 5 melhores descansados para a próxima partida"
             >
-              <BedDouble className="mr-2 h-4 w-4" />
-              {poupPending ? "Calculando…" : "Poupar titulares"}
+              <BedDouble className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">{poupPending ? "Calculando…" : "Poupar titulares"}</span>
+              <span className="sr-only sm:hidden">Poupar titulares</span>
             </Button>
 
 
@@ -356,14 +358,15 @@ function LineupPage() {
               disabled={mut.isPending || filledStarters !== 11}
               size="sm"
             >
-              <Save className="mr-2 h-4 w-4" />
-              Salvar
+              <Save className="h-4 w-4 sm:mr-2" />
+              <span>Salvar</span>
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-4xl space-y-4 px-4 py-4">
+      <main className="mx-auto max-w-4xl space-y-4 px-3 py-4 sm:px-4">
+
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Tática</CardTitle>
