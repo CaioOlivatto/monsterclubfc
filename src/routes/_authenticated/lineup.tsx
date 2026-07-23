@@ -692,7 +692,7 @@ function LineupPage() {
                         const ms = moraleState(c.morale);
                         const isInjured = (c.injury_matches_remaining ?? 0) > 0;
                         const usedElsewhere = !isInjured && usedIds.has(c.id);
-                        const disabled = isInjured || usedElsewhere;
+                        const disabled = isInjured;
                         const nameClass =
                           (isInjured ? "line-through " : "") + (disabled ? "opacity-60" : "font-medium");
                         return (
@@ -715,7 +715,7 @@ function LineupPage() {
                               )}
                               {usedElsewhere && (
                                 <span className="rounded border border-amber-500/60 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
-                                  Já escalado em {usedLabelById.get(c.id)}
+                                  Em {usedLabelById.get(c.id)} · toque para mover ao banco
                                 </span>
                               )}
                             </span>
