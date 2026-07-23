@@ -15,6 +15,7 @@ import {
 import {
   simulate,
   persistableSimulationEvents,
+  generateCpuSideFor,
   type EngineBestiary,
 } from "./match-engine.server";
 import { loadBestiary } from "./bestiary.server";
