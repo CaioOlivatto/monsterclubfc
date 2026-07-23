@@ -416,22 +416,29 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       // Receitas passivas por partida (§Economia-Por-Partida)
       const rev = MATCH_REVENUE[division];
 
+      // Reads independentes em paralelo (buildings, standings do gate, roster, academies)
+      const [bldgsRes, standRowsRes, rosterRes, acadRes] = await Promise.all([
+        supabase.from("buildings").select("building_type, level").eq("trainer_id", trainer.id),
+        isHome
+          ? supabase
+              .from("standings")
+              .select("team_id, points, goals_for, goals_against")
+              .eq("competition_id", competition.id)
+          : Promise.resolve({ data: null }),
+        supabase.from("creatures").select("overall").eq("owner_trainer_id", trainer.id),
+        supabase.from("academies").select("money").eq("trainer_id", trainer.id).maybeSingle(),
+      ]);
+      const bldgs = (bldgsRes as any).data as Array<{ building_type: string; level: number }> | null;
+      const standRows = (standRowsRes as any).data as any[] | null;
+      const roster = (rosterRes as any).data as Array<{ overall: number }> | null;
+      const acad = (acadRes as any).data as { money: number } | null;
+
       // Bilheteria (só em casa)
       let gate = 0;
       let stadiumLevel = 0;
       if (isHome) {
-        const { data: est } = await supabase
-          .from("buildings")
-          .select("level")
-          .eq("trainer_id", trainer.id)
-          .eq("building_type", "estadio")
-          .maybeSingle();
-        stadiumLevel = est?.level ?? 0;
+        stadiumLevel = (bldgs ?? []).find((b) => b.building_type === "estadio")?.level ?? 0;
         const capacity = stadiumCapacity(stadiumLevel);
-        const { data: standRows } = await supabase
-          .from("standings")
-          .select("team_id, points, goals_for, goals_against")
-          .eq("competition_id", competition.id);
         const rankedCur = [...(standRows ?? [])].sort((a: any, b: any) => {
           if (b.points !== a.points) return b.points - a.points;
           const gdA = a.goals_for - a.goals_against;
@@ -446,21 +453,11 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         gate = Math.round(capacity * fillRate * 25);
       }
 
-      // Salários por partida — elenco atual
-      const { data: roster } = await supabase
-        .from("creatures")
-        .select("overall")
-        .eq("owner_trainer_id", trainer.id);
       const salaries = (roster ?? []).reduce(
         (a: number, c: any) => a + matchSalary(c.overall ?? 40),
         0,
       );
 
-      // Manutenção de infraestrutura por partida
-      const { data: bldgs } = await supabase
-        .from("buildings")
-        .select("building_type, level")
-        .eq("trainer_id", trainer.id);
       const maintenance = (bldgs ?? []).reduce((sum: number, b: any) => {
         const table = (MAINTENANCE_PER_MATCH as any)[b.building_type] as number[] | undefined;
         if (!table) return sum;
