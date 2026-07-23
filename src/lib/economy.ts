@@ -26,11 +26,11 @@ export function matchSalary(overall: number): number {
 
 /** Receita passiva por partida, por divisão (TV, Patrocínio, Merchandising). */
 export const MATCH_REVENUE: Record<Division, { tv: number; sponsor: number; merch: number }> = {
-  bronze:   { tv:  8_000, sponsor:  6_000, merch:  4_000 },
-  prata:    { tv: 16_000, sponsor: 12_000, merch:  8_000 },
-  ouro:     { tv: 30_000, sponsor: 22_000, merch: 15_000 },
-  diamante: { tv: 55_000, sponsor: 40_000, merch: 28_000 },
-  lendaria: { tv:100_000, sponsor: 75_000, merch: 50_000 },
+  bronze:   { tv:   8_000, sponsor:   9_000, merch:  4_000 },
+  prata:    { tv:  20_000, sponsor:  21_000, merch:  9_000 },
+  ouro:     { tv:  42_000, sponsor:  43_000, merch: 18_000 },
+  diamante: { tv:  85_000, sponsor:  88_000, merch: 36_000 },
+  lendaria: { tv: 160_000, sponsor: 168_000, merch: 70_000 },
 };
 
 /** Manutenção por partida por nível (índice = nível, 0 = não construído). */
