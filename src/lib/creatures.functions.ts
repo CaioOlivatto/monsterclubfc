@@ -132,24 +132,25 @@ export const getDashboard = createServerFn({ method: "GET" })
       .sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0))
       .slice(0, 3);
 
-    // Time do jogador apenas na liga ativa. Times de amistoso/copa não devem afetar o painel.
-    const { data: activeLeague } = await supabase
-      .from("competitions")
-      .select("id")
+    // Liga ativa do jogador: pode haver múltiplas competitions (5 divisões semeadas).
+    // Buscamos via o time do jogador para achar a liga específica dele.
+    const { data: playerTeam } = await supabase
+      .from("teams")
+      .select("id, name, competition_id")
       .eq("trainer_id", trainer.id)
-      .eq("type", "league")
-      .eq("status", "active")
+      .eq("is_player", true)
       .maybeSingle();
 
-    const { data: playerTeam } = activeLeague
+    const { data: activeLeague } = playerTeam?.competition_id
       ? await supabase
-          .from("teams")
-          .select("id, name, competition_id")
-          .eq("competition_id", activeLeague.id)
-          .eq("trainer_id", trainer.id)
-          .eq("is_player", true)
+          .from("competitions")
+          .select("id")
+          .eq("id", playerTeam.competition_id)
+          .eq("type", "league")
+          .eq("status", "active")
           .maybeSingle()
       : { data: null };
+
 
     let standing = null as null | {
       points: number;
