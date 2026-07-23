@@ -27,6 +27,23 @@ export function matchSalary(overall: number): number {
 /** Bônus fixo de vitória fora de casa (§Economia-Por-Partida). */
 export const AWAY_WIN_BONUS = 25_000;
 
+/** Prêmio de fase da Copa Nacional (spec Sistema-Tres-Competicoes.md).
+ *  Valores fixos, independentes de divisão — a Copa é cross-divisão. */
+export const CUP_PHASE_BONUS = {
+  champion: 5_000_000,
+  runnerUp: 2_000_000,
+  semi:       900_000,
+  qf:         300_000,
+} as const;
+
+/** Prêmio de fase da Liga Mundial (spec Sistema-Tres-Competicoes.md). */
+export const WORLD_LEAGUE_PHASE_BONUS = {
+  champion: 3_000_000,
+  runnerUp: 1_500_000,
+  semi:       700_000,
+  groups:     200_000,
+} as const;
+
 /** Receita passiva por partida, por divisão (TV, Patrocínio, Merchandising). */
 export const MATCH_REVENUE: Record<Division, { tv: number; sponsor: number; merch: number }> = {
   bronze:   { tv:   8_000, sponsor:   9_000, merch:  4_000 },

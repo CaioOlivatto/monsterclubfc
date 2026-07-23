@@ -79,7 +79,7 @@ Recebida em **toda** partida oficial (casa ou fora). `Sponsor` unifica Master + 
 - Ocupação = `min(100%, 70% + 3% × posição_invertida)` — líder lota (100%), lanterna ≈ 70%
 - 13 jogos em casa por temporada.
 
-### 2.4 Bônus de fim de temporada (× prêmio de vitória da divisão)
+### 2.4 Bônus de fim de temporada — Campeonato Nacional (× prêmio de vitória da divisão)
 | Posição | Multiplicador |
 |---|---|
 | 1º | ×10 (+50💎 campeão) |
@@ -88,6 +88,40 @@ Recebida em **toda** partida oficial (casa ou fora). `Sponsor` unifica Master + 
 | 5º–6º | ×1,5 |
 | 7º–8º | ×0,5 |
 | 9º–14º | 0 |
+
+### 2.4.1 Prêmio de fase — Copa Nacional (`CUP_PHASE_BONUS`)
+Valores fixos (spec `Sistema-Tres-Competicoes.md`), independentes de divisão — a Copa é cross-divisão.
+| Fase alcançada | Prêmio |
+|---|---|
+| Campeão | $5.000.000 |
+| Vice-campeão | $2.000.000 |
+| Semifinalista | $900.000 |
+| Quartas de final | $300.000 |
+
+### 2.4.2 Prêmio de fase — Liga Mundial (`WORLD_LEAGUE_PHASE_BONUS`)
+| Fase alcançada | Prêmio |
+|---|---|
+| Campeão | $3.000.000 |
+| Vice-campeão | $1.500.000 |
+| Semifinalista | $700.000 |
+| Fase de grupos | $200.000 |
+
+### 2.4.3 Hierarquia de prestígio (prêmio de fase do campeão)
+Copa Nacional ($5M) > Liga Mundial ($3M) > Campeonato Lendária ($1,6M = 160k×10) > demais divisões do Campeonato. Coerente com o desenho: a Copa é o troféu mais cobiçado do jogo.
+
+Sanity — total arrecadado pelo campeão vencendo tudo (piso, sem bilheteria e sem bônus de vitória fora), somando receita fixa + prêmio por partida + prêmio de fase:
+| Competição | Partidas | Match income | Phase bonus | **Total** |
+|---|---|---|---|---|
+| Copa Nacional (Lendária) | 3 | $1,79M | $5,00M | **$6,79M** |
+| Liga Mundial (Lendária) | 8 | $4,12M | $3,00M | **$7,12M** |
+| Campeonato Lendária | 26 | $14,51M | $1,60M | $16,11M |
+
+Observação: o Campeonato ainda supera em volume por ter 26 rodadas (base salarial e de manutenção do time durante o ano inteiro). Copa e Liga Mundial são os prêmios com maior *prestígio* (phase bonus e retorno por partida), enquanto o Campeonato é a espinha dorsal financeira da temporada.
+
+### 2.4.4 Nota de processo — valores implementados vs documento
+Antes desta correção, `CUP_PHASE_BONUS` estava com valores 3–4% da spec ($200k/$80k/$30k/$10k vs $5M/$2M/$900k/$300k) e a Liga Mundial não pagava phase bonus algum. A causa foi uma constante criada na implementação inicial sem consulta ao documento `Sistema-Tres-Competicoes.md`. Esse tipo de divergência silenciosa (código diverge da spec sem que ninguém perceba) apareceu mais de uma vez nesta sessão — economia de manutenção 21× menor, `CHANCE_RATE` do motor, receitas de patrocínio. **Padrão a seguir**: antes de fechar qualquer implementação de constante econômica, comparar o valor no código com o valor no documento-fonte e registrar no balancing quando divergir por decisão intencional.
+
+
 
 ### 2.5 Salários (por partida, `matchSalary = seasonSalary / 26`)
 | Overall (~★) | Salário/temp | Salário/partida |

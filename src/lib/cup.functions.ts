@@ -6,7 +6,7 @@ import { simulate, persistableSimulationEvents, generateCpuSideFor, type EngineS
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { loadBestiary } from "./bestiary.server";
-import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, AWAY_WIN_BONUS, type Division as EconDivision } from "./economy";
+import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, AWAY_WIN_BONUS, CUP_PHASE_BONUS, type Division as EconDivision } from "./economy";
 
 // Prêmio por partida da Copa por divisão (V / E / D). Empate resolvido em pênaltis
 // no motor, portanto D raramente é pago — mantido para compatibilidade.
@@ -633,10 +633,10 @@ export const advanceCupRoundBackground = createServerFn({ method: "POST" })
             }
             let prize = 0;
             let label = "";
-            if (playerWonFinal) { prize = 200000; label = "Campeão da Copa"; }
-            else if (reachedFinal) { prize = 80000; label = "Vice-campeão da Copa"; }
-            else if (reachedSemi) { prize = 30000; label = "Semifinalista da Copa"; }
-            else { prize = 10000; label = "Participação na Copa"; }
+            if (playerWonFinal)   { prize = CUP_PHASE_BONUS.champion; label = "Campeão da Copa"; }
+            else if (reachedFinal){ prize = CUP_PHASE_BONUS.runnerUp; label = "Vice-campeão da Copa"; }
+            else if (reachedSemi) { prize = CUP_PHASE_BONUS.semi;     label = "Semifinalista da Copa"; }
+            else                  { prize = CUP_PHASE_BONUS.qf;       label = "Quartas de final da Copa"; }
             if (prize > 0) {
               const { data: acad } = await supabase
                 .from("academies").select("money").eq("trainer_id", trainer.id).maybeSingle();

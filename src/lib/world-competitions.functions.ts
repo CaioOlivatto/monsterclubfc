@@ -23,7 +23,7 @@ import {
 import { loadBestiary } from "./bestiary.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
-import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, AWAY_WIN_BONUS, type Division as EconDivision } from "./economy";
+import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, AWAY_WIN_BONUS, WORLD_LEAGUE_PHASE_BONUS, type Division as EconDivision } from "./economy";
 
 // Premiação por partida em competições MUNDIAIS — maiores que Campeonato.
 // Grupos: V/E/D. Mata-mata (avançar vale mais que a fase de grupos).
@@ -711,7 +711,53 @@ async function advanceWorldLeagueRoundInternal(
       await generateKnockoutRound(supabase, compId, round + 1, ordered.map((id) => ({ id, strength: strMap.get(id) ?? 45 })));
     } else if (round === 8) {
       const champ = winners[0] ?? null;
-      await supabase.from("competitions").update({ status: "finished", champion_team_id: champ }).eq("id", compId).eq("status", "active");
+      const { data: updated } = await supabase
+        .from("competitions")
+        .update({ status: "finished", champion_team_id: champ })
+        .eq("id", compId).eq("status", "active")
+        .select("id, trainer_id");
+      // Prêmio de fase da Liga Mundial (spec Sistema-Tres-Competicoes.md)
+      if (updated?.length) {
+        const trainerId = updated[0].trainer_id as string;
+        const { data: playerTeam } = await supabase
+          .from("teams").select("id").eq("trainer_id", trainerId).eq("is_player", true).maybeSingle();
+        const playerId = playerTeam?.id;
+        if (playerId) {
+          const { data: pMatches } = await supabase
+            .from("matches")
+            .select("round, home_team_id, away_team_id, home_score, away_score")
+            .eq("competition_id", compId)
+            .or(`home_team_id.eq.${playerId},away_team_id.eq.${playerId}`);
+          const koWon = (r: number) => (pMatches ?? []).some((m: any) => {
+            if (m.round !== r) return false;
+            const isHome = m.home_team_id === playerId;
+            const gf = (isHome ? m.home_score : m.away_score) ?? 0;
+            const ga = (isHome ? m.away_score : m.home_score) ?? 0;
+            return gf >= ga;
+          });
+          const reachedFinal = (pMatches ?? []).some((m: any) => m.round === 8);
+          const reachedSemi = (pMatches ?? []).some((m: any) => m.round === 7);
+          const playedGroups = (pMatches ?? []).some((m: any) => m.round <= 5);
+          let prize = 0; let label = "";
+          if (reachedFinal && koWon(8)) { prize = WORLD_LEAGUE_PHASE_BONUS.champion; label = "Campeão da Liga Mundial"; }
+          else if (reachedFinal)         { prize = WORLD_LEAGUE_PHASE_BONUS.runnerUp; label = "Vice-campeão da Liga Mundial"; }
+          else if (reachedSemi)          { prize = WORLD_LEAGUE_PHASE_BONUS.semi;     label = "Semifinalista da Liga Mundial"; }
+          else if (playedGroups)         { prize = WORLD_LEAGUE_PHASE_BONUS.groups;   label = "Fase de grupos da Liga Mundial"; }
+          if (prize > 0) {
+            const { data: acad } = await supabase
+              .from("academies").select("money").eq("trainer_id", trainerId).maybeSingle();
+            await supabase.from("academies")
+              .update({ money: (acad?.money ?? 0) + prize })
+              .eq("trainer_id", trainerId);
+            await supabase.from("financial_transactions").insert({
+              trainer_id: trainerId,
+              transaction_type: "income",
+              amount: prize,
+              description: `Liga Mundial — ${label}`,
+            });
+          }
+        }
+      }
     }
   }
 }
