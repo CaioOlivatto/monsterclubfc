@@ -469,11 +469,6 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       const totalExpense = salaries + maintenance;
       const net = totalIncome - totalExpense;
 
-      const { data: acad } = await supabase
-        .from("academies")
-        .select("money")
-        .eq("trainer_id", trainer.id)
-        .maybeSingle();
       await supabase
         .from("academies")
         .update({ money: (acad?.money ?? 0) + net })
