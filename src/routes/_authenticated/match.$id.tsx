@@ -167,7 +167,20 @@ function MatchPage() {
   function handleBannerFinished() {
     if (!pending) return;
     const p = pending;
-    const parts = narrRef.current.buildPlay(p.outcome, p.meta, p.minute);
+
+    // Cartão vermelho: pausa breve, sem contar gols nem reação.
+    if ((p.outcome as any) === "red_card") {
+      const line = capFirst(
+        p.meta?.attacker
+          ? `${p.meta.attacker} está expulso! Vermelho direto!`
+          : "Vermelho direto! Que expulsão!",
+      );
+      setRevealed((r) => [...r, { ...buildRevealed(p.raw, homeId), narration: line }]);
+      setPending(null);
+      return;
+    }
+
+    const parts = narrRef.current.buildPlay(p.outcome as Outcome, p.meta, p.minute);
     const playerTeamId = (data as any)?.player_team_id ?? homeId;
     const isPlayerHome = playerTeamId === homeId;
     const currentHome = revealed.filter(
@@ -209,6 +222,7 @@ function MatchPage() {
     }
     setPending(null);
   }
+
 
   const homeGoals = revealed.filter(
     (e) => e.event_type === "goal" && e.raw_team_id === homeId,
