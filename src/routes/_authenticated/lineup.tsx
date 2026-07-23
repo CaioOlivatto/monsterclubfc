@@ -343,24 +343,47 @@ function LineupPage() {
 
   const confirmPlayMut = useMutation({
     mutationFn: async () => {
-      await save({ data: { formation, strategy, starters, bench } });
-      const match = upcomingMatch ?? await fetchUpcoming({ data: search.competition ? { competition: search.competition } : {} });
+      setIsConfirming(true);
+      // Cancela qualquer prognóstico em voo para liberar o worker.
+      qc.cancelQueries({ queryKey: ["prognostic"] });
+
+      // Timeout de segurança: se o servidor não responder em 60s, aborta com erro amigável.
+      const withTimeout = <T,>(p: Promise<T>, ms: number, label: string): Promise<T> =>
+        new Promise<T>((resolve, reject) => {
+          const t = setTimeout(
+            () => reject(new Error(`Tempo esgotado ao ${label}. Tente novamente.`)),
+            ms,
+          );
+          p.then((v) => { clearTimeout(t); resolve(v); })
+           .catch((e) => { clearTimeout(t); reject(e); });
+        });
+
+      await withTimeout(
+        save({ data: { formation, strategy, starters, bench } }),
+        20_000,
+        "salvar a escalação",
+      );
+      const match = upcomingMatch ?? await withTimeout(
+        fetchUpcoming({ data: search.competition ? { competition: search.competition } : {} }),
+        15_000,
+        "buscar a próxima partida",
+      );
       if (!match) throw new Error("Nenhuma partida oficial pronta para jogar.");
 
       if (match.competition === "league") {
-        const res = await playLeague();
+        const res = await withTimeout(playLeague(), 60_000, "iniciar a partida");
         return res.match_id as string;
       }
       if (match.competition === "cup") {
-        const res = await playCup();
+        const res = await withTimeout(playCup(), 60_000, "iniciar a partida");
         return res.match_id as string;
       }
       if (match.competition === "world_league") {
-        const res = await playWorldLeague();
+        const res = await withTimeout(playWorldLeague(), 60_000, "iniciar a partida");
         if (!res.playerMatchId) throw new Error("A rodada da Liga Mundial não tem partida do seu time.");
         return res.playerMatchId as string;
       }
-      const res = await playWorldCup();
+      const res = await withTimeout(playWorldCup(), 60_000, "iniciar a partida");
       if (!res.playerMatchId) throw new Error("A rodada da Copa Mundial não tem partida do seu time.");
       return res.playerMatchId as string;
     },
@@ -370,6 +393,7 @@ function LineupPage() {
       navigate({ to: "/match/$id", params: { id: matchId } });
     },
     onError: (e: any) => toast.error(e?.message ?? "Não foi possível iniciar a partida."),
+    onSettled: () => setIsConfirming(false),
   });
 
 
