@@ -395,8 +395,10 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
       .select("id");
     if (uErr) throw uErr;
     if (!claimed?.length) throw new Error("Esta partida já foi iniciada em outra aba. Recarregue.");
+    stamp("claim");
 
-    const events = persistableSimulationEvents(result).map((e: any) => ({
+    // ===== POST-SIM: events + xp/message em paralelo =====
+    const eventsToInsert = persistableSimulationEvents(result).map((e: any) => ({
       match_id: next.id,
       minute: e.minute,
       event_type: e.event_type,
@@ -405,12 +407,16 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
         e.actor_creature_id && !e.actor_creature_id.startsWith("cpu-") ? e.actor_creature_id : null,
       actor_team_id: e.actor_team_id,
     }));
-    if (events.length) await supabase.from("match_events").insert(events);
+    const eventsJob = eventsToInsert.length
+      ? supabase.from("match_events").insert(eventsToInsert).then((r: any) => {
+          if (r.error) console.error("[playNextCupMatch] events insert", r.error);
+        })
+      : Promise.resolve();
 
-    // XP e mensagem se o jogador participou
-    try {
-      const playerSide: EngineSide | null = playerSideRef.current;
-      if (playerSide) {
+    const xpMsgJob = (async () => {
+      try {
+        const playerSide: EngineSide | null = playerSideRef.current;
+        if (!playerSide) return;
         const isHome = home.is_player;
         const playerGf = isHome ? result.home_score : result.away_score;
         const playerGa = isHome ? result.away_score : result.home_score;
@@ -423,31 +429,31 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
         const unusedReserveIds = playerSide.bench
           .map((b) => b.creature.id)
           .filter((id) => !enteredReserveIds.includes(id));
-        await applyPostMatchXp(supabase, trainer.id, {
-          starterIds,
-          enteredReserveIds,
-          unusedReserveIds,
-          outcome: outcomeXp,
-          energy_loss: result.energy_loss,
-          goalsByCreature: result.goals_by_creature,
-          injuries: result.injuries.filter((i) => i.team_id === playerTeam.id),
-          isOfficial: true,
-        });
         const opponentName = isHome ? away.name : home.name;
         const roundLabel = CUP_ROUND_NAMES[next.round as number] ?? `Rodada ${next.round}`;
-        await insertMessage(
-          supabase,
-          trainer.id,
-          "match",
-          `Copa — ${roundLabel}: ${outcomeXp === "W" ? "Vitória" : "Derrota"} vs ${opponentName}`,
-          `${isHome ? home.name : away.name} ${playerGf} x ${playerGa} ${isHome ? away.name : home.name} — clima: ${result.weather}.`,
-        );
+        await Promise.all([
+          applyPostMatchXp(supabase, trainer.id, {
+            starterIds, enteredReserveIds, unusedReserveIds,
+            outcome: outcomeXp,
+            energy_loss: result.energy_loss,
+            goalsByCreature: result.goals_by_creature,
+            injuries: result.injuries.filter((i) => i.team_id === playerTeam.id),
+            isOfficial: true,
+          }),
+          insertMessage(
+            supabase, trainer.id, "match",
+            `Copa — ${roundLabel}: ${outcomeXp === "W" ? "Vitória" : "Derrota"} vs ${opponentName}`,
+            `${isHome ? home.name : away.name} ${playerGf} x ${playerGa} ${isHome ? away.name : home.name} — clima: ${result.weather}.`,
+          ),
+        ]);
+      } catch (e) {
+        console.error("[playNextCupMatch] xp/message error", e);
       }
-    } catch (e) {
-      console.error("cup xp/message error", e);
-    }
+    })();
 
+    await Promise.all([eventsJob, xpMsgJob]);
     stamp("player match persisted");
+
     return {
       match_id: next.id,
       round: next.round as number,
