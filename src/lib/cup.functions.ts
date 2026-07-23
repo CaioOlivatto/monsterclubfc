@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { z } from "zod";
 import { simulate, persistableSimulationEvents, generateCpuSideFor, type EngineSide, type EngineBestiary } from "./match-engine.server";
 
 import { buildPlayerSideFromDb } from "./player-side.server";
