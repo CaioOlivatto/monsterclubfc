@@ -266,21 +266,16 @@ async function simulatePlayerMatch(
     }
   })();
 
-  const messageJob = (async () => {
-    try {
-      const compLabel = ctx.competition === "world_league" ? "Liga Mundial" : "Copa Mundial";
-      const oppName = isHome ? away.name : home.name;
-      await insertMessage(
-        supabase, trainerId, "match",
-        `${compLabel} R${ctx.round}: ${outcome === "W" ? "Vitória" : outcome === "D" ? "Empate" : "Derrota"} vs ${oppName}`,
-        `${isHome ? home.name : away.name} ${playerGf} x ${playerGa} ${isHome ? away.name : home.name} — clima: ${result.weather}.`,
-      );
-    } catch (e) {
-      console.error("[world] message error", e);
-    }
-  })();
+  // inbox: fire-and-forget (não bloqueia a resposta)
+  const compLabel = ctx.competition === "world_league" ? "Liga Mundial" : "Copa Mundial";
+  const oppName = isHome ? away.name : home.name;
+  void insertMessage(
+    supabase, trainerId, "match",
+    `${compLabel} R${ctx.round}: ${outcome === "W" ? "Vitória" : outcome === "D" ? "Empate" : "Derrota"} vs ${oppName}`,
+    `${isHome ? home.name : away.name} ${playerGf} x ${playerGa} ${isHome ? away.name : home.name} — clima: ${result.weather}.`,
+  ).catch((e) => console.error("[world] message bg error", e));
 
-  await Promise.all([eventsJob, xpJob, financeJob, messageJob]);
+  await Promise.all([eventsJob, xpJob, financeJob]);
 
 
   return { home_score: result.home_score, away_score: result.away_score };
