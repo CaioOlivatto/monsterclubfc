@@ -38,12 +38,27 @@ function WorldLeaguePage() {
   });
 
   const handleSimulate = async () => {
+    const nextScheduled = data?.matches?.find((m: any) => m.status === "scheduled");
+    const nextRound = nextScheduled?.round ?? null;
+    const playerMatch = nextRound
+      ? data?.matches?.find(
+          (m: any) =>
+            m.status === "scheduled" &&
+            m.round === nextRound &&
+            (m.home_team_id === data.playerTeamId || m.away_team_id === data.playerTeamId),
+        )
+      : null;
+    if (playerMatch) {
+      navigate({ to: "/lineup", search: { competition: "world_league" } });
+      return;
+    }
+
     setSimulating(true);
     try {
       const res = await simulateFn();
       if (res.playerMatchId) {
-        toast.success(`${res.phase}: sua partida está pronta — abrindo narração…`);
-        navigate({ to: "/match/$id", params: { id: res.playerMatchId } });
+        toast.success(`${res.phase}: confira sua escalação antes da partida.`);
+        navigate({ to: "/lineup", search: { competition: "world_league" } });
         return;
       }
       toast.success(`${res.phase}: ${res.matchesPlayed} jogos simulados`);
@@ -107,6 +122,14 @@ function StatusHeader({ data, onSimulate, simulating }: any) {
   // próxima rodada = menor round com scheduled
   const nextScheduled = data.matches.find((m: any) => m.status === "scheduled");
   const nextRound = nextScheduled?.round ?? null;
+  const playerMatch = nextRound
+    ? data.matches.find(
+        (m: any) =>
+          m.status === "scheduled" &&
+          m.round === nextRound &&
+          (m.home_team_id === data.playerTeamId || m.away_team_id === data.playerTeamId),
+      )
+    : null;
   const isFinished = data.competition.status === "finished";
   const champion = isFinished ? data.teams.find((t: any) => t.id === data.competition.champion_team_id) : null;
   return (
@@ -126,7 +149,11 @@ function StatusHeader({ data, onSimulate, simulating }: any) {
         ) : nextRound ? (
           <Button className="w-full" onClick={onSimulate} disabled={simulating}>
             <Play className="mr-2 h-4 w-4" />
-            {simulating ? "Simulando…" : `Simular ${PHASE_NAMES[nextRound] ?? `rodada ${nextRound}`}`}
+            {simulating
+              ? "Simulando…"
+              : playerMatch
+                ? `Preparar ${PHASE_NAMES[nextRound] ?? `rodada ${nextRound}`}`
+                : `Simular ${PHASE_NAMES[nextRound] ?? `rodada ${nextRound}`}`}
           </Button>
         ) : null}
       </CardContent>
