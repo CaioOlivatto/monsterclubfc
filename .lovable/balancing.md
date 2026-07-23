@@ -322,11 +322,34 @@ Gastos:
 - 1 evolução de construção: ~$600.000–900.000
 - Sobra para mercado: ~$2.000.000+ → 1 criatura ~3★ por temporada
 
+## Fadiga v3 — desgaste por evento (substitui v2)
+
+A v2 desgastava ~36 pontos por partida (0,4/min). A v3 troca isso por eventos discretos.
+
+**Desgaste ao fim da partida (só para quem jogou — titular ou reserva que entrou):**
+- Vitória: −3 · Empate: −4 · Derrota: −5
+- Ajuste por pressão: alta −2 extra · média 0 · baixa poupa 1
+
+**Cartões (cumulativo, no momento do evento):**
+- Amarelo: −5 · Vermelho: −10 (2º amarelo soma os dois = −15)
+
+**Lesão (único, no momento em que ocorre — além da indisponibilidade):**
+- Leve/1 partida: −4
+- Moderada/2: −7 · Moderada/3: −15
+- Grave/4: −20 · Grave/5: −25
+
+**Recuperação entre partidas:**
+- Jogou: +2 · Não jogou (banco não usado ou lesionado): +6
+
+**Piso 30, teto 100.** Multiplicador de Overall efetivo **não mudou**:
+- energia ≥70 → 1,00; senão 0,50 + 0,50 × (e−30)/40.
+
+Sanity: sem revezar 26 rodadas seguidas, energia estabiliza em ~45-50%. Revezando a cada 3 rodadas, mantém ~98%. Amistoso continua sem efeito nenhum de energia.
+
 ## FASE 2 / Pendências
 
 - Migrar §2 para `Economia-Por-Partida.md` (salário/partida, TV, patrocínios, merchandising, manutenção).
 - `mod_elemento` variável no mercado.
 - Ocupação de público refinada por fama.
-- Penalidade de overall por energia baixa.
 - Preço de ingresso ajustável pelo jogador.
 - Playtest de 5 temporadas para calibragem final.
