@@ -540,13 +540,13 @@ function LineupPage() {
             {slots.map((s) => {
               const current = starters.find((x) => x.slot === s.index)?.creature_id ?? null;
               const options = availableFor(current);
-              const currentCreature = current ? creatures.find((x) => x.id === current) : null;
+              const currentCreature = current ? allCreatures.find((x: any) => x.id === current) : null;
               const currFs = currentCreature ? fatigueState(currentCreature.energy ?? 100) : null;
               const currMult = currentCreature ? energyMultiplier(currentCreature.energy ?? 100) : 1;
               const currEff = currentCreature ? effectiveOverall(currentCreature.overall ?? 0, currentCreature.energy ?? 100, currentCreature.morale) : 0;
               const warn = currFs === "muito_cansado" || currFs === "exausto";
 
-              // Só criaturas da posição natural correspondente ao slot.
+              // Só criaturas da posição natural correspondente ao slot (inclusive lesionadas/em uso).
               const inPos = options
                 .filter((c: any) => naturalRoleOf(c.suggested_position) === s.role)
                 .sort(sortByEff);
@@ -554,16 +554,31 @@ function LineupPage() {
               const renderItem = (c: any) => {
                 const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100, c.morale);
                 const ms = moraleState(c.morale);
+                const isInjured = (c.injury_matches_remaining ?? 0) > 0;
+                const usedElsewhere = !isInjured && c.id !== current && usedIds.has(c.id);
+                const disabled = isInjured || usedElsewhere;
+                const nameClass =
+                  (isInjured ? "line-through " : "") + (disabled ? "opacity-60" : "font-medium");
                 return (
-                  <SelectItem key={c.id} value={c.id}>
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className="font-medium">{c.name}</span>
-                      <span className="text-muted-foreground">
+                  <SelectItem key={c.id} value={c.id} disabled={disabled}>
+                    <span className="inline-flex items-center gap-1.5 flex-wrap">
+                      <span className={nameClass}>{c.name}</span>
+                      <span className={"text-muted-foreground" + (disabled ? " opacity-70" : "")}>
                         · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}{eff !== c.overall ? `→${eff}` : ""}
                       </span>
                       <StarRating value={overallToStars(c.overall ?? 0)} size={0.75} />
                       <span title={`Moral: ${MORALE_LABEL[ms]}`}>{MORALE_EMOJI[ms]}</span>
                       <span className="text-muted-foreground">· {c.energy ?? 100}%</span>
+                      {isInjured && (
+                        <span className="rounded border border-red-500/60 bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-300">
+                          Lesionada · {c.injury_matches_remaining} {c.injury_matches_remaining === 1 ? "partida" : "partidas"}
+                        </span>
+                      )}
+                      {usedElsewhere && (
+                        <span className="rounded border border-amber-500/60 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
+                          Já escalado em {usedLabelById.get(c.id)}
+                        </span>
+                      )}
                     </span>
                   </SelectItem>
                 );
