@@ -413,7 +413,7 @@ export const simulateWorldLeagueRound = createServerFn({ method: "POST" })
 
     // Identifica time do jogador nesta competição
     const { data: playerRow } = await supabase
-      .from("teams").select("id").eq("trainer_id", trainer.id).eq("is_player", true).maybeSingle();
+      .from("teams").select("id").eq("trainer_id", trainer.id).eq("is_player", true).not("division", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
     const playerTeamId = playerRow?.id as string | undefined;
 
     const teamIds = Array.from(new Set(roundMatches.flatMap((m: any) => [m.home_team_id, m.away_team_id])));
@@ -686,7 +686,7 @@ export const simulateWorldCupRound = createServerFn({ method: "POST" })
     const roundMatches = (pending as any[]).filter((m: any) => m.round === nextRound);
 
     const { data: playerRow } = await supabase
-      .from("teams").select("id").eq("trainer_id", trainer.id).eq("is_player", true).maybeSingle();
+      .from("teams").select("id").eq("trainer_id", trainer.id).eq("is_player", true).not("division", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
     const playerTeamId = playerRow?.id as string | undefined;
 
     const teamIds = Array.from(new Set(roundMatches.flatMap((m: any) => [m.home_team_id, m.away_team_id])));
