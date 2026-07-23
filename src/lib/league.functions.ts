@@ -498,27 +498,19 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         txs.push({ trainer_id: trainer.id, transaction_type: "expense", category: "manutencao",
           amount: maintenance, description: `${roundTag} — Manutenção de infraestrutura` });
       }
-      await supabase.from("financial_transactions").insert(txs);
-
       financeSummary = {
         outcome,
         division,
         round: next.round,
         is_home: isHome,
-        income: {
-          match_prize: matchPrize,
-          tv: rev.tv,
-          sponsor: rev.sponsor,
-          merch: rev.merch,
-          gate,
-        },
-        expense: {
-          salaries,
-          maintenance,
-        },
+        income: { match_prize: matchPrize, tv: rev.tv, sponsor: rev.sponsor, merch: rev.merch, gate },
+        expense: { salaries, maintenance },
         totals: { income: totalIncome, expense: totalExpense, net },
       };
-      await supabase.from("matches").update({ finance_summary: financeSummary }).eq("id", next.id);
+      await Promise.all([
+        supabase.from("financial_transactions").insert(txs),
+        supabase.from("matches").update({ finance_summary: financeSummary }).eq("id", next.id),
+      ]);
     } catch (e) {
       console.error("payoff error", e);
     }
