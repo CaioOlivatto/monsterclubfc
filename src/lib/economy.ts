@@ -33,16 +33,44 @@ export const MATCH_REVENUE: Record<Division, { tv: number; sponsor: number; merc
   lendaria: { tv: 160_000, sponsor: 168_000, merch: 70_000 },
 };
 
-/** Manutenção por partida por nível (índice = nível, 0 = não construído). */
-export const MAINTENANCE_PER_MATCH: Record<
-  "ct_treino" | "ct_elemental" | "estadio" | "centro_medico",
-  number[]
-> = {
-  estadio:       [0, 2_000, 4_500, 9_000, 16_000, 27_000],
-  ct_treino:     [0, 1_000, 2_200, 4_500,  9_000, 16_000],
-  ct_elemental:  [0, 1_000, 2_200, 4_500,  9_000, 16_000],
-  centro_medico: [0,   800, 1_800, 3_600,  6_500, 12_000],
+/** Manutenção por partida — base (nível 1) por divisão. Escala +40% por nível.
+ *  Spec Economia-Por-Partida: derrota fora deve ser sempre risco financeiro. */
+const MAINTENANCE_BASE: Record<Division, { estadio: number; ct: number; centro_medico: number }> = {
+  bronze:   { estadio:  18_000, ct:   9_000, centro_medico:   6_000 },
+  prata:    { estadio:  45_000, ct:  22_000, centro_medico:  15_000 },
+  ouro:     { estadio: 105_000, ct:  52_000, centro_medico:  35_000 },
+  diamante: { estadio: 220_000, ct: 110_000, centro_medico:  73_000 },
+  lendaria: { estadio: 420_000, ct: 210_000, centro_medico: 139_000 },
 };
+
+/** Manutenção por partida de um prédio (0 se não construído). Escala +40% por nível acima do 1. */
+export function maintenancePerMatch(
+  division: Division,
+  buildingType: string,
+  level: number,
+): number {
+  if (!level || level < 1) return 0;
+  const base = MAINTENANCE_BASE[division] ?? MAINTENANCE_BASE.bronze;
+  const key =
+    buildingType === "estadio" ? "estadio" as const
+    : buildingType === "centro_medico" ? "centro_medico" as const
+    : (buildingType === "ct_treino" || buildingType === "ct_elemental") ? "ct" as const
+    : null;
+  if (!key) return 0;
+  const scale = Math.pow(1.4, level - 1);
+  return Math.round(base[key] * scale);
+}
+
+/** Soma a manutenção por partida do conjunto de prédios do treinador. */
+export function totalMaintenancePerMatch(
+  division: Division,
+  buildings: Array<{ building_type: string; level: number }>,
+): number {
+  return (buildings ?? []).reduce(
+    (sum, b) => sum + maintenancePerMatch(division, b.building_type, b.level ?? 0),
+    0,
+  );
+}
 
 /** Limite de contratação (banda de meia-estrela máxima) — Balanceamento §8.1. */
 export const DIVISION_MAX_BAND: Record<Division, number> = {

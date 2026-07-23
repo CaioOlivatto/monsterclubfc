@@ -13,7 +13,7 @@ import { stadiumCapacity } from "./buildings.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { awardTrainerXp, resetSeasonBreakdown } from "./trainer-xp.server";
-import { MATCH_REVENUE, MAINTENANCE_PER_MATCH, matchSalary } from "./economy";
+import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, type Division as EconDivision } from "./economy";
 import { loadBestiary } from "./bestiary.server";
 import { applySeasonOutcome } from "./career-transition.server";
 
@@ -458,12 +458,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         }
 
         const salaries = (roster ?? []).reduce((a: number, c: any) => a + matchSalary(c.overall ?? 40), 0);
-        const maintenance = (bldgs ?? []).reduce((sum: number, b: any) => {
-          const table = (MAINTENANCE_PER_MATCH as any)[b.building_type] as number[] | undefined;
-          if (!table) return sum;
-          const lvl = Math.min(Math.max(b.level ?? 0, 0), table.length - 1);
-          return sum + (table[lvl] ?? 0);
-        }, 0);
+        const maintenance = totalMaintenancePerMatch(division as EconDivision, bldgs ?? []);
 
         const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch + gate;
         const totalExpense = salaries + maintenance;
