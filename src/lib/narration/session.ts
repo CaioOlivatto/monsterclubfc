@@ -90,6 +90,20 @@ export class NarrationSession {
     return chosen;
   }
 
+  /** Escolhe apenas a frase de desfecho, para lances secundários que
+   *  aparecem no painel sem pausa dramática. Mantém banco/anti-repetição. */
+  buildSingleOutcome(outcome: Outcome, meta: PlayMeta): string {
+    let pool: Phrase[];
+    if (outcome === "goal") pool = OUTCOME_GOAL;
+    else if (outcome === "save") pool = OUTCOME_SAVE;
+    else if (outcome === "miss") pool = OUTCOME_MISS;
+    else pool = OUTCOME_BLOCK;
+    const chosen = this.pickFresh(pool);
+    return fill(chosen.text, meta);
+  }
+
+
+
   buildPlay(outcome: Outcome, meta: PlayMeta, minute: number): NarrationParts {
     // Opening: 40% elemento se houver
     let opening: Phrase;

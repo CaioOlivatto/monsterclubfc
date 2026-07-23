@@ -40,11 +40,12 @@ function teamColor(id: string | undefined | null): string {
 
 interface PendingPlay {
   minute: number;
-  outcome: Outcome;
+  outcome: Outcome | "red_card";
   meta: PlayMeta;
   teamColor: string;
   raw: any;
 }
+
 
 function MatchPage() {
   const { id } = Route.useParams();
@@ -117,29 +118,70 @@ function MatchPage() {
     for (const ev of events) {
       processedRef.current.add(indexKey(ev));
       const meta = ev.meta as PlayMeta | null | undefined;
-      const isDanger =
-        (ev.event_type === "goal" || ev.event_type === "shot_saved") && !!meta?.is_danger;
 
-      if (isDanger) {
-        const outcome = (meta?.outcome ?? (ev.event_type === "goal" ? "goal" : "save")) as Outcome;
+      // Só GOL pausa com revelação completa em 3 tempos.
+      // CARTÃO VERMELHO recebe pausa breve (só o desfecho).
+      if (ev.event_type === "goal") {
         setPending({
           minute: ev.minute,
-          outcome,
+          outcome: "goal",
           meta: meta ?? {},
           teamColor: teamColor(ev.actor_team_id),
           raw: ev,
         });
-        return; // pausa aqui — o restante do minuto processa após o banner
+        return;
       }
-      // Eventos secundários vão direto para o painel
-      setRevealed((r) => [...r, buildRevealed(ev, homeId)]);
+      if (ev.event_type === "red_card") {
+        setPending({
+          minute: ev.minute,
+          outcome: "red_card" as any,
+          meta: meta ?? {},
+          teamColor: teamColor(ev.actor_team_id),
+          raw: ev,
+        });
+        return;
+      }
+
+      // Lances secundários (chance perdida, defesa, corte, amarelo, sub, lesão):
+      // aparecem como uma única linha no painel, sem pausar o relógio.
+      const isDanger =
+        (ev.event_type === "shot_saved" || ev.event_type === "shot_missed" ||
+          ev.event_type === "shot_blocked") && !!meta?.is_danger;
+      let narration: string | undefined;
+      if (isDanger && meta) {
+        const outcome = (meta.outcome ??
+          (ev.event_type === "shot_saved"
+            ? "save"
+            : ev.event_type === "shot_missed"
+              ? "miss"
+              : "block")) as Outcome;
+        narration = capFirst(narrRef.current.buildSingleOutcome(outcome, meta));
+      }
+      setRevealed((r) => [
+        ...r,
+        { ...buildRevealed(ev, homeId), narration: narration ?? ev.description ?? undefined },
+      ]);
     }
+
   }, [minute, data, pending, homeId]);
 
   function handleBannerFinished() {
     if (!pending) return;
     const p = pending;
-    const parts = narrRef.current.buildPlay(p.outcome, p.meta, p.minute);
+
+    // Cartão vermelho: pausa breve, sem contar gols nem reação.
+    if ((p.outcome as any) === "red_card") {
+      const line = capFirst(
+        p.meta?.attacker
+          ? `${p.meta.attacker} está expulso! Vermelho direto!`
+          : "Vermelho direto! Que expulsão!",
+      );
+      setRevealed((r) => [...r, { ...buildRevealed(p.raw, homeId), narration: line }]);
+      setPending(null);
+      return;
+    }
+
+    const parts = narrRef.current.buildPlay(p.outcome as Outcome, p.meta, p.minute);
     const playerTeamId = (data as any)?.player_team_id ?? homeId;
     const isPlayerHome = playerTeamId === homeId;
     const currentHome = revealed.filter(
@@ -182,6 +224,7 @@ function MatchPage() {
     setPending(null);
   }
 
+
   const homeGoals = revealed.filter(
     (e) => e.event_type === "goal" && e.raw_team_id === homeId,
   ).length;
@@ -192,7 +235,22 @@ function MatchPage() {
   // Constrói NarrationParts sob demanda para o banner ativo (hook antes de qualquer return)
   const bannerParts = useMemo(() => {
     if (!pending) return null;
-    return narrRef.current.buildPlay(pending.outcome, pending.meta, pending.minute);
+    if ((pending.outcome as any) === "red_card") {
+      const line = capFirst(
+        pending.meta?.attacker
+          ? `${pending.meta.attacker} está expulso! Vermelho direto!`
+          : "Vermelho direto! Que expulsão!",
+      );
+      return {
+        p1: "",
+        p2: "",
+        p3: line,
+        is_golaco: false,
+        fast_beat: false,
+        callbacks: [],
+      };
+    }
+    return narrRef.current.buildPlay(pending.outcome as Outcome, pending.meta, pending.minute);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending?.minute, pending?.raw?.actor_creature_id]);
 
@@ -213,10 +271,12 @@ function MatchPage() {
         <PlayBanner
           parts={bannerParts}
           teamColor={pending.teamColor}
-          outcome={pending.outcome}
+          outcome={pending.outcome as any}
           elementalAdvantage={pending.meta.elemental_advantage}
+          brief={(pending.outcome as any) === "red_card"}
           onFinished={handleBannerFinished}
         />
+
       )}
 
       <header className="border-b bg-card">
