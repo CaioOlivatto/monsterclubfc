@@ -1,13 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
-import { getMatch, payMatchSpeed } from "@/lib/match.functions";
+import { getMatch } from "@/lib/match.functions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Play, Pause, FastForward, SkipForward, Gem } from "lucide-react";
+import { ArrowLeft, Play, Pause, FastForward, SkipForward } from "lucide-react";
 import { PlayBanner } from "@/components/match/PlayBanner";
 import { EventsPanel, type RevealedEvent } from "@/components/match/EventsPanel";
 import { NarrationSession, type Outcome, type PlayMeta } from "@/lib/narration/session";
@@ -51,35 +50,16 @@ function MatchPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const fetchMatch = useServerFn(getMatch);
-  const payFn = useServerFn(payMatchSpeed);
-  const qc = useQueryClient();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["match", id],
     queryFn: () => fetchMatch({ data: { id } }),
   });
 
-  const paid4x = !!(data as any)?.speed?.paid_4x;
-  const paidInstant = !!(data as any)?.speed?.paid_instant;
-  const cost4x: number = (data as any)?.speed?.cost_4x ?? 300;
-  const costInstant: number = (data as any)?.speed?.cost_instant ?? 800;
-
-  const payMut = useMutation({
-    mutationFn: (mode: "4x" | "instant") => payFn({ data: { mode } }),
-    onSuccess: (_res, mode) => {
-      toast.success(
-        mode === "4x"
-          ? "Velocidade 4x desbloqueada para sempre!"
-          : "Velocidade instantânea desbloqueada para sempre!",
-      );
-      qc.invalidateQueries({ queryKey: ["match", id] });
-    },
-    onError: (e: any) => toast.error(e?.message ?? "Falha no pagamento"),
-  });
 
   const [minute, setMinute] = useState(0);
   const [playing, setPlaying] = useState(true);
-  const [speed, setSpeed] = useState<Speed>(1);
+  const [speed, setSpeed] = useState<Speed>(2);
   const [revealed, setRevealed] = useState<RevealedEvent[]>([]);
   const [pending, setPending] = useState<PendingPlay | null>(null);
   const timerRef = useRef<number | null>(null);
@@ -111,7 +91,7 @@ function MatchPage() {
       setPlaying(false);
       return;
     }
-    const stepMs = 900 / speed;
+    const stepMs = 500 / speed;
     timerRef.current = window.setInterval(() => {
       setMinute((m) => {
         if (m >= 90) {
@@ -311,38 +291,19 @@ function MatchPage() {
               <Button
                 size="sm"
                 variant={speed === 4 ? "default" : "outline"}
-                onClick={() => {
-                  if (paid4x) setSpeed(4);
-                  else payMut.mutate("4x", { onSuccess: () => setSpeed(4) });
-                }}
-                disabled={payMut.isPending}
+                onClick={() => setSpeed(4)}
               >
                 <FastForward className="mr-1 h-3 w-3" /> 4x
-                {!paid4x && (
-                  <span className="ml-1 flex items-center text-[10px] text-primary">
-                    <Gem className="h-3 w-3" /> {cost4x}
-                  </span>
-                )}
               </Button>
               <Button
                 size="sm"
                 variant={speed === 0 ? "default" : "outline"}
                 onClick={() => {
-                  const go = () => {
-                    setSpeed(0);
-                    setPlaying(true);
-                  };
-                  if (paidInstant) go();
-                  else payMut.mutate("instant", { onSuccess: go });
+                  setSpeed(0);
+                  setPlaying(true);
                 }}
-                disabled={payMut.isPending}
               >
                 <SkipForward className="mr-1 h-3 w-3" /> Instantâneo
-                {!paidInstant && (
-                  <span className="ml-1 flex items-center text-[10px] text-primary">
-                    <Gem className="h-3 w-3" /> {costInstant}
-                  </span>
-                )}
               </Button>
               <TacticsSheet />
             </div>

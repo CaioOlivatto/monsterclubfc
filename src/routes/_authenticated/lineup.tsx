@@ -118,16 +118,27 @@ function LineupPage() {
     formation, strategy, starters, bench,
   }), [formation, strategy, starters, bench]);
 
+  // Debounce: só refaz o prognóstico 600ms depois da última mudança,
+  // evitando disparar 400 simulações a cada clique/keystroke.
+  const [debouncedDraft, setDebouncedDraft] = useState(draft);
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedDraft(draft), 600);
+    return () => window.clearTimeout(t);
+  }, [draft]);
+
+  // Chave estável: string do draft evita mismatch de referência causando refetch.
+  const draftKey = useMemo(() => JSON.stringify(debouncedDraft), [debouncedDraft]);
+
   const prog = useQuery({
-    queryKey: ["prognostic", draft],
-    queryFn: () => fetchProg({ data: { draft } }),
+    queryKey: ["prognostic", draftKey],
+    queryFn: () => fetchProg({ data: { draft: debouncedDraft } }),
     retry: false,
     // Desabilita durante a confirmação para não competir com a criação da partida.
     enabled:
       !!data &&
       starters.filter((s) => s.creature_id).length === 11 &&
       !isConfirming,
-    staleTime: 30_000,
+    staleTime: 60_000,
   });
 
   const slots = useMemo(() => buildSlots(formation), [formation]);
