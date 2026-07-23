@@ -156,6 +156,20 @@ Antes desta correção, `CUP_PHASE_BONUS` estava com valores 3–4% da spec ($20
 
 Teto de folha §8.2 fica com margem (21–27%) sobre o alvo de 35% quando o estádio está maxed. Alinha-se aos 35% assumindo estádio Nv1 baseline; upgrade do estádio vira alavanca de receita, não pressuposto.
 
+### 2.8 Sanity check dinâmico — Prata baseline (moral evoluindo, 300 seeds)
+Temporada Prata (13V/5E/8D), Estádio Nv1 (8k), CT Nv1, Centro Médico Nv1, overall médio 55-65, moral atualizada rodada a rodada por `xp.server.ts` (penalidade de banco graduada `-6/-3/-1` por rank de overall, spec Sistema-Moral.md):
+
+| Elenco | Saldo médio | Mediana | P10/P90 | Moral média |
+|---|---|---|---|---|
+| 18 (enxuto) | $726k | $733k | $631k / $811k | 57 |
+| 22 (médio) | $493k | $499k | $405k / $586k | 53 |
+| 26 (starter completo) | $303k | $307k | $204k / $404k | 50 |
+
+Referência ex-ante com moral estável ~70: ~$911k. A diferença vem do custo real da moral partindo de 50 e estabilizando em 50-57 ao longo de 26 rodadas. Economia é positiva em todos os tamanhos; profundidade tem custo gradual, não penhasco.
+
+**Correção histórica:** `xp.server.ts` aplicava `outOfSquad = -7` fixo a quem não estava no matchday de 18, ignorando o rank. Divergia da spec Sistema-Moral.md. Corrigido para usar `benchPenaltyByRank` (`-6/-3/-1`) também para excedentes. Sem a correção, elenco de 26 zerava (saldo médio $40k, moral caindo a 38) — 4ª ocorrência nesta sessão de constante implementada em paralelo à spec.
+
+
 
 ## 3. Gemas
 
