@@ -681,11 +681,14 @@ export type Database = {
           is_friendly: boolean
           is_live: boolean
           is_summary: boolean
+          leg: number | null
+          phase: string | null
           played_at: string | null
           round: number | null
           speed_paid: Json
           status: Database["public"]["Enums"]["match_status"]
           tactics_history: Json | null
+          tie_group: string | null
         }
         Insert: {
           away_score?: number | null
@@ -701,11 +704,14 @@ export type Database = {
           is_friendly?: boolean
           is_live?: boolean
           is_summary?: boolean
+          leg?: number | null
+          phase?: string | null
           played_at?: string | null
           round?: number | null
           speed_paid?: Json
           status?: Database["public"]["Enums"]["match_status"]
           tactics_history?: Json | null
+          tie_group?: string | null
         }
         Update: {
           away_score?: number | null
@@ -721,11 +727,14 @@ export type Database = {
           is_friendly?: boolean
           is_live?: boolean
           is_summary?: boolean
+          leg?: number | null
+          phase?: string | null
           played_at?: string | null
           round?: number | null
           speed_paid?: Json
           status?: Database["public"]["Enums"]["match_status"]
           tactics_history?: Json | null
+          tie_group?: string | null
         }
         Relationships: [
           {
@@ -809,6 +818,44 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      qualifications: {
+        Row: {
+          created_at: string
+          id: string
+          qualifies_for: string
+          season_number: number
+          source_division: Database["public"]["Enums"]["division_type"]
+          source_position: number
+          trainer_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          qualifies_for: string
+          season_number: number
+          source_division: Database["public"]["Enums"]["division_type"]
+          source_position: number
+          trainer_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          qualifies_for?: string
+          season_number?: number
+          source_division?: Database["public"]["Enums"]["division_type"]
+          source_position?: number
+          trainer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qualifications_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "trainers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       species: {
         Row: {
