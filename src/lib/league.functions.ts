@@ -509,6 +509,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       } catch (e) {
         console.error("[playNextLeagueMatch] payoff error", e);
       }
+      substamp("payoff");
     })();
 
     // Bloco 4: XP + mensagem de resultado
