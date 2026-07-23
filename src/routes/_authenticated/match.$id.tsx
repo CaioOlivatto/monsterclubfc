@@ -50,16 +50,12 @@ function MatchPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const fetchMatch = useServerFn(getMatch);
-  const payFn = useServerFn(payMatchSpeed);
-  const qc = useQueryClient();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["match", id],
     queryFn: () => fetchMatch({ data: { id } }),
   });
 
-  // Velocidade agora é livre — mantido payMatchSpeed apenas por compat (não usado na UI).
-  void payMatchSpeed; void useMutation; void toast; void qc;
 
   const [minute, setMinute] = useState(0);
   const [playing, setPlaying] = useState(true);
