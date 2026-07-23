@@ -79,7 +79,7 @@ function MatchPage() {
 
   const [minute, setMinute] = useState(0);
   const [playing, setPlaying] = useState(true);
-  const [speed, setSpeed] = useState<Speed>(1);
+  const [speed, setSpeed] = useState<Speed>(2);
   const [revealed, setRevealed] = useState<RevealedEvent[]>([]);
   const [pending, setPending] = useState<PendingPlay | null>(null);
   const timerRef = useRef<number | null>(null);
