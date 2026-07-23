@@ -24,6 +24,9 @@ export function matchSalary(overall: number): number {
   return Math.round(seasonSalary(overall) / MATCHES_PER_SEASON);
 }
 
+/** Bônus fixo de vitória fora de casa (§Economia-Por-Partida). */
+export const AWAY_WIN_BONUS = 25_000;
+
 /** Receita passiva por partida, por divisão (TV, Patrocínio, Merchandising). */
 export const MATCH_REVENUE: Record<Division, { tv: number; sponsor: number; merch: number }> = {
   bronze:   { tv:   8_000, sponsor:   9_000, merch:  4_000 },
