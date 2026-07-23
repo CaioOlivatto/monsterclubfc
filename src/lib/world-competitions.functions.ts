@@ -112,6 +112,7 @@ async function simulatePlayerMatch(
   matchRow: { id: string; home_team_id: string; away_team_id: string },
   playerTeamId: string,
   bestiary: EngineBestiary,
+  ctx: { competition: "world_league" | "world_cup"; round: number; isGroupPhase: boolean; division: string },
 ): Promise<{ home_score: number; away_score: number }> {
   const { data: teams } = await supabase
     .from("teams")
@@ -120,9 +121,12 @@ async function simulatePlayerMatch(
   const home = teams!.find((t: any) => t.id === matchRow.home_team_id) as any;
   const away = teams!.find((t: any) => t.id === matchRow.away_team_id) as any;
 
+  let playerSide: EngineSide | null = null;
   const buildSide = async (t: any) => {
     if (t.id === playerTeamId) {
-      return await buildPlayerSideFromDb(supabase, trainerId, t.id, t.name);
+      const s = await buildPlayerSideFromDb(supabase, trainerId, t.id, t.name);
+      playerSide = s;
+      return s;
     }
     return generateCpuSideFor(hashSeed(t.id), t.id, t.name, t.cpu_strength ?? 45, bestiary);
   };
@@ -151,8 +155,109 @@ async function simulatePlayerMatch(
   }));
   if (ev.length) await supabase.from("match_events").insert(ev);
 
+  // ---------- Pós-partida: XP + finanças (equivalente ao Campeonato) ----------
+  try {
+    const isHome = playerTeamId === home.id;
+    const playerGf = isHome ? result.home_score : result.away_score;
+    const playerGa = isHome ? result.away_score : result.home_score;
+    const outcome: "W" | "D" | "L" =
+      playerGf > playerGa ? "W" : playerGf < playerGa ? "L" : "D";
+
+    if (playerSide) {
+      const side = playerSide as EngineSide;
+      const starterIds = side.starters.map((s) => s.creature.id);
+      const enteredReserveIds = result.used_bench_ids.filter((id: string) =>
+        side.bench.some((b) => b.creature.id === id),
+      );
+      const unusedReserveIds = side.bench
+        .map((b) => b.creature.id)
+        .filter((id) => !enteredReserveIds.includes(id));
+      await applyPostMatchXp(supabase, trainerId, {
+        starterIds,
+        enteredReserveIds,
+        unusedReserveIds,
+        outcome,
+        energy_loss: result.energy_loss,
+        goalsByCreature: result.goals_by_creature,
+        injuries: result.injuries.filter((i) => i.team_id === playerTeamId),
+        isOfficial: true,
+      });
+    }
+
+    // Prêmio por partida — mundial
+    const prizeTable =
+      ctx.competition === "world_league"
+        ? (ctx.isGroupPhase ? WORLD_LEAGUE_GROUP_PRIZE : WORLD_LEAGUE_KO_PRIZE)
+        : WORLD_CUP_KO_PRIZE;
+    const matchPrize = outcome === "W" ? prizeTable[0] : outcome === "D" ? prizeTable[1] : prizeTable[2];
+
+    // Receitas passivas por divisão do jogador (mesma tabela do Campeonato)
+    const div = (ctx.division as EconDivision) ?? "bronze";
+    const rev = MATCH_REVENUE[div] ?? MATCH_REVENUE.bronze;
+
+    // Salários e manutenção (idem Campeonato)
+    const { data: roster } = await supabase
+      .from("creatures").select("overall").eq("owner_trainer_id", trainerId);
+    const salaries = (roster ?? []).reduce((a: number, c: any) => a + matchSalary(c.overall ?? 40), 0);
+    const { data: bldgs } = await supabase
+      .from("buildings").select("building_type, level").eq("trainer_id", trainerId);
+    const maintenance = (bldgs ?? []).reduce((sum: number, b: any) => {
+      const table = (MAINTENANCE_PER_MATCH as any)[b.building_type] as number[] | undefined;
+      if (!table) return sum;
+      const lvl = Math.min(Math.max(b.level ?? 0, 0), table.length - 1);
+      return sum + (table[lvl] ?? 0);
+    }, 0);
+
+    const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch;
+    const totalExpense = salaries + maintenance;
+    const net = totalIncome - totalExpense;
+
+    const { data: acad } = await supabase
+      .from("academies").select("money").eq("trainer_id", trainerId).maybeSingle();
+    await supabase.from("academies")
+      .update({ money: (acad?.money ?? 0) + net }).eq("trainer_id", trainerId);
+
+    const compLabel = ctx.competition === "world_league" ? "Liga Mundial" : "Copa Mundial";
+    const roundTag = `${compLabel} R${ctx.round}`;
+    const label = outcome === "W" ? "vitória" : outcome === "D" ? "empate" : "derrota";
+    const txs: any[] = [
+      { trainer_id: trainerId, transaction_type: "income", category: "premio_partida",
+        amount: matchPrize, description: `${roundTag} — premiação por ${label}` },
+      { trainer_id: trainerId, transaction_type: "income", category: "tv",
+        amount: rev.tv, description: `${roundTag} — Direitos de TV` },
+      { trainer_id: trainerId, transaction_type: "income", category: "patrocinio",
+        amount: rev.sponsor, description: `${roundTag} — Patrocínio` },
+      { trainer_id: trainerId, transaction_type: "income", category: "merch",
+        amount: rev.merch, description: `${roundTag} — Merchandising` },
+    ];
+    if (salaries > 0) txs.push({ trainer_id: trainerId, transaction_type: "expense",
+      category: "salarios", amount: salaries, description: `${roundTag} — Salários` });
+    if (maintenance > 0) txs.push({ trainer_id: trainerId, transaction_type: "expense",
+      category: "manutencao", amount: maintenance, description: `${roundTag} — Manutenção` });
+    await supabase.from("financial_transactions").insert(txs);
+
+    const financeSummary = {
+      outcome, division: div, round: ctx.round, is_home: isHome,
+      competition: ctx.competition,
+      income: { match_prize: matchPrize, tv: rev.tv, sponsor: rev.sponsor, merch: rev.merch, gate: 0 },
+      expense: { salaries, maintenance },
+      totals: { income: totalIncome, expense: totalExpense, net },
+    };
+    await supabase.from("matches").update({ finance_summary: financeSummary }).eq("id", matchRow.id);
+
+    const oppName = isHome ? away.name : home.name;
+    await insertMessage(
+      supabase, trainerId, "match",
+      `${compLabel} R${ctx.round}: ${outcome === "W" ? "Vitória" : outcome === "D" ? "Empate" : "Derrota"} vs ${oppName}`,
+      `${isHome ? home.name : away.name} ${playerGf} x ${playerGa} ${isHome ? away.name : home.name} — clima: ${result.weather}.`,
+    );
+  } catch (e) {
+    console.error("[world] post-match XP/finance error", e);
+  }
+
   return { home_score: result.home_score, away_score: result.away_score };
 }
+
 
 async function simulateCpuMatch(
   supabase: any,
