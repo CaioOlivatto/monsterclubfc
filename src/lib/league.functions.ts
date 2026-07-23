@@ -288,6 +288,16 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     if (!competition) throw new Error("Nenhuma liga em andamento.");
     stamp("competition");
 
+    // RETRY-ON-ENTRY: se alguma rodada anterior (qualquer competição da temporada) tem
+    // partidas ainda `scheduled`, é porque advanceLeagueRoundBackground falhou antes.
+    // Recupera aqui antes de seguir. Idempotente pelo filtro status='scheduled'.
+    try {
+      await recoverStaleRounds(supabase, trainer.id, competition.season_id, competition.id);
+      stamp("recover stale");
+    } catch (e) {
+      console.error("[playNextLeagueMatch] ERRO na recuperação de rodadas anteriores:", e);
+    }
+
     const { data: next } = await supabase
       .from("matches")
       .select("id, round, home_team_id, away_team_id")
@@ -326,7 +336,9 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     stamp("simulate");
 
 
-    const { error: uErr } = await supabase
+    // IDEMPOTÊNCIA: só marca como finished se ainda estiver scheduled. Se outra chamada
+    // concorrente já assumiu essa partida, abortamos aqui e não duplicamos XP/finanças.
+    const { data: claimed, error: uErr } = await supabase
       .from("matches")
       .update({
         home_score: result.home_score,
@@ -335,8 +347,14 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         clima: result.weather,
         played_at: new Date().toISOString(),
       })
-      .eq("id", next.id);
+      .eq("id", next.id)
+      .eq("status", "scheduled")
+      .select("id");
     if (uErr) throw uErr;
+    if (!claimed || claimed.length === 0) {
+      throw new Error("Esta partida já foi iniciada em outra aba. Recarregue a página.");
+    }
+
 
     const eventsToInsert = persistableSimulationEvents(result).map((e) => ({
       match_id: next.id,
@@ -690,11 +708,79 @@ export const advanceLeagueRoundBackground = createServerFn({ method: "POST" })
       );
       stamp("other divisions advanced");
     } catch (e) {
-      console.error("world advance error", e);
+      console.error(`[advanceLeagueRoundBackground] ERRO ao avançar outras divisões (comp=${competition_id}, round=${round}):`, e);
+      return { ok: false, reason: "other_divisions_failed", error: String((e as any)?.message ?? e) };
     }
 
     return { ok: true };
   });
+
+/**
+ * Recupera rodadas cujos backgrounds falharam anteriormente.
+ * Para cada competição da temporada com partidas ainda `scheduled` em rounds < próximo
+ * round do jogador, roda uma simulação rápida (fastPoisson) para fechá-las e atualizar
+ * standings. Idempotente: filtra por status='scheduled'.
+ */
+async function recoverStaleRounds(
+  supabase: any,
+  trainerId: string,
+  seasonId: string | null,
+  playerCompetitionId: string,
+) {
+  if (!seasonId) return;
+  // Próxima rodada pendente do jogador (é a rodada que vamos jogar agora)
+  const { data: nextPlayer } = await supabase
+    .from("matches")
+    .select("round")
+    .eq("competition_id", playerCompetitionId)
+    .eq("status", "scheduled")
+    .order("round", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  const playerNextRound = (nextPlayer?.round as number | undefined) ?? Infinity;
+
+  // Todas as competições ativas da temporada (inclui a do jogador para outras partidas
+  // da MESMA rodada anterior que possam ter ficado presas).
+  const { data: comps } = await supabase
+    .from("competitions")
+    .select("id")
+    .eq("trainer_id", trainerId)
+    .eq("type", "league")
+    .eq("status", "active")
+    .eq("season_id", seasonId);
+  if (!comps?.length) return;
+
+  const compIds = comps.map((c: any) => c.id);
+  // Partidas presas em rodadas ESTRITAMENTE anteriores à próxima do jogador
+  const { data: stale } = await supabase
+    .from("matches")
+    .select("id, competition_id, round, home_team_id, away_team_id")
+    .in("competition_id", compIds)
+    .eq("status", "scheduled")
+    .lt("round", playerNextRound);
+  if (!stale?.length) return;
+
+  console.warn(`[playNextLeagueMatch] RECUPERANDO ${stale.length} partidas de rodadas anteriores`);
+
+  // Agrupa por competição e delega para o mesmo helper de outras divisões
+  const byComp = new Map<string, Map<number, any[]>>();
+  for (const m of stale) {
+    const c = byComp.get(m.competition_id) ?? new Map<number, any[]>();
+    const r = c.get(m.round) ?? [];
+    r.push(m);
+    c.set(m.round, r);
+    byComp.set(m.competition_id, c);
+  }
+  for (const [compId, rounds] of byComp) {
+    for (const round of rounds.keys()) {
+      try {
+        await fastAdvanceCompetitionRound(supabase, compId, round);
+      } catch (e) {
+        console.error(`[recoverStaleRounds] ERRO comp=${compId} round=${round}:`, e);
+      }
+    }
+  }
+}
 
 
 export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
@@ -1053,7 +1139,6 @@ async function advanceOtherDivisionsForRound(
   round: number,
 ) {
   if (!seasonId) return;
-  // Todas as competições ativas da mesma temporada (exceto a do jogador)
   const { data: otherComps } = await supabase
     .from("competitions")
     .select("id, division")
@@ -1063,96 +1148,102 @@ async function advanceOtherDivisionsForRound(
     .eq("season_id", seasonId)
     .neq("id", playerCompetitionId);
   if (!otherComps || !otherComps.length) return;
-
   for (const comp of otherComps) {
-    const { data: matches } = await supabase
-      .from("matches")
-      .select("id, home_team_id, away_team_id")
-      .eq("competition_id", comp.id)
-      .eq("round", round)
-      .eq("status", "scheduled");
-    if (!matches || !matches.length) continue;
+    await fastAdvanceCompetitionRound(supabase, comp.id, round);
+  }
+}
 
-    // Carrega força dos times envolvidos (média overall do elenco)
-    const teamIds = Array.from(new Set(matches.flatMap((m: any) => [m.home_team_id, m.away_team_id])));
-    const { data: cr } = await supabase
-      .from("creatures")
-      .select("owner_team_id, overall")
-      .in("owner_team_id", teamIds);
-    const strength = new Map<string, number>();
-    const totals = new Map<string, { sum: number; n: number }>();
-    for (const c of cr ?? []) {
-      const t = totals.get(c.owner_team_id) ?? { sum: 0, n: 0 };
-      t.sum += c.overall; t.n += 1;
-      totals.set(c.owner_team_id, t);
-    }
-    for (const [id, t] of totals) strength.set(id, t.n ? t.sum / t.n : 45);
+/**
+ * Simulação rápida (fastPoisson) de todas as partidas `scheduled` de uma rodada
+ * específica em uma competição, e atualiza standings.
+ * Idempotente: filtra por status='scheduled'.
+ */
+async function fastAdvanceCompetitionRound(
+  supabase: any,
+  compId: string,
+  round: number,
+) {
+  const { data: matches } = await supabase
+    .from("matches")
+    .select("id, home_team_id, away_team_id")
+    .eq("competition_id", compId)
+    .eq("round", round)
+    .eq("status", "scheduled");
+  if (!matches || !matches.length) return;
 
-    // Standings atuais da competição
-    const { data: standRows } = await supabase
-      .from("standings")
-      .select("team_id, points, wins, draws, losses, goals_for, goals_against")
-      .eq("competition_id", comp.id);
-    const standMap = new Map<string, any>((standRows ?? []).map((r: any) => [r.team_id, r]));
+  const teamIds = Array.from(new Set(matches.flatMap((m: any) => [m.home_team_id, m.away_team_id])));
+  const { data: cr } = await supabase
+    .from("creatures")
+    .select("owner_team_id, overall")
+    .in("owner_team_id", teamIds);
+  const strength = new Map<string, number>();
+  const totals = new Map<string, { sum: number; n: number }>();
+  for (const c of cr ?? []) {
+    const t = totals.get(c.owner_team_id) ?? { sum: 0, n: 0 };
+    t.sum += c.overall; t.n += 1;
+    totals.set(c.owner_team_id, t);
+  }
+  for (const [id, t] of totals) strength.set(id, t.n ? t.sum / t.n : 45);
 
-    const matchUpdates: any[] = [];
-    for (const m of matches) {
-      const hs = strength.get(m.home_team_id) ?? 45;
-      const as = strength.get(m.away_team_id) ?? 45;
-      const rng = mulberry32Local(hashSeed(m.id));
-      // Bônus de mando 5%, lambda base = strength/28
-      const homeLambda = Math.max(0.2, (hs / 28) * 1.05);
-      const awayLambda = Math.max(0.2, as / 28);
-      const hg = fastPoisson(homeLambda, rng);
-      const ag = fastPoisson(awayLambda, rng);
-      matchUpdates.push({
-        id: m.id,
-        home_score: hg,
-        away_score: ag,
-        outcome: hg > ag ? "H" : hg < ag ? "A" : "D",
-      });
-      // Atualiza standings em memória
-      const hRow = standMap.get(m.home_team_id);
-      const aRow = standMap.get(m.away_team_id);
-      if (hRow) {
-        hRow.goals_for += hg; hRow.goals_against += ag;
-        if (hg > ag) { hRow.wins++; hRow.points += 3; }
-        else if (hg < ag) { hRow.losses++; }
-        else { hRow.draws++; hRow.points += 1; }
-      }
-      if (aRow) {
-        aRow.goals_for += ag; aRow.goals_against += hg;
-        if (ag > hg) { aRow.wins++; aRow.points += 3; }
-        else if (ag < hg) { aRow.losses++; }
-        else { aRow.draws++; aRow.points += 1; }
-      }
-    }
+  const { data: standRows } = await supabase
+    .from("standings")
+    .select("team_id, points, wins, draws, losses, goals_for, goals_against")
+    .eq("competition_id", compId);
+  const standMap = new Map<string, any>((standRows ?? []).map((r: any) => [r.team_id, r]));
 
-    // Persiste partidas (uma a uma; volume pequeno: 7 por rodada)
-    for (const u of matchUpdates) {
-      await supabase
+  const matchWrites: any[] = [];
+  for (const m of matches) {
+    const hs = strength.get(m.home_team_id) ?? 45;
+    const as = strength.get(m.away_team_id) ?? 45;
+    const rng = mulberry32Local(hashSeed(m.id));
+    const homeLambda = Math.max(0.2, (hs / 28) * 1.05);
+    const awayLambda = Math.max(0.2, as / 28);
+    const hg = fastPoisson(homeLambda, rng);
+    const ag = fastPoisson(awayLambda, rng);
+    matchWrites.push(
+      supabase
         .from("matches")
         .update({
-          home_score: u.home_score,
-          away_score: u.away_score,
+          home_score: hg,
+          away_score: ag,
           status: "finished",
           is_summary: true,
           played_at: new Date().toISOString(),
         })
-        .eq("id", u.id);
+        .eq("id", m.id)
+        .eq("status", "scheduled"),
+    );
+    const hRow = standMap.get(m.home_team_id);
+    const aRow = standMap.get(m.away_team_id);
+    if (hRow) {
+      hRow.goals_for += hg; hRow.goals_against += ag;
+      if (hg > ag) { hRow.wins++; hRow.points += 3; }
+      else if (hg < ag) { hRow.losses++; }
+      else { hRow.draws++; hRow.points += 1; }
     }
-    // Persiste standings
-    for (const [tid, row] of standMap) {
-      await supabase
+    if (aRow) {
+      aRow.goals_for += ag; aRow.goals_against += hg;
+      if (ag > hg) { aRow.wins++; aRow.points += 3; }
+      else if (ag < hg) { aRow.losses++; }
+      else { aRow.draws++; aRow.points += 1; }
+    }
+  }
+  await Promise.all(matchWrites);
+
+  const standWrites: any[] = [];
+  for (const [tid, row] of standMap) {
+    standWrites.push(
+      supabase
         .from("standings")
         .update({
           points: row.points, wins: row.wins, draws: row.draws, losses: row.losses,
           goals_for: row.goals_for, goals_against: row.goals_against,
         })
-        .eq("competition_id", comp.id)
-        .eq("team_id", tid);
-    }
+        .eq("competition_id", compId)
+        .eq("team_id", tid),
+    );
   }
+  await Promise.all(standWrites);
 }
 
 function mulberry32Local(seed: number) {

@@ -5,8 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { getMyLineup, saveLineup } from "@/lib/lineup.functions";
 import { getLineupPrognostic } from "@/lib/odds.functions";
 import { playNextLeagueMatch, advanceLeagueRoundBackground } from "@/lib/league.functions";
-import { playNextCupMatch } from "@/lib/cup.functions";
-import { simulateWorldCupRound, simulateWorldLeagueRound } from "@/lib/world-competitions.functions";
+import { playNextCupMatch, advanceCupRoundBackground } from "@/lib/cup.functions";
+import { simulateWorldCupRound, simulateWorldLeagueRound, advanceWorldLeagueRoundBackground, advanceWorldCupRoundBackground } from "@/lib/world-competitions.functions";
 import { getUpcomingOfficialMatch, type OfficialCompetition, type OfficialMatchContext } from "@/lib/official-match.functions";
 import { PrognosticCard } from "@/components/PrognosticCard";
 import { buildSlots, FORMATIONS, MAX_BENCH, type Formation, type SlotRole } from "@/lib/lineup.server";
@@ -96,8 +96,11 @@ function LineupPage() {
   const playLeague = useServerFn(playNextLeagueMatch);
   const advanceLeagueBg = useServerFn(advanceLeagueRoundBackground);
   const playCup = useServerFn(playNextCupMatch);
+  const advanceCupBg = useServerFn(advanceCupRoundBackground);
   const playWorldLeague = useServerFn(simulateWorldLeagueRound);
+  const advanceWorldLeagueBg = useServerFn(advanceWorldLeagueRoundBackground);
   const playWorldCup = useServerFn(simulateWorldCupRound);
+  const advanceWorldCupBg = useServerFn(advanceWorldCupRoundBackground);
 
   const { data, isLoading } = useQuery({
     queryKey: ["lineup"],
@@ -407,15 +410,30 @@ function LineupPage() {
       }
       if (match.competition === "cup") {
         const res = await withTimeout(playCup(), 60_000, "iniciar a partida");
+        if ((res as any).background_advance) {
+          advanceCupBg({ data: (res as any).background_advance }).catch((e: any) => {
+            console.warn("advanceCupRoundBackground failed", e);
+          });
+        }
         return res.match_id as string;
       }
       if (match.competition === "world_league") {
         const res = await withTimeout(playWorldLeague(), 60_000, "iniciar a partida");
         if (!res.playerMatchId) throw new Error("A rodada da Liga Mundial não tem partida do seu time.");
+        if ((res as any).background_advance) {
+          advanceWorldLeagueBg({ data: (res as any).background_advance }).catch((e: any) => {
+            console.warn("advanceWorldLeagueRoundBackground failed", e);
+          });
+        }
         return res.playerMatchId as string;
       }
       const res = await withTimeout(playWorldCup(), 60_000, "iniciar a partida");
       if (!res.playerMatchId) throw new Error("A rodada da Copa Mundial não tem partida do seu time.");
+      if ((res as any).background_advance) {
+        advanceWorldCupBg({ data: (res as any).background_advance }).catch((e: any) => {
+          console.warn("advanceWorldCupRoundBackground failed", e);
+        });
+      }
       return res.playerMatchId as string;
     },
     onSuccess: (matchId) => {
