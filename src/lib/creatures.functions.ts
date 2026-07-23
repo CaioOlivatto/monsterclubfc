@@ -132,14 +132,31 @@ export const getDashboard = createServerFn({ method: "GET" })
       .sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0))
       .slice(0, 3);
 
-    // Liga ativa do jogador: pode haver múltiplas competitions (5 divisões semeadas).
-    // Buscamos via o time do jogador para achar a liga específica dele.
-    const { data: playerTeam } = await supabase
-      .from("teams")
-      .select("id, name, competition_id")
-      .eq("trainer_id", trainer.id)
-      .eq("is_player", true)
-      .maybeSingle();
+    // Liga ativa do jogador: a fonte canônica do clube atual é trainers.current_team_id.
+    // Existem times antigos do jogador com is_player=true e competition_id null; eles não
+    // podem decidir o estado do dashboard.
+    let playerTeam: null | { id: string; name: string; competition_id: string | null } = null;
+    if (trainer.current_team_id) {
+      const { data: currentTeam } = await supabase
+        .from("teams")
+        .select("id, name, competition_id")
+        .eq("id", trainer.current_team_id)
+        .eq("trainer_id", trainer.id)
+        .maybeSingle();
+      playerTeam = currentTeam ?? null;
+    }
+
+    if (!playerTeam) {
+      const { data: fallbackTeam } = await supabase
+        .from("teams")
+        .select("id, name, competition_id")
+        .eq("trainer_id", trainer.id)
+        .eq("is_player", true)
+        .not("competition_id", "is", null)
+        .limit(1)
+        .maybeSingle();
+      playerTeam = fallbackTeam ?? null;
+    }
 
     const { data: activeLeague } = playerTeam?.competition_id
       ? await supabase
