@@ -264,15 +264,26 @@ function Dashboard() {
 function NextMatchHero({
   nextMatch,
   hasLeague,
+  onPlay,
+  playPending,
+  onStartSeason,
+  startSeasonPending,
   onFriendly,
   friendlyPending,
 }: {
   nextMatch: any;
   hasLeague: boolean;
+  onPlay: () => void;
+  playPending: boolean;
+  onStartSeason: () => void;
+  startSeasonPending: boolean;
   onFriendly: () => void;
   friendlyPending: boolean;
 }) {
   const hasMatch = !!nextMatch;
+  const seasonNotStarted = !hasMatch && !hasLeague;
+  const seasonIdle = !hasMatch && hasLeague; // temporada ativa, sem partida pendente
+
   return (
     <Card className="border-primary/40 bg-gradient-to-br from-primary/10 via-card to-card">
       <CardContent className="space-y-4 p-4 sm:p-6">
@@ -293,13 +304,16 @@ function NextMatchHero({
                   {nextMatch.is_home ? "Em casa" : "Fora"} · próxima partida oficial
                 </p>
               </>
+            ) : seasonNotStarted ? (
+              <>
+                <h2 className="mt-0.5 text-base font-semibold">Aguardando início da temporada</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">Toque abaixo para começar.</p>
+              </>
             ) : (
               <>
-                <h2 className="mt-0.5 text-base font-semibold">
-                  {hasLeague ? "Sem partidas agendadas" : "Aguardando início da temporada"}
-                </h2>
+                <h2 className="mt-0.5 text-base font-semibold">Rodada concluída</h2>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {hasLeague ? "Volte em breve." : "A liga começará logo."}
+                  Nada pendente no momento — próxima rodada em breve.
                 </p>
               </>
             )}
@@ -307,35 +321,51 @@ function NextMatchHero({
         </div>
 
         {hasMatch ? (
-          <Button asChild size="lg" className="h-12 w-full text-base font-semibold">
-            <Link to="/league">
-              <Swords className="mr-2 h-5 w-5" />
-              Jogar partida
-            </Link>
+          <Button
+            size="lg"
+            className="h-12 w-full text-base font-semibold"
+            onClick={onPlay}
+            disabled={playPending}
+          >
+            <Swords className="mr-2 h-5 w-5" />
+            {playPending ? "Entrando na partida..." : "Jogar partida"}
+          </Button>
+        ) : seasonNotStarted ? (
+          <Button
+            size="lg"
+            className="h-12 w-full text-base font-semibold"
+            onClick={onStartSeason}
+            disabled={startSeasonPending}
+          >
+            <Trophy className="mr-2 h-5 w-5" />
+            {startSeasonPending ? "Iniciando..." : "Iniciar temporada"}
           </Button>
         ) : (
           <Button asChild size="lg" variant="secondary" className="h-12 w-full">
             <Link to="/league">
               <Trophy className="mr-2 h-5 w-5" />
-              Ver campeonato
+              Ver classificação
             </Link>
           </Button>
         )}
 
-        <div className="text-center">
-          <button
-            type="button"
-            onClick={onFriendly}
-            disabled={friendlyPending}
-            className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
-          >
-            {friendlyPending ? "iniciando amistoso..." : "ou jogar um amistoso de treino"}
-          </button>
-        </div>
+        {(hasMatch || seasonIdle) && (
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={onFriendly}
+              disabled={friendlyPending}
+              className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50"
+            >
+              {friendlyPending ? "iniciando amistoso..." : "ou jogar um amistoso de treino"}
+            </button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 }
+
 
 /* ---------------- BLOCO 2: Faixa de resumo ---------------- */
 
