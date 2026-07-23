@@ -378,9 +378,12 @@ async function upsertCupWildcard(
   if (existing) return;
   await supabase.from("qualifications").insert({
     trainer_id: trainerId, season_number: nextSeason,
-    qualifies_for: "world_cup", source_division: "wildcard", source_position: 0,
-    metadata: { origin: "world_league_group_phase", division: sourceDivision },
+    qualifies_for: "world_cup",
+    source_division: "wildcard",
+    source_position: 0,
   });
+  void sourceDivision;
+
 }
 
 export const simulateWorldLeagueRound = createServerFn({ method: "POST" })
