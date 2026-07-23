@@ -17,9 +17,19 @@ import {
   persistableSimulationEvents,
   generateCpuSideFor,
   type EngineBestiary,
+  type EngineSide,
 } from "./match-engine.server";
 import { loadBestiary } from "./bestiary.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
+import { applyPostMatchXp, insertMessage } from "./xp.server";
+import { MATCH_REVENUE, MAINTENANCE_PER_MATCH, matchSalary, type Division as EconDivision } from "./economy";
+
+// Premiação por partida em competições MUNDIAIS — maiores que Campeonato.
+// Grupos: V/E/D. Mata-mata (avançar vale mais que a fase de grupos).
+const WORLD_LEAGUE_GROUP_PRIZE: [number, number, number] = [80_000, 30_000, 10_000];
+const WORLD_LEAGUE_KO_PRIZE:    [number, number, number] = [180_000, 0, 40_000];  // vencer/perder (empate decidido)
+const WORLD_CUP_KO_PRIZE:       [number, number, number] = [140_000, 0, 30_000];
+
 
 
 /* ------------- helpers ------------- */
