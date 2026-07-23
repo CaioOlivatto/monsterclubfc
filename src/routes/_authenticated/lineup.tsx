@@ -96,8 +96,11 @@ function LineupPage() {
   const playLeague = useServerFn(playNextLeagueMatch);
   const advanceLeagueBg = useServerFn(advanceLeagueRoundBackground);
   const playCup = useServerFn(playNextCupMatch);
+  const advanceCupBg = useServerFn(advanceCupRoundBackground);
   const playWorldLeague = useServerFn(simulateWorldLeagueRound);
+  const advanceWorldLeagueBg = useServerFn(advanceWorldLeagueRoundBackground);
   const playWorldCup = useServerFn(simulateWorldCupRound);
+  const advanceWorldCupBg = useServerFn(advanceWorldCupRoundBackground);
 
   const { data, isLoading } = useQuery({
     queryKey: ["lineup"],
