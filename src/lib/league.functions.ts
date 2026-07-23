@@ -625,7 +625,7 @@ export const advanceLeagueRoundBackground = createServerFn({ method: "POST" })
         .eq("competition_id", competition_id);
       const standMap = new Map<string, any>((standRows ?? []).map((r: any) => [r.team_id, r]));
 
-      const matchUpdates: Array<Promise<any>> = [];
+      const matchUpdates: Array<any> = [];
       for (const m of sameRound) {
         const h = teamMap.get(m.home_team_id);
         const a = teamMap.get(m.away_team_id);
@@ -662,7 +662,7 @@ export const advanceLeagueRoundBackground = createServerFn({ method: "POST" })
       await Promise.all(matchUpdates);
       stamp(`sameRound simulated (${sameRound.length})`);
 
-      const standingsWrites: Array<Promise<any>> = [];
+      const standingsWrites: Array<any> = [];
       for (const [tid, row] of standMap) {
         standingsWrites.push(
           supabase
