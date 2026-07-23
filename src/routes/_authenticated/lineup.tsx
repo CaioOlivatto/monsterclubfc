@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { getMyLineup, saveLineup } from "@/lib/lineup.functions";
 import { getLineupPrognostic } from "@/lib/odds.functions";
-import { playNextLeagueMatch } from "@/lib/league.functions";
+import { playNextLeagueMatch, advanceLeagueRoundBackground } from "@/lib/league.functions";
 import { playNextCupMatch } from "@/lib/cup.functions";
 import { simulateWorldCupRound, simulateWorldLeagueRound } from "@/lib/world-competitions.functions";
 import { getUpcomingOfficialMatch, type OfficialCompetition, type OfficialMatchContext } from "@/lib/official-match.functions";
@@ -94,6 +94,7 @@ function LineupPage() {
   const fetchProg = useServerFn(getLineupPrognostic);
   const fetchUpcoming = useServerFn(getUpcomingOfficialMatch);
   const playLeague = useServerFn(playNextLeagueMatch);
+  const advanceLeagueBg = useServerFn(advanceLeagueRoundBackground);
   const playCup = useServerFn(playNextCupMatch);
   const playWorldLeague = useServerFn(simulateWorldLeagueRound);
   const playWorldCup = useServerFn(simulateWorldCupRound);
@@ -395,6 +396,13 @@ function LineupPage() {
 
       if (match.competition === "league") {
         const res = await withTimeout(playLeague(), 60_000, "iniciar a partida");
+        // Avança o resto da rodada (outras partidas da divisão + 4 divisões) em background,
+        // sem bloquear a navegação para a tela de partida ao vivo.
+        if (res.background_advance) {
+          advanceLeagueBg({ data: res.background_advance }).catch((e: any) => {
+            console.warn("advanceLeagueRoundBackground failed", e);
+          });
+        }
         return res.match_id as string;
       }
       if (match.competition === "cup") {
