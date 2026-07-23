@@ -148,6 +148,11 @@ function LineupPage() {
   const slots = useMemo(() => buildSlots(formation), [formation]);
 
 
+  // "Ponto de referência" do que já está salvo no servidor. Enquanto o draft
+  // atual bater com este key, o save no clique "Confirmar e jogar" é pulado
+  // (economiza ~500ms na hot path).
+  const [lastSavedKey, setLastSavedKey] = useState<string | null>(null);
+
   // Sincroniza estado quando dados carregam
   useEffect(() => {
     if (!data) return;
@@ -158,14 +163,21 @@ function LineupPage() {
       ? (data.lineup.starters as unknown as StarterSlot[])
       : [];
     const newSlots = buildSlots(savedFormation);
-    setStarters(
-      newSlots.map((s) => {
-        const found = savedStarters.find((x) => x.slot === s.index);
-        return { slot: s.index, role: s.role, creature_id: found?.creature_id ?? null };
-      }),
-    );
-    setBench(Array.isArray(data.lineup.bench) ? (data.lineup.bench as unknown as string[]) : []);
+    const nextStarters = newSlots.map((s) => {
+      const found = savedStarters.find((x) => x.slot === s.index);
+      return { slot: s.index, role: s.role, creature_id: found?.creature_id ?? null };
+    });
+    const nextBench = Array.isArray(data.lineup.bench) ? (data.lineup.bench as unknown as string[]) : [];
+    setStarters(nextStarters);
+    setBench(nextBench);
+    setLastSavedKey(JSON.stringify({
+      formation: savedFormation,
+      strategy: (data.lineup.strategy as any) ?? "equilibrada",
+      starters: nextStarters,
+      bench: nextBench,
+    }));
   }, [data]);
+
 
   // Se o usuário mudar a formação depois, refaz os slots preservando IDs por índice quando possível
   useEffect(() => {
