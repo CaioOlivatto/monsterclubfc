@@ -67,6 +67,7 @@ async function playerAverage(supabase: any, trainerId: string): Promise<number> 
 
 const DIVISION_ORDER = ["bronze", "prata", "ouro", "diamante", "lendaria"] as const;
 type Division = typeof DIVISION_ORDER[number];
+type PlayerLeagueTeam = { id: string; competition_id: string | null; division?: Division | null };
 
 // Prêmio por partida na liga por divisão (V / E / D) — Balanceamento §2.1
 const MATCH_PRIZE: Record<Division, [number, number, number]> = {
@@ -186,7 +187,7 @@ export const getLeague = createServerFn({ method: "GET" })
     if (!allComps || !allComps.length) return { competition: null };
 
     // Divisão do jogador = a que tem o time do jogador
-    let playerTeamRow: null | { id: string; competition_id: string | null; division: Division | null } = null;
+    let playerTeamRow: PlayerLeagueTeam | null = null;
     if (trainer.current_team_id) {
       const { data: currentTeam } = await supabase
         .from("teams")
@@ -194,7 +195,7 @@ export const getLeague = createServerFn({ method: "GET" })
         .eq("id", trainer.current_team_id)
         .eq("trainer_id", trainer.id)
         .maybeSingle();
-      playerTeamRow = currentTeam as typeof playerTeamRow;
+      playerTeamRow = currentTeam as PlayerLeagueTeam | null;
     }
     if (!playerTeamRow?.competition_id) {
       const { data: fallbackTeam } = await supabase
@@ -205,7 +206,7 @@ export const getLeague = createServerFn({ method: "GET" })
         .in("competition_id", allComps.map((c: any) => c.id))
         .limit(1)
         .maybeSingle();
-      playerTeamRow = fallbackTeam as typeof playerTeamRow;
+      playerTeamRow = fallbackTeam as PlayerLeagueTeam | null;
     }
 
     const playerDiv = (playerTeamRow?.division as Division | undefined) ?? "bronze";
