@@ -58,11 +58,16 @@ async function getCurrentSeason(supabase: any, trainerId: string) {
 }
 
 async function getPlayerLeagueTeam(supabase: any, trainerId: string) {
+  // Pode haver múltiplos times "player" (carreira antiga). Prioriza o que tem
+  // divisão definida (o time atual da liga).
   const { data } = await supabase
     .from("teams")
-    .select("id, name, division, dominant_element, colors, color")
+    .select("id, name, division, dominant_element, colors, color, competition_id, created_at")
     .eq("trainer_id", trainerId)
     .eq("is_player", true)
+    .not("division", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
   return data;
 }
