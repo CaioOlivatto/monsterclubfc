@@ -59,23 +59,8 @@ function MatchPage() {
     queryFn: () => fetchMatch({ data: { id } }),
   });
 
-  const paid4x = !!(data as any)?.speed?.paid_4x;
-  const paidInstant = !!(data as any)?.speed?.paid_instant;
-  const cost4x: number = (data as any)?.speed?.cost_4x ?? 300;
-  const costInstant: number = (data as any)?.speed?.cost_instant ?? 800;
-
-  const payMut = useMutation({
-    mutationFn: (mode: "4x" | "instant") => payFn({ data: { mode } }),
-    onSuccess: (_res, mode) => {
-      toast.success(
-        mode === "4x"
-          ? "Velocidade 4x desbloqueada para sempre!"
-          : "Velocidade instantânea desbloqueada para sempre!",
-      );
-      qc.invalidateQueries({ queryKey: ["match", id] });
-    },
-    onError: (e: any) => toast.error(e?.message ?? "Falha no pagamento"),
-  });
+  // Velocidade agora é livre — mantido payMatchSpeed apenas por compat (não usado na UI).
+  void payMatchSpeed; void useMutation; void toast; void qc;
 
   const [minute, setMinute] = useState(0);
   const [playing, setPlaying] = useState(true);
