@@ -276,13 +276,19 @@ async function simulateCpuMatch(
   const as_ = strengths.get(matchRow.away_team_id) ?? 45;
   const seed = hashSeed(matchRow.id);
   const s = simulateSummaryScore(hs, as_, seed, neutral);
-  await supabase.from("matches").update({
+  // IDEMPOTÊNCIA
+  const { data: claimed } = await supabase.from("matches").update({
     home_score: s.home,
     away_score: s.away,
     status: "finished",
     is_summary: true,
     played_at: new Date().toISOString(),
-  }).eq("id", matchRow.id);
+  }).eq("id", matchRow.id).eq("status", "scheduled").select("id");
+  if (!claimed?.length) {
+    const { data: existing } = await supabase
+      .from("matches").select("home_score, away_score").eq("id", matchRow.id).maybeSingle();
+    return { home_score: existing?.home_score ?? s.home, away_score: existing?.away_score ?? s.away };
+  }
   return { home_score: s.home, away_score: s.away };
 }
 
