@@ -187,13 +187,25 @@ function LineupPage() {
   };
   const ROLE_LABEL: Record<SlotRole, string> = { GOL: "GOL", DEF: "DEF", MEI: "MEI", ATA: "ATA" };
 
+  // Onde cada criatura já está escalada (para badge "Já escalado em X").
+  const usedLabelById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const st of starters) {
+      if (!st.creature_id) continue;
+      const slotDef = slots.find((sl) => sl.index === st.slot);
+      m.set(st.creature_id, slotDef?.label ?? `Slot ${st.slot}`);
+    }
+    for (const id of bench) m.set(id, "Reservas");
+    return m;
+  }, [starters, bench, slots]);
+
   const sortByEff = (a: any, b: any) =>
     effectiveOverall(b.overall ?? 0, b.energy ?? 100, b.morale) -
     effectiveOverall(a.overall ?? 0, a.energy ?? 100, a.morale);
 
-  // Antes da partida, o dropdown mostra TODAS as criaturas do elenco na posição correta,
-  // exceto lesionadas. A troca com quem já está escalado é resolvida no onChange (swap).
-  const availableFor = (_currentId: string | null) => creatures;
+  // Mostra TODAS as criaturas (incluindo lesionadas e já escaladas em outros slots).
+  // Estado visual/bloqueio de seleção é aplicado no render item.
+  const availableFor = (_currentId: string | null) => allCreatures;
 
 
   const setSlotCreature = (slotIdx: number, creatureId: string | null) => {
@@ -528,13 +540,13 @@ function LineupPage() {
             {slots.map((s) => {
               const current = starters.find((x) => x.slot === s.index)?.creature_id ?? null;
               const options = availableFor(current);
-              const currentCreature = current ? creatures.find((x) => x.id === current) : null;
+              const currentCreature = current ? allCreatures.find((x: any) => x.id === current) : null;
               const currFs = currentCreature ? fatigueState(currentCreature.energy ?? 100) : null;
               const currMult = currentCreature ? energyMultiplier(currentCreature.energy ?? 100) : 1;
               const currEff = currentCreature ? effectiveOverall(currentCreature.overall ?? 0, currentCreature.energy ?? 100, currentCreature.morale) : 0;
               const warn = currFs === "muito_cansado" || currFs === "exausto";
 
-              // Só criaturas da posição natural correspondente ao slot.
+              // Só criaturas da posição natural correspondente ao slot (inclusive lesionadas/em uso).
               const inPos = options
                 .filter((c: any) => naturalRoleOf(c.suggested_position) === s.role)
                 .sort(sortByEff);
@@ -542,16 +554,31 @@ function LineupPage() {
               const renderItem = (c: any) => {
                 const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100, c.morale);
                 const ms = moraleState(c.morale);
+                const isInjured = (c.injury_matches_remaining ?? 0) > 0;
+                const usedElsewhere = !isInjured && c.id !== current && usedIds.has(c.id);
+                const disabled = isInjured || usedElsewhere;
+                const nameClass =
+                  (isInjured ? "line-through " : "") + (disabled ? "opacity-60" : "font-medium");
                 return (
-                  <SelectItem key={c.id} value={c.id}>
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className="font-medium">{c.name}</span>
-                      <span className="text-muted-foreground">
+                  <SelectItem key={c.id} value={c.id} disabled={disabled}>
+                    <span className="inline-flex items-center gap-1.5 flex-wrap">
+                      <span className={nameClass}>{c.name}</span>
+                      <span className={"text-muted-foreground" + (disabled ? " opacity-70" : "")}>
                         · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}{eff !== c.overall ? `→${eff}` : ""}
                       </span>
                       <StarRating value={overallToStars(c.overall ?? 0)} size={0.75} />
                       <span title={`Moral: ${MORALE_LABEL[ms]}`}>{MORALE_EMOJI[ms]}</span>
                       <span className="text-muted-foreground">· {c.energy ?? 100}%</span>
+                      {isInjured && (
+                        <span className="rounded border border-red-500/60 bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-300">
+                          Lesionada · {c.injury_matches_remaining} {c.injury_matches_remaining === 1 ? "partida" : "partidas"}
+                        </span>
+                      )}
+                      {usedElsewhere && (
+                        <span className="rounded border border-amber-500/60 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
+                          Já escalado em {usedLabelById.get(c.id)}
+                        </span>
+                      )}
                     </span>
                   </SelectItem>
                 );
@@ -657,25 +684,40 @@ function LineupPage() {
                 <Select value="" onValueChange={(v) => v && addToBench(v)}>
                   <SelectTrigger><SelectValue placeholder="Escolher criatura…" /></SelectTrigger>
                   <SelectContent>
-                    {creatures
-                      .filter((c) => !bench.includes(c.id))
+                    {allCreatures
+                      .filter((c: any) => !bench.includes(c.id))
                       .sort(sortByEff)
-                      .map((c) => {
+                      .map((c: any) => {
                         const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100, c.morale);
                         const ms = moraleState(c.morale);
+                        const isInjured = (c.injury_matches_remaining ?? 0) > 0;
+                        const usedElsewhere = !isInjured && usedIds.has(c.id);
+                        const disabled = isInjured || usedElsewhere;
+                        const nameClass =
+                          (isInjured ? "line-through " : "") + (disabled ? "opacity-60" : "font-medium");
                         return (
-                          <SelectItem key={c.id} value={c.id}>
-                            <span className="inline-flex items-center gap-1.5">
+                          <SelectItem key={c.id} value={c.id} disabled={disabled}>
+                            <span className="inline-flex items-center gap-1.5 flex-wrap">
                               <Badge variant="outline" className="w-12 shrink-0 justify-center text-[10px]">
                                 {ROLE_LABEL[naturalRoleOf(c.suggested_position)]}
                               </Badge>
-                              <span className="font-medium">{c.name}</span>
-                              <span className="text-muted-foreground">
+                              <span className={nameClass}>{c.name}</span>
+                              <span className={"text-muted-foreground" + (disabled ? " opacity-70" : "")}>
                                 · {ELEMENT_LABEL[c.element] ?? c.element} · OVR {c.overall}{eff !== c.overall ? `→${eff}` : ""}
                               </span>
                               <StarRating value={overallToStars(c.overall ?? 0)} size={0.75} />
                               <span>{MORALE_EMOJI[ms]}</span>
                               <span className="text-muted-foreground">· {c.energy ?? 100}%</span>
+                              {isInjured && (
+                                <span className="rounded border border-red-500/60 bg-red-500/15 px-1.5 py-0.5 text-[10px] font-medium text-red-300">
+                                  Lesionada · {c.injury_matches_remaining} {c.injury_matches_remaining === 1 ? "partida" : "partidas"}
+                                </span>
+                              )}
+                              {usedElsewhere && (
+                                <span className="rounded border border-amber-500/60 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
+                                  Já escalado em {usedLabelById.get(c.id)}
+                                </span>
+                              )}
                             </span>
                           </SelectItem>
                         );
