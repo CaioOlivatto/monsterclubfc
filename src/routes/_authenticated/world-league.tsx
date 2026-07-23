@@ -101,7 +101,7 @@ function NotQualifiedCard({ reason }: { reason?: string }) {
 }
 
 function StatusHeader({ data, onSimulate, simulating }: any) {
-  const totalRounds = 7;
+  const totalRounds = TOTAL_ROUNDS;
   const finishedRounds = new Set<number>();
   for (const m of data.matches) if (m.status === "finished") finishedRounds.add(m.round);
   // próxima rodada = menor round com scheduled
