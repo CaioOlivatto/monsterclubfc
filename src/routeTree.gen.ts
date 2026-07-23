@@ -23,6 +23,7 @@ import { Route as AuthenticatedMarketRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedLineupRouteImport } from './routes/_authenticated/lineup'
 import { Route as AuthenticatedLeagueRouteImport } from './routes/_authenticated/league'
 import { Route as AuthenticatedFinancesRouteImport } from './routes/_authenticated/finances'
+import { Route as AuthenticatedDevRouteImport } from './routes/_authenticated/dev'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCupRouteImport } from './routes/_authenticated/cup'
 import { Route as AuthenticatedCareerRouteImport } from './routes/_authenticated/career'
@@ -100,6 +101,11 @@ const AuthenticatedFinancesRoute = AuthenticatedFinancesRouteImport.update({
   path: '/finances',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedDevRoute = AuthenticatedDevRouteImport.update({
+  id: '/dev',
+  path: '/dev',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -139,6 +145,7 @@ export interface FileRoutesByFullPath {
   '/career': typeof AuthenticatedCareerRoute
   '/cup': typeof AuthenticatedCupRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/dev': typeof AuthenticatedDevRoute
   '/finances': typeof AuthenticatedFinancesRoute
   '/league': typeof AuthenticatedLeagueRoute
   '/lineup': typeof AuthenticatedLineupRoute
@@ -160,6 +167,7 @@ export interface FileRoutesByTo {
   '/career': typeof AuthenticatedCareerRoute
   '/cup': typeof AuthenticatedCupRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/dev': typeof AuthenticatedDevRoute
   '/finances': typeof AuthenticatedFinancesRoute
   '/league': typeof AuthenticatedLeagueRoute
   '/lineup': typeof AuthenticatedLineupRoute
@@ -183,6 +191,7 @@ export interface FileRoutesById {
   '/_authenticated/career': typeof AuthenticatedCareerRoute
   '/_authenticated/cup': typeof AuthenticatedCupRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/dev': typeof AuthenticatedDevRoute
   '/_authenticated/finances': typeof AuthenticatedFinancesRoute
   '/_authenticated/league': typeof AuthenticatedLeagueRoute
   '/_authenticated/lineup': typeof AuthenticatedLineupRoute
@@ -206,6 +215,7 @@ export interface FileRouteTypes {
     | '/career'
     | '/cup'
     | '/dashboard'
+    | '/dev'
     | '/finances'
     | '/league'
     | '/lineup'
@@ -227,6 +237,7 @@ export interface FileRouteTypes {
     | '/career'
     | '/cup'
     | '/dashboard'
+    | '/dev'
     | '/finances'
     | '/league'
     | '/lineup'
@@ -249,6 +260,7 @@ export interface FileRouteTypes {
     | '/_authenticated/career'
     | '/_authenticated/cup'
     | '/_authenticated/dashboard'
+    | '/_authenticated/dev'
     | '/_authenticated/finances'
     | '/_authenticated/league'
     | '/_authenticated/lineup'
@@ -370,6 +382,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFinancesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/dev': {
+      id: '/_authenticated/dev'
+      path: '/dev'
+      fullPath: '/dev'
+      preLoaderRoute: typeof AuthenticatedDevRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -420,6 +439,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCareerRoute: typeof AuthenticatedCareerRoute
   AuthenticatedCupRoute: typeof AuthenticatedCupRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedDevRoute: typeof AuthenticatedDevRoute
   AuthenticatedFinancesRoute: typeof AuthenticatedFinancesRoute
   AuthenticatedLeagueRoute: typeof AuthenticatedLeagueRoute
   AuthenticatedLineupRoute: typeof AuthenticatedLineupRoute
@@ -440,6 +460,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCareerRoute: AuthenticatedCareerRoute,
   AuthenticatedCupRoute: AuthenticatedCupRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedDevRoute: AuthenticatedDevRoute,
   AuthenticatedFinancesRoute: AuthenticatedFinancesRoute,
   AuthenticatedLeagueRoute: AuthenticatedLeagueRoute,
   AuthenticatedLineupRoute: AuthenticatedLineupRoute,
