@@ -534,9 +534,9 @@ async function recoverStaleWorldLeagueRounds(supabase: any, compId: string, upTo
     .lt("round", upToRound);
   if (!stale?.length) return;
   console.warn(`[simulateWorldLeagueRound] RECUPERANDO ${stale.length} partidas de rodadas anteriores`);
-  const rounds = Array.from(new Set(stale.map((m: any) => m.round as number))).sort((a, b) => a - b);
+  const rounds = Array.from(new Set((stale as any[]).map((m) => m.round as number))).sort((a: number, b: number) => a - b);
   for (const r of rounds) {
-    try { await advanceWorldLeagueRoundInternal(supabase, compId, r); }
+    try { await advanceWorldLeagueRoundInternal(supabase, compId, r as number); }
     catch (e) { console.error(`[recoverStaleWorldLeagueRounds] ERRO round=${r}:`, e); }
   }
 }
