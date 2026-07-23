@@ -169,10 +169,13 @@ export async function applyPostMatchXp(
       if (goals > 0) gains += 6 * goals;
       if (outcomeMorale >= 0) gains += outcomeMorale;
       else losses += -outcomeMorale;
-      if (unusedBenchSet.has(c.id)) losses += -benchPenaltyByRank(rankOf.get(c.id) ?? 99);
-      const outOfSquad =
-        !starterSet.has(c.id) && !enteredSet.has(c.id) && !unusedBenchSet.has(c.id);
-      if (outOfSquad) losses += 7;
+      // Sistema-Moral.md §Banco: penalidade GRADUADA por rank de overall,
+      // aplicada tanto a reservas não usadas quanto a criaturas fora do matchday
+      // (excedente do plantel de 26 → 18 convocados). Antes: outOfSquad = -7 fixo,
+      // divergia da spec e transformava profundidade em armadilha financeira.
+      const notPlaying =
+        !starterSet.has(c.id) && !enteredSet.has(c.id);
+      if (notPlaying) losses += -benchPenaltyByRank(rankOf.get(c.id) ?? 99);
       if (injRemaining > 0) losses += 4;
       const gainMul = Math.max(0, 1 - newMorale / 120);
       newMorale = Math.max(0, Math.min(100, Math.round(newMorale + gains * gainMul - losses)));
