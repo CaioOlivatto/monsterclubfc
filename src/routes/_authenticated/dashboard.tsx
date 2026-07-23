@@ -231,6 +231,10 @@ function Dashboard() {
         <NextMatchHero
           nextMatch={nextMatch}
           hasLeague={hasLeague}
+          onPlay={() => playMut.mutate()}
+          playPending={playMut.isPending}
+          onStartSeason={() => startSeasonMut.mutate()}
+          startSeasonPending={startSeasonMut.isPending}
           onFriendly={() => friendlyMut.mutate()}
           friendlyPending={friendlyMut.isPending}
         />
