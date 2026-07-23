@@ -35,6 +35,7 @@ import { ArrowLeft, Save, Shield, Swords, Scale, Wand2, AlertTriangle, HeartPuls
 import { fatigueState, FATIGUE_LABEL, FATIGUE_CLASS, effectiveOverall, energyMultiplier } from "@/lib/fatigue";
 import { moraleState, MORALE_EMOJI, MORALE_LABEL, moraleMultiplier } from "@/lib/morale";
 import { StarRating, overallToStars } from "@/components/StarRating";
+import { MatchLoadingOverlay } from "@/components/match/MatchLoadingOverlay";
 
 
 const OFFICIAL_COMPETITIONS: OfficialCompetition[] = ["league", "cup", "world_league", "world_cup"];
