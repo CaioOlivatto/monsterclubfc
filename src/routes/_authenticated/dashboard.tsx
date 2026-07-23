@@ -80,6 +80,7 @@ function Dashboard() {
   const fetchLineup = useServerFn(getMyLineup);
   const fetchConfidence = useServerFn(getConfidence);
   const claimWeekly = useServerFn(claimWeeklyGems);
+  const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({ queryKey: ["dashboard"], queryFn: () => fetchDashboard() });
   const { data: rosterList } = useQuery({ queryKey: ["my-creatures"], queryFn: () => fetchRoster() });
