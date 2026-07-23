@@ -520,9 +520,195 @@ async function upsertCupWildcard(
 
 }
 
+/**
+ * Recupera rodadas anteriores da Liga Mundial cujas partidas CPU-vs-CPU ainda estão
+ * scheduled (background falhou antes) e completa progressão de KO se necessário.
+ * Idempotente.
+ */
+async function recoverStaleWorldLeagueRounds(supabase: any, compId: string, upToRound: number) {
+  const { data: stale } = await supabase
+    .from("matches")
+    .select("id, round")
+    .eq("competition_id", compId)
+    .eq("status", "scheduled")
+    .lt("round", upToRound);
+  if (!stale?.length) return;
+  console.warn(`[simulateWorldLeagueRound] RECUPERANDO ${stale.length} partidas de rodadas anteriores`);
+  const rounds = Array.from(new Set(stale.map((m: any) => m.round as number))).sort((a, b) => a - b);
+  for (const r of rounds) {
+    try { await advanceWorldLeagueRoundInternal(supabase, compId, r); }
+    catch (e) { console.error(`[recoverStaleWorldLeagueRounds] ERRO round=${r}:`, e); }
+  }
+}
+
+/**
+ * Executa TUDO exceto a partida do jogador para uma rodada específica da Liga Mundial.
+ * Idempotente: partidas ainda `scheduled` são simuladas; progressão de KO só cria
+ * próxima rodada se ela ainda não existir.
+ */
+async function advanceWorldLeagueRoundInternal(
+  supabase: any,
+  compId: string,
+  round: number,
+) {
+  const { data: pending } = await supabase
+    .from("matches")
+    .select("id, round, phase, home_team_id, away_team_id")
+    .eq("competition_id", compId)
+    .eq("round", round)
+    .eq("status", "scheduled");
+
+  const isGroupPhase = round <= 5;
+  const strengths = await computeTeamStrengths(
+    supabase,
+    Array.from(new Set((pending ?? []).flatMap((m: any) => [m.home_team_id, m.away_team_id]))),
+  );
+
+  // Simula CPU-vs-CPU pendentes (a do jogador já foi processada no foreground)
+  if (pending?.length) {
+    await Promise.all(pending.map((m: any) => simulateCpuMatch(supabase, m, strengths, !isGroupPhase)));
+  }
+
+  // Recalcula standings de grupo com base em TODAS as partidas terminadas da rodada
+  if (isGroupPhase) {
+    const { data: doneMatches } = await supabase
+      .from("matches")
+      .select("home_team_id, away_team_id, home_score, away_score")
+      .eq("competition_id", compId)
+      .eq("round", round)
+      .eq("status", "finished");
+    const { data: standRows } = await supabase
+      .from("standings").select("team_id, group_key, points, wins, draws, losses, goals_for, goals_against")
+      .eq("competition_id", compId);
+    const standMap = new Map<string, any>(((standRows ?? []) as any[]).map((r) => [r.team_id, r]));
+
+    // Detecta se já aplicamos essa rodada: se todos os placares dessa rodada já foram
+    // contabilizados nas standings, não repete (idempotência). Heurística: comparar
+    // soma esperada vs registrada é caro; usamos flag em memória via re-cálculo por delta.
+    // Solução mais simples: só aplicar se pending?.length > 0 (havia CPU novo).
+    // Caso a próxima rodada já exista, também não aplica (indicador que rodada já fechou).
+    const { count: nextRoundExists } = await supabase
+      .from("matches")
+      .select("id", { count: "exact", head: true })
+      .eq("competition_id", compId)
+      .eq("round", round + 1);
+
+    if ((pending?.length ?? 0) > 0 && !(nextRoundExists && nextRoundExists > 0)) {
+      for (const m of doneMatches ?? []) {
+        const hg = m.home_score ?? 0;
+        const ag = m.away_score ?? 0;
+        const hRow = standMap.get(m.home_team_id);
+        const aRow = standMap.get(m.away_team_id);
+        if (hRow) {
+          hRow.goals_for += hg; hRow.goals_against += ag;
+          if (hg > ag) { hRow.wins++; hRow.points += 3; }
+          else if (hg < ag) { hRow.losses++; }
+          else { hRow.draws++; hRow.points += 1; }
+        }
+        if (aRow) {
+          aRow.goals_for += ag; aRow.goals_against += hg;
+          if (ag > hg) { aRow.wins++; aRow.points += 3; }
+          else if (ag < hg) { aRow.losses++; }
+          else { aRow.draws++; aRow.points += 1; }
+        }
+      }
+      const writes: any[] = [];
+      for (const [tid, row] of standMap) {
+        writes.push(
+          supabase.from("standings").update({
+            points: row.points, wins: row.wins, draws: row.draws, losses: row.losses,
+            goals_for: row.goals_for, goals_against: row.goals_against,
+          }).eq("competition_id", compId).eq("team_id", tid),
+        );
+      }
+      await Promise.all(writes);
+    }
+  }
+
+  // Progressão de fase: SÓ se a próxima rodada ainda não foi criada
+  const { count: nextExists } = await supabase
+    .from("matches")
+    .select("id", { count: "exact", head: true })
+    .eq("competition_id", compId)
+    .eq("round", round + 1);
+  if ((nextExists ?? 0) > 0) return;
+
+  // Fim da fase de grupos (round 5): monta QF + wildcard
+  if (isGroupPhase && round === 5) {
+    const { data: standRows2 } = await supabase
+      .from("standings").select("team_id, group_key, points, goals_for, goals_against")
+      .eq("competition_id", compId);
+    const groupMap = new Map<string, any[]>();
+    for (const r of ((standRows2 ?? []) as any[])) {
+      const arr = groupMap.get(r.group_key) ?? [];
+      arr.push(r); groupMap.set(r.group_key, arr);
+    }
+    const qfTeams: string[] = [];
+    const eliminated: any[] = [];
+    for (const [, arr] of groupMap) {
+      arr.sort((a: any, b: any) =>
+        (b.points - a.points) ||
+        ((b.goals_for - b.goals_against) - (a.goals_for - a.goals_against)) ||
+        (b.goals_for - a.goals_for));
+      qfTeams.push(arr[0].team_id, arr[1].team_id);
+      if (arr[2]) eliminated.push(arr[2]);
+      if (arr[3]) eliminated.push(arr[3]);
+    }
+    eliminated.sort((a: any, b: any) =>
+      (b.points - a.points) ||
+      ((b.goals_for - b.goals_against) - (a.goals_for - a.goals_against)) ||
+      (b.goals_for - a.goals_for));
+    const wildcard = eliminated[0];
+    // Wildcard para o jogador (se ele é o melhor 3º)
+    const { data: comp } = await supabase
+      .from("competitions").select("trainer_id, division").eq("id", compId).maybeSingle();
+    const { data: playerRow } = await supabase
+      .from("teams").select("id").eq("trainer_id", comp?.trainer_id).eq("is_player", true).not("division", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (wildcard && playerRow && wildcard.team_id === playerRow.id) {
+      const { data: seasonNow } = await supabase
+        .from("game_seasons").select("season_number").eq("trainer_id", comp?.trainer_id).eq("is_current", true).maybeSingle();
+      if (seasonNow) {
+        await upsertCupWildcard(supabase, comp!.trainer_id, seasonNow.season_number + 1, comp?.division ?? "bronze");
+      }
+    }
+    const strMap = await computeTeamStrengths(supabase, qfTeams);
+    const ordered = qfTeams.slice().sort((a, b) => (strMap.get(b) ?? 0) - (strMap.get(a) ?? 0));
+    await generateKnockoutRound(supabase, compId, 6, ordered.map((id) => ({ id, strength: strMap.get(id) ?? 45 })));
+    return;
+  }
+
+  // KO: 6→7, 7→8, 8→fim
+  if (!isGroupPhase) {
+    const { data: doneKo } = await supabase
+      .from("matches").select("home_team_id, away_team_id, home_score, away_score").eq("competition_id", compId).eq("round", round).eq("status", "finished");
+    const winners: string[] = [];
+    for (const m of doneKo ?? []) {
+      const hg = m.home_score ?? 0; const ag = m.away_score ?? 0;
+      if (hg > ag) winners.push(m.home_team_id);
+      else if (ag > hg) winners.push(m.away_team_id);
+      else {
+        const strMap = await computeTeamStrengths(supabase, [m.home_team_id, m.away_team_id]);
+        const w = decideKnockoutWinner(strMap.get(m.home_team_id) ?? 45, strMap.get(m.away_team_id) ?? 45, hg, ag, hashSeed(`${m.home_team_id}${m.away_team_id}`));
+        winners.push(w === "home" ? m.home_team_id : m.away_team_id);
+      }
+    }
+    if (round === 6 || round === 7) {
+      const strMap = await computeTeamStrengths(supabase, winners);
+      const ordered = round === 6 ? winners.slice().sort((a, b) => (strMap.get(b) ?? 0) - (strMap.get(a) ?? 0)) : winners;
+      await generateKnockoutRound(supabase, compId, round + 1, ordered.map((id) => ({ id, strength: strMap.get(id) ?? 45 })));
+    } else if (round === 8) {
+      const champ = winners[0] ?? null;
+      await supabase.from("competitions").update({ status: "finished", champion_team_id: champ }).eq("id", compId).eq("status", "active");
+    }
+  }
+}
+
 export const simulateWorldLeagueRound = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const t0 = Date.now();
+    const stamp = (label: string) =>
+      console.log(`[simulateWorldLeagueRound] +${Date.now() - t0}ms ${label}`);
     const { supabase, userId } = context;
     const trainer = await getTrainer(supabase, userId);
     const season = await getCurrentSeason(supabase, trainer.id);
@@ -538,138 +724,75 @@ export const simulateWorldLeagueRound = createServerFn({ method: "POST" })
       .order("round", { ascending: true });
     if (!pending || !pending.length) throw new Error("Nenhuma rodada pendente.");
     const nextRound = Number(pending[0].round ?? 1);
-    const roundMatches = (pending as any[]).filter((m: any) => m.round === nextRound);
 
-    // Identifica time do jogador nesta competição
+    // RETRY-ON-ENTRY
+    try { await recoverStaleWorldLeagueRounds(supabase, comp.id, nextRound); stamp("recover"); }
+    catch (e) { console.error("[simulateWorldLeagueRound] ERRO na recuperação:", e); }
+
+    const roundMatches = (pending as any[]).filter((m: any) => m.round === nextRound);
     const { data: playerRow } = await supabase
       .from("teams").select("id").eq("trainer_id", trainer.id).eq("is_player", true).not("division", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
     const playerTeamId = playerRow?.id as string | undefined;
 
-    const teamIds = Array.from(new Set(roundMatches.flatMap((m: any) => [m.home_team_id, m.away_team_id])));
-    const strengths = await computeTeamStrengths(supabase, teamIds);
-    const bestiary = await loadEngineBestiary(supabase);
-
-    const { data: standRows } = await supabase
-      .from("standings").select("team_id, group_key, points, wins, draws, losses, goals_for, goals_against")
-      .eq("competition_id", comp.id);
-    const standMap = new Map<string, any>(((standRows ?? []) as any[]).map((r) => [r.team_id, r]));
-
     const isGroupPhase = nextRound <= 5;
+    const bestiary = await loadEngineBestiary(supabase);
+    stamp("bestiary");
+
+    // FOREGROUND: só a partida do jogador
+    const playerMatch = roundMatches.find((m: any) =>
+      playerTeamId && (m.home_team_id === playerTeamId || m.away_team_id === playerTeamId),
+    );
     let playerMatchId: string | null = null;
-    const winners: string[] = [];
-
-    for (const m of roundMatches) {
-      const involvesPlayer = playerTeamId && (m.home_team_id === playerTeamId || m.away_team_id === playerTeamId);
-      let hg = 0, ag = 0;
-      if (involvesPlayer) {
-        const r = await simulatePlayerMatch(supabase, trainer.id, m, playerTeamId!, bestiary, {
-          competition: "world_league", round: nextRound, isGroupPhase, division: (comp.division as string) ?? "bronze",
-        });
-        hg = r.home_score; ag = r.away_score;
-        playerMatchId = m.id;
-      } else {
-        const r = await simulateCpuMatch(supabase, m, strengths, !isGroupPhase);
-        hg = r.home_score; ag = r.away_score;
-      }
-
-      if (isGroupPhase) {
-        const hRow = standMap.get(m.home_team_id);
-        const aRow = standMap.get(m.away_team_id);
-        if (hRow) {
-          hRow.goals_for += hg; hRow.goals_against += ag;
-          if (hg > ag) { hRow.wins++; hRow.points += 3; }
-          else if (hg < ag) { hRow.losses++; }
-          else { hRow.draws++; hRow.points += 1; }
-        }
-        if (aRow) {
-          aRow.goals_for += ag; aRow.goals_against += hg;
-          if (ag > hg) { aRow.wins++; aRow.points += 3; }
-          else if (ag < hg) { aRow.losses++; }
-          else { aRow.draws++; aRow.points += 1; }
-        }
-      } else {
-        // KO: se empatar, decide vencedor com força (bifurcado: player usa fadiga real via forma? Simples: strength)
-        let winnerTeamId: string;
-        if (hg > ag) winnerTeamId = m.home_team_id;
-        else if (ag > hg) winnerTeamId = m.away_team_id;
-        else {
-          const hs = strengths.get(m.home_team_id) ?? 45;
-          const as_ = strengths.get(m.away_team_id) ?? 45;
-          const w = decideKnockoutWinner(hs, as_, hg, ag, hashSeed(m.id));
-          winnerTeamId = w === "home" ? m.home_team_id : m.away_team_id;
-        }
-        winners.push(winnerTeamId);
-      }
-    }
-
-    if (isGroupPhase) {
-      for (const [tid, row] of standMap) {
-        await supabase.from("standings").update({
-          points: row.points, wins: row.wins, draws: row.draws, losses: row.losses,
-          goals_for: row.goals_for, goals_against: row.goals_against,
-        }).eq("competition_id", comp.id).eq("team_id", tid);
-      }
-    }
-
-    // Fim da fase de grupos (rodada 5): monta QF e grava wildcard da Copa (melhor 3º)
-    if (isGroupPhase && nextRound === 5) {
-      const groupMap = new Map<string, any[]>();
-      for (const r of standMap.values()) {
-        const arr = groupMap.get(r.group_key) ?? [];
-        arr.push(r); groupMap.set(r.group_key, arr);
-      }
-      const qfTeams: string[] = [];
-      const thirdCandidates: any[] = [];
-      for (const [, arr] of groupMap) {
-        arr.sort((a, b) =>
-          (b.points - a.points) ||
-          ((b.goals_for - b.goals_against) - (a.goals_for - a.goals_against)) ||
-          (b.goals_for - a.goals_for));
-        qfTeams.push(arr[0].team_id, arr[1].team_id);
-        if (arr[2]) thirdCandidates.push(arr[2]);
-      }
-      // ordena 3ºs+4ºs de todos os grupos → melhor é wildcard da Copa próxima temporada
-      const eliminated: any[] = [];
-      for (const [, arr] of groupMap) {
-        if (arr[2]) eliminated.push(arr[2]);
-        if (arr[3]) eliminated.push(arr[3]);
-      }
-      eliminated.sort((a, b) =>
-        (b.points - a.points) ||
-        ((b.goals_for - b.goals_against) - (a.goals_for - a.goals_against)) ||
-        (b.goals_for - a.goals_for));
-      const wildcard = eliminated[0];
-      if (wildcard && playerTeamId && wildcard.team_id === playerTeamId) {
-        console.log("[WORLD_LEAGUE] Wildcard Copa concedido ao jogador:", wildcard.team_id);
-        await upsertCupWildcard(supabase, trainer.id, season.season_number + 1, comp.division ?? "bronze");
-      }
-
-      const strMap = await computeTeamStrengths(supabase, qfTeams);
-      const ordered = qfTeams.slice().sort((a, b) => (strMap.get(b) ?? 0) - (strMap.get(a) ?? 0));
-      await generateKnockoutRound(supabase, comp.id, 6, ordered.map((id) => ({ id, strength: strMap.get(id) ?? 45 })));
-      void thirdCandidates;
-    }
-
-    if (!isGroupPhase && nextRound === 6) {
-      const strMap = await computeTeamStrengths(supabase, winners);
-      const ordered = winners.slice().sort((a, b) => (strMap.get(b) ?? 0) - (strMap.get(a) ?? 0));
-      await generateKnockoutRound(supabase, comp.id, 7, ordered.map((id) => ({ id, strength: strMap.get(id) ?? 45 })));
-    }
-    if (!isGroupPhase && nextRound === 7) {
-      const strMap = await computeTeamStrengths(supabase, winners);
-      await generateKnockoutRound(supabase, comp.id, 8, winners.map((id) => ({ id, strength: strMap.get(id) ?? 45 })));
-    }
-    if (!isGroupPhase && nextRound === 8) {
-      const champ = winners[0] ?? null;
-      await supabase.from("competitions").update({ status: "finished", champion_team_id: champ }).eq("id", comp.id);
+    if (playerMatch && playerTeamId) {
+      await simulatePlayerMatch(supabase, trainer.id, playerMatch, playerTeamId, bestiary, {
+        competition: "world_league", round: nextRound, isGroupPhase, division: (comp.division as string) ?? "bronze",
+      });
+      playerMatchId = playerMatch.id;
+      stamp("player match");
     }
 
     return {
       round: nextRound,
       phase: LEAGUE_PHASE_NAMES[nextRound] ?? `R${nextRound}`,
-      matchesPlayed: roundMatches.length,
+      matchesPlayed: playerMatchId ? 1 : 0,
       playerMatchId,
+      background_advance: {
+        competition_id: comp.id,
+        round: nextRound,
+      },
     };
+  });
+
+/**
+ * Simula CPU-vs-CPU restantes, atualiza standings e faz progressão de KO da
+ * rodada. Chamada em background pelo cliente após receber o playerMatchId.
+ * Idempotente.
+ */
+export const advanceWorldLeagueRoundBackground = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((raw: unknown) =>
+    z.object({
+      competition_id: z.string().uuid(),
+      round: z.number().int().min(1).max(8),
+    }).parse(raw),
+  )
+  .handler(async ({ data, context }) => {
+    const t0 = Date.now();
+    const stamp = (label: string) =>
+      console.log(`[advanceWorldLeagueRoundBackground] +${Date.now() - t0}ms ${label}`);
+    const { supabase, userId } = context;
+    const trainer = await getTrainer(supabase, userId);
+    const { data: comp } = await supabase
+      .from("competitions").select("id").eq("id", data.competition_id).eq("trainer_id", trainer.id).eq("type", "world_league").maybeSingle();
+    if (!comp) return { ok: false, reason: "not_found" };
+    try {
+      await advanceWorldLeagueRoundInternal(supabase, data.competition_id, data.round);
+      stamp("done");
+      return { ok: true };
+    } catch (e) {
+      console.error(`[advanceWorldLeagueRoundBackground] ERRO comp=${data.competition_id} round=${data.round}:`, e);
+      return { ok: false, reason: "internal_failed", error: String((e as any)?.message ?? e) };
+    }
   });
 
 /* ================================================
