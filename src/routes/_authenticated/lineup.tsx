@@ -121,7 +121,12 @@ function LineupPage() {
     queryKey: ["prognostic", draft],
     queryFn: () => fetchProg({ data: { draft } }),
     retry: false,
-    enabled: !!data && starters.filter((s) => s.creature_id).length === 11,
+    // Desabilita durante a confirmação para não competir com a criação da partida.
+    enabled:
+      !!data &&
+      starters.filter((s) => s.creature_id).length === 11 &&
+      !confirmPlayMut.isPending,
+    staleTime: 30_000,
   });
 
   const slots = useMemo(() => buildSlots(formation), [formation]);
