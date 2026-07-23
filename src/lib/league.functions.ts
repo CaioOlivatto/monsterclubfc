@@ -430,7 +430,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
           isHome
             ? supabase.from("standings").select("team_id, points, goals_for, goals_against").eq("competition_id", competition.id)
             : Promise.resolve({ data: null }),
-          supabase.from("creatures").select("overall").eq("owner_trainer_id", trainer.id),
+          supabase.from("creatures").select("overall, morale").eq("owner_trainer_id", trainer.id),
           supabase.from("academies").select("money").eq("trainer_id", trainer.id).maybeSingle(),
         ]);
         const bldgs = (bldgsRes as any).data as Array<{ building_type: string; level: number }> | null;
@@ -440,21 +440,15 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
 
         let gate = 0;
         let stadiumLevel = 0;
+        let attendanceInfo: ReturnType<typeof buildAttendance> | null = null;
         if (isHome) {
           stadiumLevel = (bldgs ?? []).find((b) => b.building_type === "estadio")?.level ?? 0;
           const capacity = stadiumCapacity(stadiumLevel);
-          const rankedCur = [...(standRows ?? [])].sort((a: any, b: any) => {
-            if (b.points !== a.points) return b.points - a.points;
-            const gdA = a.goals_for - a.goals_against;
-            const gdB = b.goals_for - b.goals_against;
-            if (gdB !== gdA) return gdB - gdA;
-            return b.goals_for - a.goals_for;
-          });
-          const posIdx = rankedCur.findIndex((r: any) => r.team_id === playerTeam.id);
-          const pos = posIdx >= 0 ? posIdx + 1 : LEAGUE_SIZE;
-          const posInvertida = LEAGUE_SIZE + 1 - pos;
-          const fillRate = Math.min(1, 0.70 + 0.03 * posInvertida);
-          gate = Math.round(capacity * fillRate * 25);
+          // Ocupação = clamp(10 + moral_média × 0,9, 10, 100) ± 5% de ruído.
+          // Substitui a fillRate fixa por posição — spec Ocupacao-Estadio-Moral.
+          const moraleAvg = rosterMoraleAverage(roster ?? []);
+          attendanceInfo = buildAttendance(capacity, moraleAvg, Math.random);
+          gate = Math.round(attendanceInfo.attendance * 25);
         }
 
         const salaries = (roster ?? []).reduce((a: number, c: any) => a + matchSalary(c.overall ?? 40), 0);
