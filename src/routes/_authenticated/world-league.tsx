@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Globe2, Lock, Play, Trophy } from "lucide-react";
@@ -14,18 +14,20 @@ export const Route = createFileRoute("/_authenticated/world-league")({
   head: () => ({
     meta: [
       { title: "Liga Mundial — Monster Club Manager" },
-      { name: "description", content: "Liga Mundial: 20 times, fase de grupos + mata-mata em 7 rodadas." },
+      { name: "description", content: "Liga Mundial: 20 times, 4 grupos de 5 + mata-mata em 8 rodadas." },
     ],
   }),
   component: WorldLeaguePage,
 });
 
 const PHASE_NAMES: Record<number, string> = {
-  1: "Grupos R1", 2: "Grupos R2", 3: "Grupos R3",
-  4: "Playoff", 5: "Quartas", 6: "Semifinal", 7: "Final",
+  1: "Grupos R1", 2: "Grupos R2", 3: "Grupos R3", 4: "Grupos R4", 5: "Grupos R5",
+  6: "Quartas", 7: "Semifinal", 8: "Final",
 };
+const TOTAL_ROUNDS = 8;
 
 function WorldLeaguePage() {
+  const navigate = useNavigate();
   const fetchWL = useServerFn(getWorldLeague);
   const simulateFn = useServerFn(simulateWorldLeagueRound);
   const qc = useQueryClient();
@@ -39,6 +41,11 @@ function WorldLeaguePage() {
     setSimulating(true);
     try {
       const res = await simulateFn();
+      if (res.playerMatchId) {
+        toast.success(`${res.phase}: sua partida está pronta — abrindo narração…`);
+        navigate({ to: "/match/$id", params: { id: res.playerMatchId } });
+        return;
+      }
       toast.success(`${res.phase}: ${res.matchesPlayed} jogos simulados`);
       await qc.invalidateQueries({ queryKey: ["world-league"] });
     } catch (e: any) {
@@ -47,6 +54,7 @@ function WorldLeaguePage() {
       setSimulating(false);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -93,7 +101,7 @@ function NotQualifiedCard({ reason }: { reason?: string }) {
 }
 
 function StatusHeader({ data, onSimulate, simulating }: any) {
-  const totalRounds = 7;
+  const totalRounds = TOTAL_ROUNDS;
   const finishedRounds = new Set<number>();
   for (const m of data.matches) if (m.status === "finished") finishedRounds.add(m.round);
   // próxima rodada = menor round com scheduled
@@ -187,7 +195,7 @@ function GroupsSection({ data }: any) {
 }
 
 function KnockoutSection({ data }: any) {
-  const koMatches = data.matches.filter((m: any) => m.round >= 4);
+  const koMatches = data.matches.filter((m: any) => m.round >= 6);
   if (!koMatches.length) return null;
   const teamsById = new Map<string, any>(data.teams.map((t: any) => [t.id, t]));
   const byRound: Record<number, any[]> = {};

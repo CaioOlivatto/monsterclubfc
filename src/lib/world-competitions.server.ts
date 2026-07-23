@@ -1,5 +1,6 @@
 // Fase B — helpers server-only para Liga/Copa Mundial (per-trainer)
-// Reaproveita padrão de simulação rápida (Poisson por força) do league.functions.
+// Poisson usado APENAS em partidas CPU vs CPU. Partidas do jogador rodam
+// no motor de duelos completo (match-engine) via world-competitions.functions.
 
 export type Division = "bronze" | "prata" | "ouro" | "diamante" | "lendaria";
 export const DIVISIONS: Division[] = ["lendaria", "diamante", "ouro", "prata", "bronze"];
@@ -35,12 +36,7 @@ export function fastPoisson(lambda: number, rng: () => number): number {
   return Math.max(0, k - 1);
 }
 
-// Bônus por divisão (média OVR aproximada) — usado para converter strength em lambda
-const DIV_BASE: Record<Division, number> = {
-  bronze: 33, prata: 44, ouro: 55, diamante: 64, lendaria: 72,
-};
-
-/** Simula placar CPUxCPU a partir de strengths médios. Retorna gols. */
+/** Simula placar CPUxCPU (Poisson). Nunca usado quando o jogador está em campo. */
 export function simulateSummaryScore(
   homeStrength: number,
   awayStrength: number,
@@ -56,7 +52,6 @@ export function simulateSummaryScore(
   return { home, away };
 }
 
-/** Decide vencedor de mata-mata em caso de empate (pênaltis). */
 export function decideKnockoutWinner(
   homeStrength: number,
   awayStrength: number,
@@ -67,7 +62,6 @@ export function decideKnockoutWinner(
   if (home > away) return "home";
   if (away > home) return "away";
   const rng = mulberry32(seed ^ 0xdeadbeef);
-  // pênaltis levemente influenciados por força
   const homeChance = homeStrength / (homeStrength + awayStrength);
   return rng() < homeChance ? "home" : "away";
 }
@@ -81,37 +75,40 @@ export type PoolTeam = {
 };
 
 /**
- * Distribui 20 times em 5 grupos de 4 (potes por divisão para equilibrar).
+ * Distribui 20 times em 4 GRUPOS DE 5 (potes por força).
  * Player sempre no grupo A.
  */
-export function drawLeagueGroups(teams: PoolTeam[], seed: number): { group: string; teams: PoolTeam[] }[] {
+export function drawLeagueGroups(
+  teams: PoolTeam[],
+  seed: number,
+): { group: string; teams: PoolTeam[] }[] {
   if (teams.length !== 20) throw new Error(`Liga Mundial exige 20 times, recebeu ${teams.length}`);
   const rng = mulberry32(seed);
-  const shuffled = teams.slice();
-  // sort by strength desc for pot assignment
-  shuffled.sort((a, b) => b.strength - a.strength);
-  // 4 pots de 5 times
-  const pots: PoolTeam[][] = [shuffled.slice(0, 5), shuffled.slice(5, 10), shuffled.slice(10, 15), shuffled.slice(15, 20)];
-  // Embaralha cada pote
+  const sorted = teams.slice().sort((a, b) => b.strength - a.strength);
+  // 5 potes de 4 (1 time por pote em cada grupo)
+  const pots: PoolTeam[][] = [
+    sorted.slice(0, 4),
+    sorted.slice(4, 8),
+    sorted.slice(8, 12),
+    sorted.slice(12, 16),
+    sorted.slice(16, 20),
+  ];
   for (const pot of pots) {
     for (let i = pot.length - 1; i > 0; i--) {
       const j = Math.floor(rng() * (i + 1));
       [pot[i], pot[j]] = [pot[j], pot[i]];
     }
   }
-  const groups: PoolTeam[][] = [[], [], [], [], []];
-  // 1 time de cada pote em cada grupo
+  const groups: PoolTeam[][] = [[], [], [], []];
   for (const pot of pots) {
-    for (let g = 0; g < 5; g++) groups[g].push(pot[g]);
+    for (let g = 0; g < 4; g++) groups[g].push(pot[g]);
   }
-  // Garante que o jogador fique no grupo A (índice 0)
+  // Player no grupo A
   const playerGroupIdx = groups.findIndex((g) => g.some((t) => t.is_player));
   if (playerGroupIdx > 0) {
     const player = groups[playerGroupIdx].find((t) => t.is_player)!;
-    // troca player com um time do mesmo pote no grupo A
     const potOfPlayer = pots.findIndex((p) => p.includes(player));
-    const groupA = groups[0];
-    const swapTarget = groupA.find((t) => pots[potOfPlayer].includes(t));
+    const swapTarget = groups[0].find((t) => pots[potOfPlayer].includes(t));
     if (swapTarget) {
       groups[playerGroupIdx] = groups[playerGroupIdx].map((t) => (t === player ? swapTarget : t));
       groups[0] = groups[0].map((t) => (t === swapTarget ? player : t));
@@ -120,28 +117,29 @@ export function drawLeagueGroups(teams: PoolTeam[], seed: number): { group: stri
   return groups.map((g, i) => ({ group: String.fromCharCode(65 + i), teams: g }));
 }
 
-/** Round-robin de 4 times → 3 rodadas × 2 jogos (só ida). */
-export function groupFixtures(teams: PoolTeam[]): Array<{ round: number; home: PoolTeam; away: PoolTeam }> {
-  const [a, b, c, d] = teams;
+/**
+ * Round-robin de 5 times → 5 rodadas × 2 jogos (um time descansa por rodada).
+ * Cada time joga 4 partidas.
+ */
+export function groupFixtures(
+  teams: PoolTeam[],
+): Array<{ round: number; home: PoolTeam; away: PoolTeam }> {
+  const [t1, t2, t3, t4, t5] = teams;
   return [
-    { round: 1, home: a, away: b },
-    { round: 1, home: c, away: d },
-    { round: 2, home: a, away: c },
-    { round: 2, home: b, away: d },
-    { round: 3, home: a, away: d },
-    { round: 3, home: b, away: c },
+    { round: 1, home: t1, away: t2 }, { round: 1, home: t3, away: t4 }, // t5 folga
+    { round: 2, home: t1, away: t3 }, { round: 2, home: t2, away: t5 }, // t4 folga
+    { round: 3, home: t1, away: t4 }, { round: 3, home: t3, away: t5 }, // t2 folga
+    { round: 4, home: t1, away: t5 }, { round: 4, home: t2, away: t4 }, // t3 folga
+    { round: 5, home: t2, away: t3 }, { round: 5, home: t4, away: t5 }, // t1 folga
   ];
 }
 
-/** Nomes de fase da Liga Mundial por rodada (1-7). */
+/** Rodadas 1-5 = grupos; 6 = QF (8 times); 7 = SF; 8 = Final. */
 export const LEAGUE_PHASE_NAMES: Record<number, string> = {
-  1: "Grupos R1", 2: "Grupos R2", 3: "Grupos R3",
-  4: "Playoff", 5: "Quartas", 6: "Semifinal", 7: "Final",
+  1: "Grupos R1", 2: "Grupos R2", 3: "Grupos R3", 4: "Grupos R4", 5: "Grupos R5",
+  6: "Quartas", 7: "Semifinal", 8: "Final",
 };
 
-/** Nomes de fase da Copa Mundial por rodada (1-4). */
 export const CUP_PHASE_NAMES: Record<number, string> = {
   1: "Pré-oitavas", 2: "Quartas", 3: "Semifinal", 4: "Final",
 };
-
-DIV_BASE; // referência não usada externamente ainda
