@@ -6,6 +6,17 @@ import { simulate, persistableSimulationEvents, generateCpuSideFor, type EngineS
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { loadBestiary } from "./bestiary.server";
+import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, AWAY_WIN_BONUS, type Division as EconDivision } from "./economy";
+
+// Prêmio por partida da Copa por divisão (V / E / D). Empate resolvido em pênaltis
+// no motor, portanto D raramente é pago — mantido para compatibilidade.
+const CUP_MATCH_PRIZE: Record<EconDivision, [number, number, number]> = {
+  bronze:   [20_000,  8_000,  3_000],
+  prata:    [36_000, 14_000,  5_000],
+  ouro:     [64_000, 25_000,  9_000],
+  diamante:[115_000, 46_000, 16_000],
+  lendaria:[200_000, 80_000, 28_000],
+};
 
 async function loadEngineBestiary(supabase: any): Promise<EngineBestiary> {
   const b = await loadBestiary(supabase);
@@ -25,11 +36,11 @@ const CUP_ROUND_NAMES: Record<number, string> = { 1: "Quartas", 2: "Semifinal", 
 async function getTrainer(supabase: any, userId: string) {
   const { data: trainer } = await supabase
     .from("trainers")
-    .select("id, academy_name")
+    .select("id, academy_name, division")
     .eq("user_id", userId)
     .maybeSingle();
   if (!trainer) throw new Error("Treinador não encontrado.");
-  return trainer as { id: string; academy_name: string };
+  return trainer as { id: string; academy_name: string; division: EconDivision | null };
 }
 
 async function playerAverage(supabase: any, trainerId: string): Promise<number> {
