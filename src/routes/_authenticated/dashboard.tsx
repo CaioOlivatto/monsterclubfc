@@ -468,12 +468,34 @@ function Dashboard() {
           <Shortcut icon={<Building2 className="h-5 w-5" />} label="Construções" to="/buildings" />
           <Shortcut icon={<Trophy className="h-5 w-5" />} label="Liga" to="/league" />
           <Shortcut icon={<Trophy className="h-5 w-5" />} label="Copa" to="/cup" />
+          <Shortcut icon={<Trophy className="h-5 w-5" />} label="Liga Mundial" to="/world-league" />
+          <Shortcut icon={<Trophy className="h-5 w-5" />} label="Copa Mundial" to="/world-cup" />
           <Shortcut icon={<ShoppingBag className="h-5 w-5" />} label="Loja" to="/shop" />
           <Shortcut icon={<Wallet className="h-5 w-5" />} label="Finanças" to="/finances" />
           <Shortcut icon={<Inbox className="h-5 w-5" />} label="Mensagens" to="/messages" />
           <Shortcut icon={<Trophy className="h-5 w-5" />} label="Ranking Mundial" to="/ranking" />
           <Shortcut icon={<Award className="h-5 w-5" />} label="Carreira" to="/career" />
         </div>
+
+        <Card className="border-dashed">
+          <CardHeader className="py-3">
+            <CardTitle className="text-sm">Competições Mundiais</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 pb-4 text-xs text-muted-foreground">
+            <p>
+              <b className="text-foreground">Liga Mundial</b> — 4 melhores de cada divisão (20 times, grupos + mata-mata, 7 rodadas).
+              Termine entre os 4 melhores da sua divisão para se classificar.
+            </p>
+            <p>
+              <b className="text-foreground">Copa Mundial</b> — campeões de cada divisão (10 times, mata-mata com pré-rodada, 4 rodadas).
+              Seja campeão da sua divisão para se classificar.
+            </p>
+            <p className="italic">
+              Rodadas jogáveis serão liberadas na próxima atualização (Fase B).
+            </p>
+          </CardContent>
+        </Card>
+
 
 
 
