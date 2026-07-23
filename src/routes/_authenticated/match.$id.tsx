@@ -7,7 +7,7 @@ import { getMatch, payMatchSpeed } from "@/lib/match.functions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Play, Pause, FastForward, SkipForward, Gem } from "lucide-react";
+import { ArrowLeft, Play, Pause, FastForward, SkipForward } from "lucide-react";
 import { PlayBanner } from "@/components/match/PlayBanner";
 import { EventsPanel, type RevealedEvent } from "@/components/match/EventsPanel";
 import { NarrationSession, type Outcome, type PlayMeta } from "@/lib/narration/session";
