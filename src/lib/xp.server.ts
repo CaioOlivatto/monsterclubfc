@@ -135,6 +135,7 @@ export async function applyPostMatchXp(
   const goalsByCreature = opts.goalsByCreature ?? {};
   const outcomeMorale = opts.outcome === "W" ? +3 : opts.outcome === "D" ? 0 : -4;
 
+  const updatePromises: Promise<any>[] = [];
   for (const c of creatures ?? []) {
     const add = targets.filter((t) => t.id === c.id).reduce((a, t) => a + t.add, 0);
     const newXp = (c.xp ?? 0) + add;
@@ -142,14 +143,10 @@ export async function applyPostMatchXp(
     const applied = c.half_stars_earned ?? 0;
     const pending = Math.max(0, Math.min(10 - applied, totalHalfStars - applied));
     const loss = opts.energy_loss[c.id] ?? 0;
-    // v2: quem jogou (titular ou entrou) +12; quem não entrou +42. Piso 30, teto 100.
     const played = starterSet.has(c.id) || enteredSet.has(c.id);
     const rec = played ? RECOVERY_PLAYED : RECOVERY_RESTED;
     const newEnergy = Math.max(30, Math.min(100, (c.energy ?? 100) - loss + rec));
 
-
-    // Duração de lesão (§Lesões): decrementa em partidas oficiais; se recebeu nova lesão nesta partida
-    // aplica a maior/nova duração.
     let injRemaining = c.injury_matches_remaining ?? 0;
     let injSeverity: string | null = c.injury_severity ?? null;
     if (isOfficial && injRemaining > 0) {
@@ -162,58 +159,47 @@ export async function applyPostMatchXp(
       injSeverity = newInj.severity;
     }
 
-    // ============ MORAL (só em partidas oficiais) ============
     let newMorale = Math.max(0, Math.min(100, c.morale ?? 50));
     if (isOfficial) {
-      let gains = 0; // aplicam-se ganhos decrescentes
+      let gains = 0;
       let losses = 0;
-
       if (starterSet.has(c.id)) gains += 4;
       else if (enteredSet.has(c.id)) gains += 2;
-
       const goals = goalsByCreature[c.id] ?? 0;
       if (goals > 0) gains += 6 * goals;
-
-      // Resultado do time
       if (outcomeMorale >= 0) gains += outcomeMorale;
       else losses += -outcomeMorale;
-
-      // Banco sem entrar — castigo escalonado por ranking no elenco
-      if (unusedBenchSet.has(c.id)) {
-        losses += -benchPenaltyByRank(rankOf.get(c.id) ?? 99);
-      }
-
-      // Fora do elenco (nem titular, nem banco, nem entrou)
+      if (unusedBenchSet.has(c.id)) losses += -benchPenaltyByRank(rankOf.get(c.id) ?? 99);
       const outOfSquad =
         !starterSet.has(c.id) && !enteredSet.has(c.id) && !unusedBenchSet.has(c.id);
       if (outOfSquad) losses += 7;
-
-      // Lesão em curso ou recém-adquirida
       if (injRemaining > 0) losses += 4;
-
-      // Ganhos decrescentes: quanto mais alto o moral, menor o ganho real.
       const gainMul = Math.max(0, 1 - newMorale / 120);
       newMorale = Math.max(0, Math.min(100, Math.round(newMorale + gains * gainMul - losses)));
     }
 
-    await supabase
-      .from("creatures")
-      .update({
-        xp: newXp,
-        pending_half_stars: pending,
-        energy: newEnergy,
-        morale: newMorale,
-        injury_matches_remaining: injRemaining,
-        injury_severity: injSeverity,
-      })
-      .eq("id", c.id);
+    updatePromises.push(
+      supabase
+        .from("creatures")
+        .update({
+          xp: newXp,
+          pending_half_stars: pending,
+          energy: newEnergy,
+          morale: newMorale,
+          injury_matches_remaining: injRemaining,
+          injury_severity: injSeverity,
+        })
+        .eq("id", c.id),
+    );
   }
 
-  await tickBurst(supabase, trainerId, burstLeft);
-
-  // XP de prestígio do treinador pelo resultado
+  // N+1 fix: dispara todas as escritas em paralelo (creatures + burst + XP treinador).
   const src = opts.outcome === "W" ? "match_win" : opts.outcome === "D" ? "match_draw" : "match_loss";
-  await awardTrainerXp(supabase, trainerId, src, 1);
+  await Promise.all([
+    ...updatePromises,
+    tickBurst(supabase, trainerId, burstLeft),
+    awardTrainerXp(supabase, trainerId, src, 1),
+  ]);
 }
 
 
