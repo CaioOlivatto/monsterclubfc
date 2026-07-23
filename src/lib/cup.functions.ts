@@ -6,7 +6,7 @@ import { simulate, persistableSimulationEvents, generateCpuSideFor, type EngineS
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { loadBestiary } from "./bestiary.server";
-import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, AWAY_WIN_BONUS, type Division as EconDivision } from "./economy";
+import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, AWAY_WIN_BONUS, CUP_PHASE_BONUS, type Division as EconDivision } from "./economy";
 
 // Prêmio por partida da Copa por divisão (V / E / D). Empate resolvido em pênaltis
 // no motor, portanto D raramente é pago — mantido para compatibilidade.
