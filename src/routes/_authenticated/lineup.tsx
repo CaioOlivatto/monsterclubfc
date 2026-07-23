@@ -187,13 +187,25 @@ function LineupPage() {
   };
   const ROLE_LABEL: Record<SlotRole, string> = { GOL: "GOL", DEF: "DEF", MEI: "MEI", ATA: "ATA" };
 
+  // Onde cada criatura já está escalada (para badge "Já escalado em X").
+  const usedLabelById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const st of starters) {
+      if (!st.creature_id) continue;
+      const slotDef = slots.find((sl) => sl.index === st.slot);
+      m.set(st.creature_id, slotDef?.label ?? `Slot ${st.slot}`);
+    }
+    for (const id of bench) m.set(id, "Reservas");
+    return m;
+  }, [starters, bench, slots]);
+
   const sortByEff = (a: any, b: any) =>
     effectiveOverall(b.overall ?? 0, b.energy ?? 100, b.morale) -
     effectiveOverall(a.overall ?? 0, a.energy ?? 100, a.morale);
 
-  // Antes da partida, o dropdown mostra TODAS as criaturas do elenco na posição correta,
-  // exceto lesionadas. A troca com quem já está escalado é resolvida no onChange (swap).
-  const availableFor = (_currentId: string | null) => creatures;
+  // Mostra TODAS as criaturas (incluindo lesionadas e já escaladas em outros slots).
+  // Estado visual/bloqueio de seleção é aplicado no render item.
+  const availableFor = (_currentId: string | null) => allCreatures;
 
 
   const setSlotCreature = (slotIdx: number, creatureId: string | null) => {
