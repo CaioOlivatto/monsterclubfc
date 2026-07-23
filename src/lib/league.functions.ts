@@ -13,7 +13,7 @@ import { stadiumCapacity } from "./buildings.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { awardTrainerXp, resetSeasonBreakdown } from "./trainer-xp.server";
-import { MATCH_REVENUE, MAINTENANCE_PER_MATCH, matchSalary } from "./economy";
+import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, type Division as EconDivision } from "./economy";
 import { loadBestiary } from "./bestiary.server";
 import { applySeasonOutcome } from "./career-transition.server";
 
