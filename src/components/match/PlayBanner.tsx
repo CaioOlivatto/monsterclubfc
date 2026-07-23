@@ -5,22 +5,31 @@ import type { NarrationParts } from "@/lib/narration/session";
 interface Props {
   parts: NarrationParts;
   teamColor: string; // hsl or css color
-  outcome: "goal" | "save" | "miss" | "block";
+  outcome: "goal" | "save" | "miss" | "block" | "red_card";
   elementalAdvantage?: boolean;
+  brief?: boolean; // pula direto ao desfecho (ex.: cartão vermelho)
   onFinished: () => void;
 }
 
 /**
  * Tarja de 3 tempos. Revela p1, p2, p3 com pausa entre elas.
- * Em gol, pisca ao mostrar p3.
+ * Em gol, pisca ao mostrar p3. Em modo brief, mostra só o desfecho.
  */
-export function PlayBanner({ parts, teamColor, outcome, elementalAdvantage, onFinished }: Props) {
+export function PlayBanner({ parts, teamColor, outcome, elementalAdvantage, brief, onFinished }: Props) {
   const [step, setStep] = useState<0 | 1 | 2 | 3>(0);
   const step2Delay = parts.fast_beat ? 500 : 900;
   const step3Delay = parts.fast_beat ? 500 : 900;
-  const holdMs = outcome === "goal" ? 1900 : 1400;
+  const holdMs = outcome === "goal" ? 1900 : brief ? 1200 : 1400;
 
   useEffect(() => {
+    if (brief) {
+      const t3 = window.setTimeout(() => setStep(3), 50);
+      const t4 = window.setTimeout(() => onFinished(), 50 + holdMs);
+      return () => {
+        window.clearTimeout(t3);
+        window.clearTimeout(t4);
+      };
+    }
     const t1 = window.setTimeout(() => setStep(1), 50);
     const t2 = window.setTimeout(() => setStep(2), 50 + step2Delay);
     const t3 = window.setTimeout(() => setStep(3), 50 + step2Delay + step3Delay);
@@ -33,6 +42,7 @@ export function PlayBanner({ parts, teamColor, outcome, elementalAdvantage, onFi
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
 
   const isGoal = outcome === "goal";
   const showFlash = isGoal && step === 3;
