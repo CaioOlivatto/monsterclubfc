@@ -920,14 +920,87 @@ export const getWorldCup = createServerFn({ method: "POST" })
     return { competition: comp, matches: matches ?? [], teams: teamsData ?? [], playerTeamId, seasonNumber: season.season_number };
   });
 
+async function recoverStaleWorldCupRounds(supabase: any, compId: string, upToRound: number) {
+  const { data: stale } = await supabase
+    .from("matches").select("id, round").eq("competition_id", compId)
+    .eq("status", "scheduled").lt("round", upToRound);
+  if (!stale?.length) return;
+  console.warn(`[simulateWorldCupRound] RECUPERANDO ${stale.length} partidas de rodadas anteriores`);
+  const rounds = Array.from(new Set((stale as any[]).map((m) => m.round as number))).sort((a: number, b: number) => a - b);
+  for (const r of rounds) {
+    try { await advanceWorldCupRoundInternal(supabase, compId, r as number); }
+    catch (e) { console.error(`[recoverStaleWorldCupRounds] ERRO round=${r}:`, e); }
+  }
+}
+
+async function advanceWorldCupRoundInternal(supabase: any, compId: string, round: number) {
+  const { data: pending } = await supabase
+    .from("matches").select("id, round, phase, home_team_id, away_team_id")
+    .eq("competition_id", compId).eq("round", round).eq("status", "scheduled");
+  const strengths = await computeTeamStrengths(
+    supabase,
+    Array.from(new Set((pending ?? []).flatMap((m: any) => [m.home_team_id, m.away_team_id]))),
+  );
+  if (pending?.length) {
+    await Promise.all(pending.map((m: any) => simulateCpuMatch(supabase, m, strengths, true)));
+  }
+
+  // Só progride se próxima rodada não existe
+  const { count: nextExists } = await supabase
+    .from("matches").select("id", { count: "exact", head: true })
+    .eq("competition_id", compId).eq("round", round + 1);
+  if ((nextExists ?? 0) > 0) return;
+
+  // Coleta vencedores de TODAS as partidas concluídas dessa rodada
+  const { data: done } = await supabase
+    .from("matches").select("home_team_id, away_team_id, home_score, away_score, id")
+    .eq("competition_id", compId).eq("round", round).eq("status", "finished");
+  const strMapAll = await computeTeamStrengths(
+    supabase,
+    Array.from(new Set((done ?? []).flatMap((m: any) => [m.home_team_id, m.away_team_id]))),
+  );
+  const winners: string[] = [];
+  for (const m of done ?? []) {
+    const hg = m.home_score ?? 0; const ag = m.away_score ?? 0;
+    if (hg > ag) winners.push(m.home_team_id);
+    else if (ag > hg) winners.push(m.away_team_id);
+    else {
+      const w = decideKnockoutWinner(strMapAll.get(m.home_team_id) ?? 45, strMapAll.get(m.away_team_id) ?? 45, hg, ag, hashSeed(m.id));
+      winners.push(w === "home" ? m.home_team_id : m.away_team_id);
+    }
+  }
+
+  const { data: comp } = await supabase
+    .from("competitions").select("id, metadata").eq("id", compId).maybeSingle();
+  const meta = (comp?.metadata ?? {}) as any;
+
+  if (round === 1) {
+    const byes = (meta.byes ?? []) as string[];
+    const qfTeams = [...byes, ...winners];
+    const strMap = await computeTeamStrengths(supabase, qfTeams);
+    const ordered = qfTeams.slice().sort((a, b) => (strMap.get(b) ?? 0) - (strMap.get(a) ?? 0));
+    await generateKnockoutRound(supabase, compId, 2, ordered.map((id) => ({ id, strength: strMap.get(id) ?? 45 })));
+  } else if (round === 2 || round === 3) {
+    const strMap = await computeTeamStrengths(supabase, winners);
+    const ordered = round === 2 ? winners.slice().sort((a, b) => (strMap.get(b) ?? 0) - (strMap.get(a) ?? 0)) : winners;
+    await generateKnockoutRound(supabase, compId, round + 1, ordered.map((id) => ({ id, strength: strMap.get(id) ?? 45 })));
+  } else if (round === 4) {
+    const champ = winners[0] ?? null;
+    await supabase.from("competitions").update({ status: "finished", champion_team_id: champ }).eq("id", compId).eq("status", "active");
+  }
+}
+
 export const simulateWorldCupRound = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const t0 = Date.now();
+    const stamp = (label: string) =>
+      console.log(`[simulateWorldCupRound] +${Date.now() - t0}ms ${label}`);
     const { supabase, userId } = context;
     const trainer = await getTrainer(supabase, userId);
     const season = await getCurrentSeason(supabase, trainer.id);
     const { data: comp } = await supabase.from("competitions")
-      .select("id, status, metadata")
+      .select("id, status, metadata, division")
       .eq("trainer_id", trainer.id).eq("type", "world_cup").eq("season_id", season.id).maybeSingle();
     if (!comp || comp.status !== "active") throw new Error("Sem Copa Mundial ativa.");
 
@@ -937,70 +1010,66 @@ export const simulateWorldCupRound = createServerFn({ method: "POST" })
       .order("round", { ascending: true });
     if (!pending || !pending.length) throw new Error("Nenhuma rodada pendente.");
     const nextRound = Number(pending[0].round ?? 1);
-    const roundMatches = (pending as any[]).filter((m: any) => m.round === nextRound);
 
+    // RETRY-ON-ENTRY
+    try { await recoverStaleWorldCupRounds(supabase, comp.id, nextRound); stamp("recover"); }
+    catch (e) { console.error("[simulateWorldCupRound] ERRO na recuperação:", e); }
+
+    const roundMatches = (pending as any[]).filter((m: any) => m.round === nextRound);
     const { data: playerRow } = await supabase
       .from("teams").select("id").eq("trainer_id", trainer.id).eq("is_player", true).not("division", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
     const playerTeamId = playerRow?.id as string | undefined;
-
-    const teamIds = Array.from(new Set(roundMatches.flatMap((m: any) => [m.home_team_id, m.away_team_id])));
-    const strengths = await computeTeamStrengths(supabase, teamIds);
     const bestiary = await loadEngineBestiary(supabase);
+    stamp("bestiary");
 
-    const winners: string[] = [];
+    const playerMatch = roundMatches.find((m: any) =>
+      playerTeamId && (m.home_team_id === playerTeamId || m.away_team_id === playerTeamId),
+    );
     let playerMatchId: string | null = null;
-    for (const m of roundMatches) {
-      const involvesPlayer = playerTeamId && (m.home_team_id === playerTeamId || m.away_team_id === playerTeamId);
-      let hg = 0, ag = 0;
-      if (involvesPlayer) {
-        const r = await simulatePlayerMatch(supabase, trainer.id, m, playerTeamId!, bestiary, {
-          competition: "world_cup", round: nextRound, isGroupPhase: false,
-          division: ((comp as any).division as string) ?? "bronze",
-        });
-        hg = r.home_score; ag = r.away_score;
-        playerMatchId = m.id;
-      } else {
-        const r = await simulateCpuMatch(supabase, m, strengths, true);
-        hg = r.home_score; ag = r.away_score;
-      }
-      let winner: string;
-      if (hg > ag) winner = m.home_team_id;
-      else if (ag > hg) winner = m.away_team_id;
-      else {
-        const hs = strengths.get(m.home_team_id) ?? 45;
-        const as_ = strengths.get(m.away_team_id) ?? 45;
-        const w = decideKnockoutWinner(hs, as_, hg, ag, hashSeed(m.id));
-        winner = w === "home" ? m.home_team_id : m.away_team_id;
-      }
-      winners.push(winner);
-    }
-
-    const meta = (comp.metadata ?? {}) as any;
-    if (nextRound === 1) {
-      const byes = (meta.byes ?? []) as string[];
-      const qfTeams = [...byes, ...winners];
-      const strMap = await computeTeamStrengths(supabase, qfTeams);
-      const ordered = qfTeams.slice().sort((a, b) => (strMap.get(b) ?? 0) - (strMap.get(a) ?? 0));
-      await generateKnockoutRound(supabase, comp.id, 2, ordered.map((id) => ({ id, strength: strMap.get(id) ?? 45 })));
-    }
-    if (nextRound === 2) {
-      const strMap = await computeTeamStrengths(supabase, winners);
-      const ordered = winners.slice().sort((a, b) => (strMap.get(b) ?? 0) - (strMap.get(a) ?? 0));
-      await generateKnockoutRound(supabase, comp.id, 3, ordered.map((id) => ({ id, strength: strMap.get(id) ?? 45 })));
-    }
-    if (nextRound === 3) {
-      const strMap = await computeTeamStrengths(supabase, winners);
-      await generateKnockoutRound(supabase, comp.id, 4, winners.map((id) => ({ id, strength: strMap.get(id) ?? 45 })));
-    }
-    if (nextRound === 4) {
-      const champ = winners[0] ?? null;
-      await supabase.from("competitions").update({ status: "finished", champion_team_id: champ }).eq("id", comp.id);
+    if (playerMatch && playerTeamId) {
+      await simulatePlayerMatch(supabase, trainer.id, playerMatch, playerTeamId, bestiary, {
+        competition: "world_cup", round: nextRound, isGroupPhase: false,
+        division: ((comp as any).division as string) ?? "bronze",
+      });
+      playerMatchId = playerMatch.id;
+      stamp("player match");
     }
 
     return {
       round: nextRound,
       phase: CUP_PHASE_NAMES[nextRound] ?? `R${nextRound}`,
-      matchesPlayed: roundMatches.length,
+      matchesPlayed: playerMatchId ? 1 : 0,
       playerMatchId,
+      background_advance: {
+        competition_id: comp.id,
+        round: nextRound,
+      },
     };
+  });
+
+export const advanceWorldCupRoundBackground = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((raw: unknown) =>
+    z.object({
+      competition_id: z.string().uuid(),
+      round: z.number().int().min(1).max(4),
+    }).parse(raw),
+  )
+  .handler(async ({ data, context }) => {
+    const t0 = Date.now();
+    const stamp = (label: string) =>
+      console.log(`[advanceWorldCupRoundBackground] +${Date.now() - t0}ms ${label}`);
+    const { supabase, userId } = context;
+    const trainer = await getTrainer(supabase, userId);
+    const { data: comp } = await supabase
+      .from("competitions").select("id").eq("id", data.competition_id).eq("trainer_id", trainer.id).eq("type", "world_cup").maybeSingle();
+    if (!comp) return { ok: false, reason: "not_found" };
+    try {
+      await advanceWorldCupRoundInternal(supabase, data.competition_id, data.round);
+      stamp("done");
+      return { ok: true };
+    } catch (e) {
+      console.error(`[advanceWorldCupRoundBackground] ERRO comp=${data.competition_id} round=${data.round}:`, e);
+      return { ok: false, reason: "internal_failed", error: String((e as any)?.message ?? e) };
+    }
   });
