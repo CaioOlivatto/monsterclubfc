@@ -247,8 +247,12 @@ export const getLeague = createServerFn({ method: "GET" })
 export const playNextLeagueMatch = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const t0 = Date.now();
+    const stamp = (label: string) =>
+      console.log(`[playNextLeagueMatch] +${Date.now() - t0}ms ${label}`);
     const { supabase, userId } = context;
     const trainer = await getTrainer(supabase, userId);
+    stamp("trainer");
 
     let playerTeam: null | { id: string; competition_id: string | null } = null;
     if (trainer.current_team_id) {
@@ -282,6 +286,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       .eq("status", "active")
       .maybeSingle();
     if (!competition) throw new Error("Nenhuma liga em andamento.");
+    stamp("competition");
 
     const { data: next } = await supabase
       .from("matches")
@@ -302,6 +307,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     const away = teams!.find((t: any) => t.id === next.away_team_id) as any;
 
     const bestiary = await loadEngineBestiary(supabase);
+    stamp("bestiary");
     const playerSideRef: { current: EngineSide | null } = { current: null };
     async function buildSide(team: any): Promise<EngineSide> {
       if (team.is_player) {
@@ -314,8 +320,11 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     }
     const homeSide = await buildSide(home);
     const awaySide = await buildSide(away);
+    stamp("sides");
     const seed = hashSeed(next.id);
     const result = simulate(homeSide, awaySide, seed);
+    stamp("simulate");
+
 
     const { error: uErr } = await supabase
       .from("matches")
