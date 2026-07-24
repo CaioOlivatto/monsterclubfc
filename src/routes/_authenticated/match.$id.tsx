@@ -89,6 +89,8 @@ function MatchPage() {
   const [speed, setSpeed] = useState<Speed>(2);
   const [revealed, setRevealed] = useState<RevealedEvent[]>([]);
   const [pending, setPending] = useState<PendingPlay | null>(null);
+  const [unlockMode, setUnlockMode] = useState<"4x" | "instant" | null>(null);
+
   const timerRef = useRef<number | null>(null);
   const narrRef = useRef<NarrationSession>(new NarrationSession());
   const processedRef = useRef<Set<number>>(new Set());
