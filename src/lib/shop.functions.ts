@@ -91,9 +91,38 @@ export const getShopState = createServerFn({ method: "GET" })
         maxBuilders: MAX_BUILDERS,
         speedUnlockCosts: SPEED_UNLOCK_COSTS,
         xpBurstMatches: XP_BURST_MATCHES,
+        gemToMoneyRate: GEM_TO_MONEY_RATE,
+        gemExchangePresets: GEM_EXCHANGE_PRESETS,
       },
     };
   });
+
+export const exchangeGemsForMoney = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { gems: number }) => ({
+    gems: z.number().int().min(1).max(100000).parse(data.gems),
+  }))
+  .handler(async ({ data, context }) => {
+    const { trainer, academy } = await loadCtx(context);
+    if (academy.gems < data.gems) throw new Error("Gemas insuficientes.");
+    const money = data.gems * GEM_TO_MONEY_RATE;
+    await context.supabase
+      .from("academies")
+      .update({
+        gems: academy.gems - data.gems,
+        money: Number(academy.money) + money,
+      })
+      .eq("id", academy.id);
+    await logTx(
+      context,
+      trainer.id,
+      "income",
+      money,
+      `Troca de ${data.gems}💎 por dinheiro`,
+    );
+    return { ok: true, message: `+$${money.toLocaleString("pt-BR")} creditados.` };
+  });
+
 
 // ---------- Comprar item ----------
 export const buyItem = createServerFn({ method: "POST" })
