@@ -84,6 +84,23 @@ Recebida em **toda** partida oficial (casa ou fora). `Sponsor` unifica Master + 
 - Substituiu a ocupação por posição na tabela (`0.70 + 0.03 × pos_invertida`, média ~87%). A nova fórmula tende a produzir ocupação **igual ou menor** para times bem administrados (moral 70–90 → 73–91%), então não reabre o problema de excesso de lucro corrigido antes.
 - 13 jogos em casa por temporada.
 
+### 2.3.1 Bônus de vitória fora (dinâmico)
+Substituiu o `AWAY_WIN_BONUS` fixo de $25.000. Agora calculado no momento da partida em `computeAwayWinBonus` (`src/lib/economy.ts`):
+
+```
+bonus = max(0, despesas_da_partida − receita_fixa_sem_bilheteria − prêmio_vitória) + MARGEM_MINIMA
+MARGEM_MINIMA = $8.000
+```
+
+O bônus sobe automaticamente conforme manutenção e salários crescem com as construções do jogador, garantindo que uma vitória fora sempre feche em torno de +$8.000 em vez de virar prejuízo. Aplicado consistentemente em Campeonato, Copa e Liga/Copa Mundial.
+
+Validação (Prata, prêmio vitória $28k, receita fixa fora $50k):
+- Despesas originais $94.314 → bônus $32.314 → net **+$8.000** (antes: $25k fixo dava +$8.686).
+- Despesas pós-upgrade $103.114 → bônus $41.114 → net **+$8.000** (antes: $25k fixo dava −$114).
+- Despesas ≤ $78k (receita fixa + prêmio) → bônus = margem mínima $8.000 (nunca abaixo).
+
+
+
 ### 2.4 Bônus de fim de temporada — Campeonato Nacional (× prêmio de vitória da divisão)
 | Posição | Multiplicador |
 |---|---|
