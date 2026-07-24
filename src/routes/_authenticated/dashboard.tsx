@@ -11,6 +11,7 @@ import { getMyLineup } from "@/lib/lineup.functions";
 import { getConfidence, type ConfidenceInfo } from "@/lib/career.functions";
 import { startLeague } from "@/lib/league.functions";
 import { ageStatus } from "@/lib/age";
+import { RetirementDialog } from "@/components/RetirementDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
