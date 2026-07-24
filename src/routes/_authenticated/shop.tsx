@@ -49,6 +49,8 @@ function ShopPage() {
   const buyGemsFn = useServerFn(buyGemPackage);
   const buyBuilderFn = useServerFn(buyExtraBuilder);
   const expandFn = useServerFn(expandRoster);
+  const exchangeFn = useServerFn(exchangeGemsForMoney);
+
 
   const { data: shop, isLoading } = useQuery({
     queryKey: ["shop"],
