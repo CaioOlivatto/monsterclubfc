@@ -87,6 +87,7 @@ function Dashboard() {
   const { data: lineupData } = useQuery({ queryKey: ["my-lineup"], queryFn: () => fetchLineup() });
   const { data: confidence } = useQuery<ConfidenceInfo>({ queryKey: ["confidence"], queryFn: () => fetchConfidence() });
 
+  const retiredCount = (rosterList ?? []).filter((c: any) => ageStatus(c.age) === "retired").length;
   const lastSeasonCount = (rosterList ?? []).filter((c: any) => ageStatus(c.age) === "last_season").length;
   const injuredCount = (rosterList ?? []).filter((c: any) => (c.injury_matches_remaining ?? 0) > 0).length;
   const lowMoraleCount = (rosterList ?? []).filter((c: any) => (c.morale ?? 50) < 40).length;
@@ -100,6 +101,13 @@ function Dashboard() {
   }, [lineupData]);
 
   const alerts: Alert[] = [];
+  if (retiredCount > 0)
+    alerts.push({
+      key: "retired", tone: "red", to: "/roster",
+      icon: <Hourglass className="h-4 w-4" />,
+      title: `${retiredCount} ${retiredCount === 1 ? "criatura chegou aos 33" : "criaturas chegaram aos 33"} — ação necessária`,
+      detail: "Abra a ficha para vender (75%) ou renascer.",
+    });
   if (lastSeasonCount > 0)
     alerts.push({
       key: "retire", tone: "orange", to: "/roster",
