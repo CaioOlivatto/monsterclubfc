@@ -156,6 +156,7 @@ export interface GeneratedCreature {
   aff_terra: number;
   aff_ar: number;
   aff_gelo: number;
+  is_prodigy?: boolean;
 }
 
 export function generateTeamRoster(bestiary: LoadedBestiary, team: WorldTeam, division: DivisionSlug, seed: number): GeneratedCreature[] {
