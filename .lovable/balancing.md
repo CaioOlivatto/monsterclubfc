@@ -214,28 +214,33 @@ Referência ex-ante com moral estável ~70: ~$911k. A diferença vem do custo re
 | Instantâneo (permanente) | 800 💎 |
 
 ### 3.4 Troca de gemas por dinheiro do jogo
-Taxa vigente: **1💎 = $180** (`GEM_TO_MONEY_RATE` em `src/lib/shop.server.ts`).
+Taxa **BASE** (referência 5ª Bronze): **1💎 = $700** (`GEM_TO_MONEY_RATE` em `src/lib/shop.server.ts`).
 
-Presets de troca na Loja (valores atualizados automaticamente pela taxa):
+**Multiplicador por divisão atual do jogador** (`DIVISION_EXCHANGE_MULT`):
 
-| Gemas | Dinheiro |
-|---|---|
-| 100 | $18.000 |
-| 500 | $90.000 |
-| 1.000 | $180.000 |
-| 2.000 | $360.000 |
+| Divisão | Multiplicador | Taxa efetiva |
+|---|---|---|
+| 5ª – Bronze | ×1,00 | $700 / 💎 |
+| 4ª – Prata | ×1,87 | $1.309 / 💎 |
+| 3ª – Ouro | ×3,13 | $2.191 / 💎 |
+| 2ª – Diamante | ×5,09 | $3.563 / 💎 |
+| 1ª – Lendária | ×7,82 | $5.474 / 💎 |
 
-**Referência de custo para "zerar" o teto de folha salarial de cada divisão** (usando pacote Tesouro, melhor razão custo/gema):
+Fórmula: `dinheiro_recebido = (gemas × 700) × multiplicador_da_divisão`.
 
-| Divisão | Teto de folha §8.2 | Gemas necessárias | Custo aprox. (R$) |
-|---|---|---|---|
-| 5ª – Bronze | $770.000 | ~4.278 | ~R$ 178 |
-| 4ª – Prata | $1.440.000 | ~8.000 | ~R$ 333 |
-| 3ª – Ouro | $2.410.000 | ~13.389 | ~R$ 558 |
-| 2ª – Diamante | $3.920.000 | ~21.778 | ~R$ 907 |
-| 1ª – Lendária | $6.020.000 | ~33.444 | ~R$ 1.393 |
+**Dinheiro recebido por pacote inteiro convertido, por divisão atual do jogador:**
 
-Essa taxa preserva a troca como conveniência real para quem tem pressa, mas deixa de ser barato o suficiente para pular o grind inteiro nas divisões de entrada, onde a progressão gradual é mais importante para retenção.
+| Pacote | Bronze | Prata | Ouro | Diamante | Lendária |
+|---|---|---|---|---|---|
+| Punhado (100💎) | 70.000 | 130.900 | 219.100 | 356.300 | 547.400 |
+| Saco (550💎) | 385.000 | 719.950 | 1.205.050 | 1.959.650 | 3.010.700 |
+| Baú (1.200💎) | 840.000 | 1.570.800 | 2.629.200 | 4.275.600 | 6.568.800 |
+| Cofre (2.600💎) | 1.820.000 | 3.403.400 | 5.696.600 | 9.263.800 | 14.232.400 |
+| Tesouro (8.400💎) | 5.880.000 | 10.995.600 | 18.404.400 | 29.929.200 | 45.981.600 |
+
+Calibração: mantém o custo real para "zerar" o teto de folha salarial em ~R$ 46 em **qualquer** divisão. Antes (taxa fixa), ficava relativamente mais barato quanto mais alta a divisão; agora é igualmente justo em todas.
+
+A tela de troca (aba Trocar da Loja) exibe a taxa base como referência e a taxa efetiva já calculada para a divisão atual do jogador.
 
 ## 4. Construções
 
