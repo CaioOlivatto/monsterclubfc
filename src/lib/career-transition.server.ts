@@ -144,6 +144,17 @@ export async function applySeasonOutcome(input: SeasonOutcomeInput): Promise<Sea
     pending_transition: fired,
   };
 
+  // ---- Gatilho de sequência de vitórias na temporada ----
+  const bestStreak = await computeBestWinStreak(supabase, trainerCurrentTeamId);
+  let streakChance = 0;
+  for (const t of WIN_STREAK_TRIGGERS) {
+    if (bestStreak >= t.streak) { streakChance = Math.max(streakChance, t.chance); }
+  }
+  const streakTriggered = streakChance > 0 && Math.random() < streakChance;
+
+  const topFinishTriggered = playerPosition <= 6 || isChampion;
+  const shouldGenerateInterestOffers = !fired && (topFinishTriggered || streakTriggered);
+
   // ---- Buffer: propostas de trabalho ----
   const jobOffers = await buildOffers({
     supabase,
@@ -152,6 +163,9 @@ export async function applySeasonOutcome(input: SeasonOutcomeInput): Promise<Sea
     seasonNumber,
     playerDivision,
     fired,
+    generateInterest: shouldGenerateInterestOffers,
+    streakTriggered,
+    bestStreak,
   });
 
   // ---- Buffer: mensagens do inbox ----
