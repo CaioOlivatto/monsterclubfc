@@ -1,16 +1,29 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getMatch } from "@/lib/match.functions";
+import { unlockSpeed } from "@/lib/shop.functions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Play, Pause, FastForward, SkipForward } from "lucide-react";
+import { ArrowLeft, Play, Pause, FastForward, SkipForward, Lock, Gem } from "lucide-react";
 import { PlayBanner } from "@/components/match/PlayBanner";
 import { EventsPanel, type RevealedEvent } from "@/components/match/EventsPanel";
 import { NarrationSession, type Outcome, type PlayMeta } from "@/lib/narration/session";
 import { TacticsSheet } from "@/components/match/TacticsSheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+
 
 
 export const Route = createFileRoute("/_authenticated/match/$id")({
@@ -76,6 +89,8 @@ function MatchPage() {
   const [speed, setSpeed] = useState<Speed>(2);
   const [revealed, setRevealed] = useState<RevealedEvent[]>([]);
   const [pending, setPending] = useState<PendingPlay | null>(null);
+  const [unlockMode, setUnlockMode] = useState<"4x" | "instant" | null>(null);
+
   const timerRef = useRef<number | null>(null);
   const narrRef = useRef<NarrationSession>(new NarrationSession());
   const processedRef = useRef<Set<number>>(new Set());
@@ -364,22 +379,56 @@ function MatchPage() {
               <Button
                 size="sm"
                 variant={speed === 4 ? "default" : "outline"}
-                onClick={() => setSpeed(4)}
+                onClick={() => {
+                  if (data.speed?.paid_4x) setSpeed(4);
+                  else setUnlockMode("4x");
+                }}
               >
-                <FastForward className="mr-1 h-3 w-3" /> 4x
+                {data.speed?.paid_4x ? (
+                  <FastForward className="mr-1 h-3 w-3" />
+                ) : (
+                  <Lock className="mr-1 h-3 w-3" />
+                )}{" "}
+                4x
               </Button>
               <Button
                 size="sm"
                 variant={speed === 0 ? "default" : "outline"}
                 onClick={() => {
-                  setSpeed(0);
-                  setPlaying(true);
+                  if (data.speed?.paid_instant) {
+                    setSpeed(0);
+                    setPlaying(true);
+                  } else {
+                    setUnlockMode("instant");
+                  }
                 }}
               >
-                <SkipForward className="mr-1 h-3 w-3" /> Instantâneo
+                {data.speed?.paid_instant ? (
+                  <SkipForward className="mr-1 h-3 w-3" />
+                ) : (
+                  <Lock className="mr-1 h-3 w-3" />
+                )}{" "}
+                Instantâneo
               </Button>
               <TacticsSheet />
             </div>
+
+            <UnlockSpeedDialog
+              mode={unlockMode}
+              onOpenChange={(open) => !open && setUnlockMode(null)}
+              gems={data.speed?.gems ?? 0}
+              cost4x={data.speed?.cost_4x ?? 300}
+              costInstant={data.speed?.cost_instant ?? 800}
+              onUnlocked={(mode) => {
+                setUnlockMode(null);
+                if (mode === "4x") setSpeed(4);
+                else {
+                  setSpeed(0);
+                  setPlaying(true);
+                }
+              }}
+            />
+
 
           </CardContent>
         </Card>
@@ -516,5 +565,73 @@ function FinanceSummaryCard({ summary }: { summary: any }) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function UnlockSpeedDialog({
+  mode,
+  onOpenChange,
+  gems,
+  cost4x,
+  costInstant,
+  onUnlocked,
+}: {
+  mode: "4x" | "instant" | null;
+  onOpenChange: (open: boolean) => void;
+  gems: number;
+  cost4x: number;
+  costInstant: number;
+  onUnlocked: (mode: "4x" | "instant") => void;
+}) {
+  const qc = useQueryClient();
+  const unlock = useServerFn(unlockSpeed);
+  const mutation = useMutation({
+    mutationFn: (m: "4x" | "instant") => unlock({ data: { mode: m } }),
+    onSuccess: async (_res, m) => {
+      toast.success(`Velocidade ${m === "4x" ? "4x" : "Instantânea"} desbloqueada!`);
+      await qc.invalidateQueries({ queryKey: ["match"] });
+      await qc.invalidateQueries({ queryKey: ["shop"] });
+      onUnlocked(m);
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao desbloquear."),
+  });
+
+  const cost = mode === "4x" ? cost4x : mode === "instant" ? costInstant : 0;
+  const insufficient = gems < cost;
+  const label = mode === "4x" ? "Velocidade 4x" : "Modo Instantâneo";
+
+  return (
+    <AlertDialog open={!!mode} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            <Lock className="h-4 w-4" /> Desbloquear {label}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            Desbloqueio permanente para todas as partidas futuras. Custa{" "}
+            <span className="inline-flex items-center gap-1 font-semibold text-foreground">
+              <Gem className="h-3 w-3" /> {cost}
+            </span>
+            . Você tem{" "}
+            <span className="inline-flex items-center gap-1 font-semibold text-foreground">
+              <Gem className="h-3 w-3" /> {gems}
+            </span>
+            .
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={mutation.isPending}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={!mode || insufficient || mutation.isPending}
+            onClick={(e) => {
+              e.preventDefault();
+              if (mode) mutation.mutate(mode);
+            }}
+          >
+            {insufficient ? "Gemas insuficientes" : mutation.isPending ? "Desbloqueando…" : `Comprar por ${cost} 💎`}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
