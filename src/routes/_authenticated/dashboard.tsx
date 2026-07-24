@@ -188,6 +188,7 @@ function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
+      <RetirementDialog creatures={rosterList as any} />
       {/* Header slim: identidade + ações no canto */}
       <header className="border-b border-border/60 bg-card/40 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center gap-2 px-3 py-3 sm:px-4">
