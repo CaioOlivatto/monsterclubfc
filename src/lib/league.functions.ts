@@ -454,7 +454,9 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
 
         const salaries = (roster ?? []).reduce((a: number, c: any) => a + matchSalary(c.overall ?? 40), 0);
         const maintenance = totalMaintenancePerMatch(division as EconDivision, bldgs ?? []);
-        const awayWinBonus = !isHome && outcome === "W" ? AWAY_WIN_BONUS : 0;
+        const awayWinBonus = !isHome && outcome === "W"
+          ? computeAwayWinBonus(salaries + maintenance, rev.tv + rev.sponsor + rev.merch, matchPrize)
+          : 0;
 
         const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch + gate + awayWinBonus;
         const totalExpense = salaries + maintenance;
