@@ -342,7 +342,7 @@ function CreatureDetail() {
                   <div className="grid gap-2 rounded-md border border-border/60 bg-card/40 p-3 text-sm sm:grid-cols-2">
                     <div>
                       <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                        Se vender agora
+                        Se vender {status === "retired" ? "agora" : "ao aposentar"}
                       </p>
                       <p className="mt-0.5 font-semibold">
                         $ {sellNow.toLocaleString("pt-BR")}
@@ -353,7 +353,7 @@ function CreatureDetail() {
                     </div>
                     <div>
                       <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                        Se renascer ao aposentar
+                        Se renascer {status === "retired" ? "agora" : "ao aposentar"}
                       </p>
                       <p className="mt-0.5 font-semibold">
                         Volta aos 18 com {rebirthStars}★
@@ -361,6 +361,44 @@ function CreatureDetail() {
                       <p className="text-[11px] text-muted-foreground">
                         Hoje: {currentStars}★ · mais 5 temporadas de carreira.
                       </p>
+                    </div>
+                  </div>
+                )}
+
+                {status === "retired" && (
+                  <div className="space-y-2 rounded-md border border-orange-500/50 bg-orange-500/5 p-3">
+                    <p className="text-sm font-medium text-orange-200">
+                      Chegou aos 33 anos — decida agora.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Enquanto não decidir, {c.name} continua ocupando vaga do elenco e não pode ser escalada.
+                    </p>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={retireMut.isPending || rebirthMut.isPending}
+                        onClick={() => {
+                          if (confirm(`Vender ${c.name} por $${sellNow.toLocaleString("pt-BR")}? A criatura sai do elenco.`)) {
+                            retireMut.mutate();
+                          }
+                        }}
+                      >
+                        <Coins className="mr-1 h-3.5 w-3.5" />
+                        Vender por $ {sellNow.toLocaleString("pt-BR")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={retireMut.isPending || rebirthMut.isPending}
+                        onClick={() => {
+                          if (confirm(`Renascer ${c.name}? Volta aos 18 anos com ${rebirthStars}★ (hoje: ${currentStars}★).`)) {
+                            rebirthMut.mutate();
+                          }
+                        }}
+                      >
+                        <Sparkles className="mr-1 h-3.5 w-3.5" />
+                        Renascer com {rebirthStars}★
+                      </Button>
                     </div>
                   </div>
                 )}
