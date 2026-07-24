@@ -14,7 +14,7 @@ import { buildAttendance, rosterMoraleAverage } from "./attendance";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { awardTrainerXp, resetSeasonBreakdown } from "./trainer-xp.server";
-import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, AWAY_WIN_BONUS, type Division as EconDivision } from "./economy";
+import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, computeAwayWinBonus, type Division as EconDivision } from "./economy";
 import { loadBestiary } from "./bestiary.server";
 import { applySeasonOutcome } from "./career-transition.server";
 
