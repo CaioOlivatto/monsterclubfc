@@ -218,6 +218,7 @@ export function rosterToDbRows(trainerId: string, roster: RolledCreature[]) {
     career_season: 1,
     retired: false,
     aff_fogo: 0, aff_agua: 0, aff_terra: 0, aff_ar: 0, aff_gelo: 0,
+    is_prodigy: !!(c as any).is_prodigy,
   }));
 }
 
