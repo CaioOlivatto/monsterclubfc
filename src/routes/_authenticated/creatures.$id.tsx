@@ -7,6 +7,12 @@ import { getCreature, healCreatureWithGems, reduceInjuryWithGems, HEAL_GEMS_PER_
 import { trainCreature, restCreature } from "@/lib/training.functions";
 import { spendHalfStar } from "@/lib/progression.functions";
 import { retireCreature, rebirthCreature } from "@/lib/lifecycle.functions";
+import {
+  startAffinityTraining,
+  rushAffinityTraining,
+  cancelAffinityTraining,
+  AFFINITY_TRAINING_DURATION_MS,
+} from "@/lib/affinity-training.functions";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
