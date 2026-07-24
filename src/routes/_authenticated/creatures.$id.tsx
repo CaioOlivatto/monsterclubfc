@@ -100,6 +100,36 @@ function CreatureDetail() {
     onError: (e: any) => toast.error(e?.message ?? "Falha ao descansar"),
   });
 
+  const startAffFn = useServerFn(startAffinityTraining);
+  const rushAffFn = useServerFn(rushAffinityTraining);
+  const cancelAffFn = useServerFn(cancelAffinityTraining);
+  const startAffMut = useMutation({
+    mutationFn: (element: "fogo" | "agua" | "terra" | "ar" | "gelo") =>
+      startAffFn({ data: { creatureId: id, element } }),
+    onSuccess: () => {
+      toast.success("Treino elemental iniciado.");
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao iniciar treino"),
+  });
+  const rushAffMut = useMutation({
+    mutationFn: () => rushAffFn({ data: { creatureId: id } }),
+    onSuccess: (r: any) => {
+      toast.success(r?.spent ? `Treino acelerado (${r.spent} 💎).` : "Treino concluído.");
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao acelerar"),
+  });
+  const cancelAffMut = useMutation({
+    mutationFn: () => cancelAffFn({ data: { creatureId: id } }),
+    onSuccess: () => {
+      toast.success("Treino cancelado.");
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao cancelar"),
+  });
+
   const spendMut = useMutation({
     mutationFn: (focus: { kind: "attribute"; key: any } | { kind: "affinity"; key: any }) =>
       spendFn({ data: { creatureId: id, focus } }),
