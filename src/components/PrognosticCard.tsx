@@ -60,15 +60,20 @@ export function PrognosticCard({ state }: { state: UseQueryResult<PrognosticResp
       <CardContent className="space-y-3">
         {/* Barra de odds */}
         <div>
-          <div className="flex justify-between text-xs mb-1">
-            <span>Você <b>{pct(home)}</b></span>
-            <span>Empate <b>{pct(draw)}</b></span>
-            <span><b>{pct(away)}</b> {opponent.name}</span>
+          <div className="flex w-full text-[11px] mb-1 font-semibold">
+            <div style={{ width: `${home * 100}%` }} className="text-center text-emerald-400 truncate">{pct(home)}</div>
+            <div style={{ width: `${draw * 100}%` }} className="text-center text-amber-400 truncate">{pct(draw)}</div>
+            <div style={{ width: `${away * 100}%` }} className="text-center text-red-400 truncate">{pct(away)}</div>
           </div>
           <div className="flex h-3 w-full overflow-hidden rounded-full border">
             <div className="bg-emerald-600" style={{ width: `${home * 100}%` }} />
-            <div className="bg-muted" style={{ width: `${draw * 100}%` }} />
+            <div className="bg-amber-500" style={{ width: `${draw * 100}%` }} />
             <div className="bg-red-600" style={{ width: `${away * 100}%` }} />
+          </div>
+          <div className="mt-1 flex justify-between text-[11px] text-muted-foreground">
+            <span>Você</span>
+            <span>Empate</span>
+            <span className="truncate max-w-[40%] text-right">{opponent.name}</span>
           </div>
           <div className="mt-1 text-[11px] text-muted-foreground">{gapMsg}</div>
         </div>
