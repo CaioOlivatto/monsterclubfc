@@ -24,7 +24,7 @@ import {
 async function loadCtx(context: { supabase: any; userId: string }) {
   const { data: trainer } = await context.supabase
     .from("trainers")
-    .select("id, xp_burst_multiplier, xp_burst_matches_left")
+    .select("id, xp_burst_multiplier, xp_burst_matches_left, current_team_id")
     .eq("user_id", context.userId)
     .maybeSingle();
   if (!trainer) throw new Error("Treinador não encontrado");
@@ -34,7 +34,16 @@ async function loadCtx(context: { supabase: any; userId: string }) {
     .eq("trainer_id", trainer.id)
     .maybeSingle();
   if (!academy) throw new Error("Academia não encontrada");
-  return { trainer, academy };
+  let division: ExchangeDivision = "bronze";
+  if (trainer.current_team_id) {
+    const { data: team } = await context.supabase
+      .from("teams")
+      .select("division")
+      .eq("id", trainer.current_team_id)
+      .maybeSingle();
+    if (team?.division) division = team.division as ExchangeDivision;
+  }
+  return { trainer, academy, division };
 }
 
 async function logTx(
