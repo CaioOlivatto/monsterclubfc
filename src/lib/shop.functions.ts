@@ -16,6 +16,8 @@ import {
   GEM_EXCHANGE_PRESETS,
   DIVISION_EXCHANGE_MULT,
   gemExchangeRateFor,
+  MORALE_BOOST_INDIVIDUAL,
+  MORALE_BOOST_COLLECTIVE,
   type ItemKey,
   type ExchangeDivision,
 } from "./shop.server";
