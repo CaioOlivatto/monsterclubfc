@@ -6,7 +6,7 @@ import { simulate, persistableSimulationEvents, generateCpuSideFor, type EngineS
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { loadBestiary } from "./bestiary.server";
-import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, AWAY_WIN_BONUS, CUP_PHASE_BONUS, type Division as EconDivision } from "./economy";
+import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, computeAwayWinBonus, CUP_PHASE_BONUS, type Division as EconDivision } from "./economy";
 
 // Prêmio por partida da Copa por divisão (V / E / D). Empate resolvido em pênaltis
 // no motor, portanto D raramente é pago — mantido para compatibilidade.
@@ -484,7 +484,9 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
 
         const salaries = (roster ?? []).reduce((a: number, c: any) => a + matchSalary(c.overall ?? 40), 0);
         const maintenance = totalMaintenancePerMatch(division, bldgs ?? []);
-        const awayWinBonus = !isHome && outcome === "W" ? AWAY_WIN_BONUS : 0;
+        const awayWinBonus = !isHome && outcome === "W"
+          ? computeAwayWinBonus(salaries + maintenance, rev.tv + rev.sponsor + rev.merch, matchPrize)
+          : 0;
 
         const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch + awayWinBonus;
         const totalExpense = salaries + maintenance;

@@ -23,7 +23,7 @@ import {
 import { loadBestiary } from "./bestiary.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
-import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, AWAY_WIN_BONUS, WORLD_LEAGUE_PHASE_BONUS, type Division as EconDivision } from "./economy";
+import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, computeAwayWinBonus, WORLD_LEAGUE_PHASE_BONUS, type Division as EconDivision } from "./economy";
 
 // Premiação por partida em competições MUNDIAIS — maiores que Campeonato.
 // Grupos: V/E/D. Mata-mata (avançar vale mais que a fase de grupos).
@@ -219,7 +219,9 @@ async function simulatePlayerMatch(
 
       const salaries = (roster ?? []).reduce((a: number, c: any) => a + matchSalary(c.overall ?? 40), 0);
       const maintenance = totalMaintenancePerMatch(div, bldgs ?? []);
-      const awayWinBonus = !isHome && outcome === "W" ? AWAY_WIN_BONUS : 0;
+      const awayWinBonus = !isHome && outcome === "W"
+        ? computeAwayWinBonus(salaries + maintenance, rev.tv + rev.sponsor + rev.merch, matchPrize)
+        : 0;
 
       const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch + awayWinBonus;
       const totalExpense = salaries + maintenance;
