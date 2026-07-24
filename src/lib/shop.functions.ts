@@ -65,7 +65,7 @@ async function logTx(
 export const getShopState = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { trainer, academy } = await loadCtx(context);
+    const { trainer, academy, division } = await loadCtx(context);
     const { data: items } = await context.supabase
       .from("items")
       .select("item_key, quantity")
