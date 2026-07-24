@@ -9,7 +9,9 @@ import {
   buyGemPackage,
   buyExtraBuilder,
   expandRoster,
+  exchangeGemsForMoney,
 } from "@/lib/shop.functions";
+
 import { listMyCreatures } from "@/lib/creatures.functions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,6 +49,8 @@ function ShopPage() {
   const buyGemsFn = useServerFn(buyGemPackage);
   const buyBuilderFn = useServerFn(buyExtraBuilder);
   const expandFn = useServerFn(expandRoster);
+  const exchangeFn = useServerFn(exchangeGemsForMoney);
+
 
   const { data: shop, isLoading } = useQuery({
     queryKey: ["shop"],
@@ -58,6 +62,8 @@ function ShopPage() {
   });
 
   const [potionTarget, setPotionTarget] = useState<string>("");
+  const [exchangeAmount, setExchangeAmount] = useState<number>(100);
+
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["shop"] });
@@ -91,6 +97,12 @@ function ShopPage() {
     onSuccess: (r) => { toast.success(r.message); invalidate(); },
     onError: (e: any) => toast.error(e?.message ?? "Falha"),
   });
+  const exchangeMut = useMutation({
+    mutationFn: (gems: number) => exchangeFn({ data: { gems } }),
+    onSuccess: (r) => { toast.success(r.message); invalidate(); },
+    onError: (e: any) => toast.error(e?.message ?? "Falha na troca"),
+  });
+
 
   if (isLoading || !shop) {
     return (
@@ -123,8 +135,10 @@ function ShopPage() {
           <TabsList>
             <TabsTrigger value="itens"><Package className="mr-2 h-4 w-4" /> Itens</TabsTrigger>
             <TabsTrigger value="gemas"><Gem className="mr-2 h-4 w-4" /> Gemas</TabsTrigger>
+            <TabsTrigger value="trocar"><Coins className="mr-2 h-4 w-4" /> Trocar</TabsTrigger>
             <TabsTrigger value="upgrades"><Zap className="mr-2 h-4 w-4" /> Upgrades</TabsTrigger>
           </TabsList>
+
 
           {/* ---------- ITENS ---------- */}
           <TabsContent value="itens" className="space-y-4">
@@ -220,6 +234,57 @@ function ShopPage() {
               MVP: compras simuladas. Integração com pagamento real chega nas próximas etapas.
             </p>
           </TabsContent>
+
+          {/* ---------- TROCAR ---------- */}
+          <TabsContent value="trocar" className="space-y-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Coins className="h-4 w-4 text-yellow-500" /> Trocar gemas por dinheiro
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Taxa: <span className="font-medium text-foreground">1💎 = ${catalogs.gemToMoneyRate.toLocaleString("pt-BR")}</span>
+                </p>
+
+                <div className="flex flex-wrap gap-2">
+                  {catalogs.gemExchangePresets.map((amt: number) => (
+                    <Button
+                      key={amt}
+                      size="sm"
+                      variant={exchangeAmount === amt ? "default" : "outline"}
+                      onClick={() => setExchangeAmount(amt)}
+                    >
+                      <Gem className="mr-1 h-3 w-3" /> {amt}
+                    </Button>
+                  ))}
+                </div>
+
+                <div className="rounded-md border border-border/60 bg-card/40 p-4 text-center">
+                  <div className="flex items-center justify-center gap-3 text-lg font-semibold">
+                    <span className="flex items-center gap-1"><Gem className="h-5 w-5 text-cyan-400" /> {exchangeAmount}</span>
+                    <span className="text-muted-foreground">→</span>
+                    <span className="flex items-center gap-1"><Coins className="h-5 w-5 text-yellow-500" /> ${(exchangeAmount * catalogs.gemToMoneyRate).toLocaleString("pt-BR")}</span>
+                  </div>
+                </div>
+
+                <Button
+                  className="w-full"
+                  disabled={exchangeMut.isPending || academy.gems < exchangeAmount}
+                  onClick={() => exchangeMut.mutate(exchangeAmount)}
+                >
+                  {academy.gems < exchangeAmount ? "Gemas insuficientes" : "Confirmar troca"}
+                </Button>
+
+                <p className="text-xs text-muted-foreground">
+                  ⚠️ O dinheiro não ultrapassa os limites de contratação e folha salarial da sua divisão.
+                </p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+
 
           {/* ---------- UPGRADES ---------- */}
           <TabsContent value="upgrades" className="space-y-4">
