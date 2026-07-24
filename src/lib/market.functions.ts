@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { generateMarketListings, findListing } from "./market.server";
+import { generateMarketListings, findListing, sellPriceForOverall } from "./market.server";
 import {
   DIVISION_MAX_BAND,
   DIVISION_SALARY_CAP,
