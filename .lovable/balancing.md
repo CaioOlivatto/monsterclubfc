@@ -213,6 +213,30 @@ Referência ex-ante com moral estável ~70: ~$911k. A diferença vem do custo re
 | Velocidade 4x (permanente) | 300 💎 |
 | Instantâneo (permanente) | 800 💎 |
 
+### 3.4 Troca de gemas por dinheiro do jogo
+Taxa vigente: **1💎 = $180** (`GEM_TO_MONEY_RATE` em `src/lib/shop.server.ts`).
+
+Presets de troca na Loja (valores atualizados automaticamente pela taxa):
+
+| Gemas | Dinheiro |
+|---|---|
+| 100 | $18.000 |
+| 500 | $90.000 |
+| 1.000 | $180.000 |
+| 2.000 | $360.000 |
+
+**Referência de custo para "zerar" o teto de folha salarial de cada divisão** (usando pacote Tesouro, melhor razão custo/gema):
+
+| Divisão | Teto de folha §8.2 | Gemas necessárias | Custo aprox. (R$) |
+|---|---|---|---|
+| 5ª – Bronze | $770.000 | ~4.278 | ~R$ 178 |
+| 4ª – Prata | $1.440.000 | ~8.000 | ~R$ 333 |
+| 3ª – Ouro | $2.410.000 | ~13.389 | ~R$ 558 |
+| 2ª – Diamante | $3.920.000 | ~21.778 | ~R$ 907 |
+| 1ª – Lendária | $6.020.000 | ~33.444 | ~R$ 1.393 |
+
+Essa taxa preserva a troca como conveniência real para quem tem pressa, mas deixa de ser barato o suficiente para pular o grind inteiro nas divisões de entrada, onde a progressão gradual é mais importante para retenção.
+
 ## 4. Construções
 
 ### CT de Treinamento (+5% XP por nível)
