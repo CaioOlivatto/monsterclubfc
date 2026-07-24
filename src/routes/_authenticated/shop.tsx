@@ -157,7 +157,7 @@ function ShopPage() {
                       <p className="text-xs text-muted-foreground">{item.description}</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      {item.key === "potion_individual" && (
+                      {(item.key === "potion_individual" || item.key === "morale_individual") && (
                         <Select value={potionTarget} onValueChange={setPotionTarget}>
                           <SelectTrigger className="h-8 w-44">
                             <SelectValue placeholder="Escolher criatura" />
@@ -165,7 +165,7 @@ function ShopPage() {
                           <SelectContent>
                             {(creatures ?? []).map((c) => (
                               <SelectItem key={c.id} value={c.id}>
-                                {c.name} — {c.energy}%
+                                {c.name} — {item.key === "morale_individual" ? `moral ${c.morale ?? 50}` : `${c.energy}%`}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -174,8 +174,8 @@ function ShopPage() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        disabled={(inventory[item.key] ?? 0) < 1 || useMut.isPending || (item.key === "potion_individual" && !potionTarget)}
-                        onClick={() => useMut.mutate({ itemKey: item.key, creatureId: item.key === "potion_individual" ? potionTarget : undefined })}
+                        disabled={(inventory[item.key] ?? 0) < 1 || useMut.isPending || ((item.key === "potion_individual" || item.key === "morale_individual") && !potionTarget)}
+                        onClick={() => useMut.mutate({ itemKey: item.key, creatureId: (item.key === "potion_individual" || item.key === "morale_individual") ? potionTarget : undefined })}
                       >
                         Usar
                       </Button>

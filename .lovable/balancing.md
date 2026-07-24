@@ -206,12 +206,19 @@ Referência ex-ante com moral estável ~70: ~$911k. A diferença vem do custo re
 ### 3.3 Usos
 | Uso | Custo |
 |---|---|
+| Poção Individual (100% energia de 1) | $8.000 ou 3💎 |
+| Poção Coletiva (+15% energia elenco) | $40.000 ou 12💎 |
+| Cristal Vital (+25% energia elenco) | $80.000 ou 20💎 |
+| **Ânimo Individual** (+25 moral nominal, 1 criatura) | **$10.000 ou 4💎** |
+| **Ânimo Coletivo** (+15 moral nominal, todo elenco) | **$45.000 ou 14💎** |
 | Acelerar obra | 1💎 / 10 min restantes |
 | Construtor 2º / 3º / 4º | 250 / 600 / 1.200 💎 |
 | Expansão 26→32 / 32→38 | 400 / 900 💎 |
 | Burst XP +5 / +10 / +15% (1 temporada) | 80 / 150 / 220 💎 |
 | Velocidade 4x (permanente) | 300 💎 |
 | Instantâneo (permanente) | 800 💎 |
+
+> **Ânimo (Individual/Coletivo)** aplica a mesma fórmula de ganhos decrescentes do Sistema de Moral: `ganho_real = ganho_nominal × (1 − moral_atual / 120)`. Criaturas com moral alto recebem pouco; criaturas desanimadas recebem quase o valor cheio. Isso preserva o equilíbrio entre fadiga e moral — não é atalho para lotar 100 via compra.
 
 ### 3.4 Troca de gemas por dinheiro do jogo
 Taxa **BASE** (referência 5ª Bronze): **1💎 = $700** (`GEM_TO_MONEY_RATE` em `src/lib/shop.server.ts`).

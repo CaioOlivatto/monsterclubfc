@@ -4,6 +4,8 @@ export type ItemKey =
   | "potion_individual"
   | "potion_collective"
   | "vital_crystal"
+  | "morale_individual"
+  | "morale_collective"
   | "xp_burst_5"
   | "xp_burst_10"
   | "xp_burst_15";
@@ -38,6 +40,20 @@ export const ITEMS: Record<ItemKey, ItemSpec> = {
     moneyPrice: 80_000,
     gemPrice: 20,
   },
+  morale_individual: {
+    key: "morale_individual",
+    name: "Ânimo Individual",
+    description: "Aumenta o moral de 1 criatura (+25 nominal, com ganhos decrescentes).",
+    moneyPrice: 10_000,
+    gemPrice: 4,
+  },
+  morale_collective: {
+    key: "morale_collective",
+    name: "Ânimo Coletivo",
+    description: "Aumenta o moral de todo o elenco (+15 nominal, com ganhos decrescentes).",
+    moneyPrice: 45_000,
+    gemPrice: 14,
+  },
   xp_burst_5: {
     key: "xp_burst_5",
     name: "Impulso de XP +5% (1 temporada)",
@@ -65,10 +81,15 @@ export const ITEM_KEYS: ItemKey[] = [
   "potion_individual",
   "potion_collective",
   "vital_crystal",
+  "morale_individual",
+  "morale_collective",
   "xp_burst_5",
   "xp_burst_10",
   "xp_burst_15",
 ];
+
+export const MORALE_BOOST_INDIVIDUAL = 25;
+export const MORALE_BOOST_COLLECTIVE = 15;
 
 export const XP_BURST_MATCHES = 26;
 export const XP_BURST_MULTIPLIER: Record<string, number> = {
