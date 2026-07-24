@@ -104,6 +104,9 @@ export const getShopState = createServerFn({ method: "GET" })
         speedUnlockCosts: SPEED_UNLOCK_COSTS,
         xpBurstMatches: XP_BURST_MATCHES,
         gemToMoneyRate: GEM_TO_MONEY_RATE,
+        gemToMoneyRateEffective: gemExchangeRateFor(division),
+        gemExchangeMultiplier: DIVISION_EXCHANGE_MULT[division],
+        gemExchangeDivision: division,
         gemExchangePresets: GEM_EXCHANGE_PRESETS,
       },
     };
