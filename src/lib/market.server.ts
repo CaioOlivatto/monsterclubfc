@@ -126,6 +126,7 @@ export interface MarketListing {
   seller: string;
   half_star_band: number;
   age: number;
+  is_prodigy: boolean;
 }
 
 function pickSpeciesForBand(bestiary: LoadedBestiary, band: number, rng: () => number): SpeciesBase {
