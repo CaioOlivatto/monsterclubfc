@@ -23,7 +23,7 @@ import {
 import { loadBestiary } from "./bestiary.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
-import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, AWAY_WIN_BONUS, WORLD_LEAGUE_PHASE_BONUS, type Division as EconDivision } from "./economy";
+import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, computeAwayWinBonus, WORLD_LEAGUE_PHASE_BONUS, type Division as EconDivision } from "./economy";
 
 // Premiação por partida em competições MUNDIAIS — maiores que Campeonato.
 // Grupos: V/E/D. Mata-mata (avançar vale mais que a fase de grupos).
