@@ -567,3 +567,71 @@ function FinanceSummaryCard({ summary }: { summary: any }) {
     </Card>
   );
 }
+
+function UnlockSpeedDialog({
+  mode,
+  onOpenChange,
+  gems,
+  cost4x,
+  costInstant,
+  onUnlocked,
+}: {
+  mode: "4x" | "instant" | null;
+  onOpenChange: (open: boolean) => void;
+  gems: number;
+  cost4x: number;
+  costInstant: number;
+  onUnlocked: (mode: "4x" | "instant") => void;
+}) {
+  const qc = useQueryClient();
+  const unlock = useServerFn(unlockSpeed);
+  const mutation = useMutation({
+    mutationFn: (m: "4x" | "instant") => unlock({ data: { mode: m } }),
+    onSuccess: async (_res, m) => {
+      toast.success(`Velocidade ${m === "4x" ? "4x" : "Instantânea"} desbloqueada!`);
+      await qc.invalidateQueries({ queryKey: ["match"] });
+      await qc.invalidateQueries({ queryKey: ["shop"] });
+      onUnlocked(m);
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao desbloquear."),
+  });
+
+  const cost = mode === "4x" ? cost4x : mode === "instant" ? costInstant : 0;
+  const insufficient = gems < cost;
+  const label = mode === "4x" ? "Velocidade 4x" : "Modo Instantâneo";
+
+  return (
+    <AlertDialog open={!!mode} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2">
+            <Lock className="h-4 w-4" /> Desbloquear {label}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            Desbloqueio permanente para todas as partidas futuras. Custa{" "}
+            <span className="inline-flex items-center gap-1 font-semibold text-foreground">
+              <Gem className="h-3 w-3" /> {cost}
+            </span>
+            . Você tem{" "}
+            <span className="inline-flex items-center gap-1 font-semibold text-foreground">
+              <Gem className="h-3 w-3" /> {gems}
+            </span>
+            .
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={mutation.isPending}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={!mode || insufficient || mutation.isPending}
+            onClick={(e) => {
+              e.preventDefault();
+              if (mode) mutation.mutate(mode);
+            }}
+          >
+            {insufficient ? "Gemas insuficientes" : mutation.isPending ? "Desbloqueando…" : `Comprar por ${cost} 💎`}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
