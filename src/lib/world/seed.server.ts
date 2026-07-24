@@ -167,7 +167,7 @@ export function generateTeamRoster(bestiary: LoadedBestiary, team: WorldTeam, di
     const pos = ROSTER_PLAN[i];
     const el = pickElement(team, rng);
     const spBase = pickSpecies(bestiary, pos, el, rng);
-    const rolled = rollCreature(spBase, bestiary.epithets[spBase.element] ?? [], rng, { variation: 6 });
+    const rolled = rollCreature(spBase, bestiary.epithets[spBase.element] ?? [], rng, { variation: 6, prodigy: rng() < 0.005 });
 
     // Ajuste ao alvo de estrelas da divisão
     const half = pickHalfStars(division, rng);
