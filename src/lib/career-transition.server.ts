@@ -235,10 +235,18 @@ interface BuildOffersInput {
   seasonNumber: number;
   playerDivision: Division;
   fired: boolean;
+  generateInterest: boolean;
+  streakTriggered: boolean;
+  bestStreak: number;
 }
 
+type OfferReason = "top_finish" | "higher_division" | "after_dismissal";
+
 async function buildOffers(input: BuildOffersInput): Promise<any[]> {
-  const { supabase, trainerId, trainerCurrentTeamId, seasonNumber, playerDivision, fired } = input;
+  const {
+    supabase, trainerId, trainerCurrentTeamId, seasonNumber,
+    playerDivision, fired, generateInterest, streakTriggered, bestStreak,
+  } = input;
 
   const { data: teams } = await supabase
     .from("teams")
@@ -246,7 +254,6 @@ async function buildOffers(input: BuildOffersInput): Promise<any[]> {
   const { data: standings } = await supabase
     .from("standings")
     .select("team_id, points, goals_for, goals_against");
-
   if (!teams || !standings) return [];
 
   const teamById = new Map<string, any>(teams.map((t: any) => [t.id, t]));
@@ -265,60 +272,88 @@ async function buildOffers(input: BuildOffersInput): Promise<any[]> {
     rankedByDiv.set(div, inDiv);
   }
 
-  const candidates: { teamId: string; reason: "top_finish" | "higher_division" | "after_dismissal"; division: Division }[] = [];
   const playerDivIdx = DIVISION_ORDER.indexOf(playerDivision);
 
-  const topDiv = rankedByDiv.get(playerDivision) ?? [];
-  for (const teamId of topDiv.slice(0, 6)) {
-    if (teamId === trainerCurrentTeamId) continue;
-    candidates.push({ teamId, reason: "top_finish", division: playerDivision });
+  // ---- Caminho DEMISSÃO: exatamente 2 opções (A e B) ----
+  if (fired) {
+    const rows: any[] = [];
+
+    // Opção A: mesma divisão, posição 9-12 (intermediário baixo)
+    const sameDiv = rankedByDiv.get(playerDivision) ?? [];
+    const poolA = sameDiv
+      .slice(8, 12)
+      .filter((id) => id !== trainerCurrentTeamId);
+    const optionA = pickRandom(poolA);
+    if (optionA) rows.push(makeOfferRow({
+      teamId: optionA,
+      teamById,
+      division: playerDivision,
+      trainerId, seasonNumber,
+      reason: "after_dismissal",
+      messageKind: "dismissal_same",
+    }));
+
+    // Opção B: divisão abaixo, posição 4-7 (intermediário alto)
+    if (playerDivIdx > 0) {
+      const lowerDiv = DIVISION_ORDER[playerDivIdx - 1];
+      const poolB = (rankedByDiv.get(lowerDiv) ?? [])
+        .slice(3, 7)
+        .filter((id) => id !== trainerCurrentTeamId);
+      const optionB = pickRandom(poolB);
+      if (optionB) rows.push(makeOfferRow({
+        teamId: optionB,
+        teamById,
+        division: lowerDiv,
+        trainerId, seasonNumber,
+        reason: "after_dismissal",
+        messageKind: "dismissal_lower",
+      }));
+    }
+    return dedupeByTeam(rows);
   }
 
+  // ---- Caminho INTERESSE (top-6/champion ou sequência de vitórias) ----
+  if (!generateInterest) return [];
+
+  // Origem SEMPRE: uma divisão acima, clube da metade de baixo.
+  const candidates: { teamId: string; division: Division; reason: OfferReason }[] = [];
   for (let i = playerDivIdx + 1; i < DIVISION_ORDER.length; i++) {
     const div = DIVISION_ORDER[i];
     const ranked = rankedByDiv.get(div) ?? [];
     if (!ranked.length) continue;
     const half = Math.ceil(ranked.length / 2);
     for (let pos = half; pos < ranked.length; pos++) {
-      candidates.push({ teamId: ranked[pos], reason: "higher_division", division: div });
+      candidates.push({
+        teamId: ranked[pos],
+        division: div,
+        reason: streakTriggered ? "higher_division" : "top_finish",
+      });
     }
   }
+  if (!candidates.length) return [];
 
-  if (fired) {
-    const own = rankedByDiv.get(playerDivision) ?? [];
-    for (const teamId of own.slice(-4)) {
-      if (teamId === trainerCurrentTeamId) continue;
-      candidates.push({ teamId, reason: "after_dismissal", division: playerDivision });
-    }
-    if (playerDivIdx > 0) {
-      const lower = DIVISION_ORDER[playerDivIdx - 1];
-      for (const teamId of (rankedByDiv.get(lower) ?? []).slice(0, 6)) {
-        candidates.push({ teamId, reason: "after_dismissal", division: lower });
-      }
-    }
-  }
+  // Embaralha e limita
+  const maxOffers = Math.min(4, 2 + Math.floor(Math.random() * 3));
+  const shuffled = [...candidates].sort(() => Math.random() - 0.5).slice(0, maxOffers);
 
-  const maxOffers = fired ? 6 : Math.min(4, 2 + Math.floor(Math.random() * 3));
-  const priority = { top_finish: 0, higher_division: 1, after_dismissal: 2 } as const;
-  candidates.sort((a, b) => priority[a.reason] - priority[b.reason]);
-  const selected = candidates.slice(0, maxOffers);
-  if (!selected.length) return [];
+  const rows = shuffled.map((c) => makeOfferRow({
+    teamId: c.teamId,
+    teamById,
+    division: c.division,
+    trainerId, seasonNumber,
+    reason: c.reason,
+    messageKind: streakTriggered ? "streak" : "top_finish",
+    bestStreak,
+  }));
+  return dedupeByTeam(rows);
+}
 
-  const rows = selected.map((c) => {
-    const team = teamById.get(c.teamId);
-    return {
-      trainer_id: trainerId,
-      team_id: c.teamId,
-      team_name: team?.name ?? "—",
-      division: c.division,
-      season_offered: seasonNumber,
-      reason: c.reason,
-      status: "pending" as const,
-      signing_bonus: Math.round(SIGNING_BONUS[c.division] * (c.reason === "after_dismissal" ? 0.5 : 1)),
-      message: buildOfferMessage(c.reason, team?.name ?? "clube"),
-    };
-  });
+function pickRandom<T>(arr: T[]): T | null {
+  if (!arr.length) return null;
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
+function dedupeByTeam(rows: any[]): any[] {
   const seen = new Set<string>();
   return rows.filter((r) => {
     if (seen.has(r.team_id)) return false;
@@ -327,13 +362,67 @@ async function buildOffers(input: BuildOffersInput): Promise<any[]> {
   });
 }
 
-function buildOfferMessage(reason: "top_finish" | "higher_division" | "after_dismissal", teamName: string): string {
-  switch (reason) {
+function makeOfferRow(args: {
+  teamId: string;
+  teamById: Map<string, any>;
+  division: Division;
+  trainerId: string;
+  seasonNumber: number;
+  reason: OfferReason;
+  messageKind: "dismissal_same" | "dismissal_lower" | "top_finish" | "streak";
+  bestStreak?: number;
+}): any {
+  const team = args.teamById.get(args.teamId);
+  return {
+    trainer_id: args.trainerId,
+    team_id: args.teamId,
+    team_name: team?.name ?? "—",
+    division: args.division,
+    season_offered: args.seasonNumber,
+    reason: args.reason,
+    status: "pending" as const,
+    signing_bonus: WELCOME_BONUS[args.division],
+    message: buildOfferMessage(args.messageKind, team?.name ?? "clube", args.bestStreak),
+  };
+}
+
+function buildOfferMessage(
+  kind: "dismissal_same" | "dismissal_lower" | "top_finish" | "streak",
+  teamName: string,
+  bestStreak?: number,
+): string {
+  switch (kind) {
+    case "dismissal_same":
+      return `O ${teamName} luta na parte de baixo da tabela e busca um técnico experiente para virar o barco.`;
+    case "dismissal_lower":
+      return `O ${teamName} tenta subir de divisão e vê em você o técnico ideal para o projeto.`;
     case "top_finish":
       return `A diretoria do ${teamName} acompanhou sua boa temporada e quer você no comando.`;
-    case "higher_division":
-      return `O ${teamName} decepcionou seus torcedores e busca um técnico ambicioso.`;
-    case "after_dismissal":
-      return `O ${teamName} abre as portas para reconstruir sua carreira.`;
+    case "streak":
+      return `O ${teamName} ficou impressionado com sua sequência de ${bestStreak ?? 7} vitórias seguidas nesta temporada.`;
   }
+}
+
+/** Maior sequência de vitórias em partidas oficiais da temporada atual do jogador. */
+async function computeBestWinStreak(supabase: any, playerTeamId: string | null): Promise<number> {
+  if (!playerTeamId) return 0;
+  const { data: matches } = await supabase
+    .from("matches")
+    .select("home_team_id, away_team_id, home_score, away_score, status, is_friendly, played_at")
+    .or(`home_team_id.eq.${playerTeamId},away_team_id.eq.${playerTeamId}`)
+    .eq("status", "finished")
+    .eq("is_friendly", false)
+    .order("played_at", { ascending: true })
+    .limit(60);
+  let best = 0;
+  let cur = 0;
+  for (const m of matches ?? []) {
+    const isHome = m.home_team_id === playerTeamId;
+    const my = isHome ? m.home_score : m.away_score;
+    const opp = isHome ? m.away_score : m.home_score;
+    if (my == null || opp == null) continue;
+    if (my > opp) { cur++; if (cur > best) best = cur; }
+    else { cur = 0; }
+  }
+  return best;
 }
