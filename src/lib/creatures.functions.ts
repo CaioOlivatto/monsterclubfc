@@ -499,10 +499,12 @@ export const listMyCreatures = createServerFn({ method: "GET" })
       .eq("user_id", userId)
       .maybeSingle();
     if (!trainer) return [];
+    const { sweepAffinityTrainings } = await import("./affinity-training.functions");
+    await sweepAffinityTrainings(supabase, trainer.id);
     const { data, error } = await supabase
       .from("creatures")
       .select(
-        "id, name, species, epithet, element, suggested_position, is_goalkeeper, power_key, overall, energy, morale, xp, half_stars_earned, market_value, age, injury_matches_remaining, injury_severity",
+        "id, name, species, epithet, element, suggested_position, is_goalkeeper, power_key, overall, energy, morale, xp, half_stars_earned, market_value, age, injury_matches_remaining, injury_severity, is_prodigy, training_element, training_completes_at",
       )
       .eq("owner_trainer_id", trainer.id)
       .order("overall", { ascending: false });
@@ -521,6 +523,8 @@ export const getCreature = createServerFn({ method: "GET" })
       .eq("user_id", userId)
       .maybeSingle();
     if (!trainer) throw new Error("Treinador não encontrado.");
+    const { sweepAffinityTrainings } = await import("./affinity-training.functions");
+    await sweepAffinityTrainings(supabase, trainer.id);
     const { data: creature, error } = await supabase
       .from("creatures")
       .select("*")

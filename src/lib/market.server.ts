@@ -126,6 +126,7 @@ export interface MarketListing {
   seller: string;
   half_star_band: number;
   age: number;
+  is_prodigy: boolean;
 }
 
 function pickSpeciesForBand(bestiary: LoadedBestiary, band: number, rng: () => number): SpeciesBase {
@@ -143,7 +144,7 @@ function generateOne(bestiary: LoadedBestiary, rng: () => number, division: Divi
   const band = forcedBand ?? rollHalfStarBand(rng, division);
   const targetOverall = band * 10; // 10..100
   const spBase = pickSpeciesForBand(bestiary, band, rng);
-  const c = rollCreature(spBase, bestiary.epithets[spBase.element] ?? [], rng, { variation: 6 });
+  const c = rollCreature(spBase, bestiary.epithets[spBase.element] ?? [], rng, { variation: 6, prodigy: rng() < 0.005 });
   const currOverall = c.overall || 40;
   const scale = Math.max(0.3, Math.min(2.5, targetOverall / currOverall));
   const scl = (n: number) => Math.max(5, Math.min(100, Math.round(n * scale)));
@@ -196,6 +197,7 @@ function generateOne(bestiary: LoadedBestiary, rng: () => number, division: Divi
     seller: pick(rng, SELLERS),
     half_star_band: band,
     age,
+    is_prodigy: adjusted.is_prodigy,
   };
 }
 

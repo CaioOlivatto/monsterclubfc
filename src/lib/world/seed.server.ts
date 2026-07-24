@@ -156,6 +156,7 @@ export interface GeneratedCreature {
   aff_terra: number;
   aff_ar: number;
   aff_gelo: number;
+  is_prodigy?: boolean;
 }
 
 export function generateTeamRoster(bestiary: LoadedBestiary, team: WorldTeam, division: DivisionSlug, seed: number): GeneratedCreature[] {
@@ -167,7 +168,7 @@ export function generateTeamRoster(bestiary: LoadedBestiary, team: WorldTeam, di
     const pos = ROSTER_PLAN[i];
     const el = pickElement(team, rng);
     const spBase = pickSpecies(bestiary, pos, el, rng);
-    const rolled = rollCreature(spBase, bestiary.epithets[spBase.element] ?? [], rng, { variation: 6 });
+    const rolled = rollCreature(spBase, bestiary.epithets[spBase.element] ?? [], rng, { variation: 6, prodigy: rng() < 0.005 });
 
     // Ajuste ao alvo de estrelas da divisão
     const half = pickHalfStars(division, rng);
@@ -212,6 +213,7 @@ export function generateTeamRoster(bestiary: LoadedBestiary, team: WorldTeam, di
       retired: false,
       xp: 0,
       aff_fogo: 0, aff_agua: 0, aff_terra: 0, aff_ar: 0, aff_gelo: 0,
+      is_prodigy: !!(rolled as any).is_prodigy,
     });
   }
 

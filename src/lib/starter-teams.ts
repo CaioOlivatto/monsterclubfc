@@ -164,7 +164,7 @@ export function generateStarterRoster(teamKey: StarterKey, bestiary: LoadedBesti
     const el = pickElementForTeam(team, rng);
     const spBase = pickSpecies(bestiary.species, pos, el, usedSpecies, rng);
     if (usedSpecies.size < bestiary.species.length) usedSpecies.add(spBase.species);
-    const c = rollCreature(spBase, bestiary.epithets[spBase.element] ?? [], rng, { variation: 6 });
+    const c = rollCreature(spBase, bestiary.epithets[spBase.element] ?? [], rng, { variation: 6, prodigy: rng() < 0.005 });
     // Aplica banda da distribuição Bronze
     const band = pickBand();
     const target = Math.max(5, Math.min(99, band * 10 + Math.round((rng() * 2 - 1) * 4)));
@@ -218,6 +218,7 @@ export function rosterToDbRows(trainerId: string, roster: RolledCreature[]) {
     career_season: 1,
     retired: false,
     aff_fogo: 0, aff_agua: 0, aff_terra: 0, aff_ar: 0, aff_gelo: 0,
+    is_prodigy: !!(c as any).is_prodigy,
   }));
 }
 

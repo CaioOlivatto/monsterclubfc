@@ -104,19 +104,28 @@ export interface RolledCreature {
   attr_elasticidade: number;
   overall: number;
   market_value: number;
+  is_prodigy: boolean;
 }
+
+/** Chance base de nascimento excepcional (Prodígio). */
+export const PRODIGY_CHANCE = 0.005;
+/** Bônus fixo aplicado a todos os atributos quando prodígio. */
+export const PRODIGY_ATTR_BONUS = 10;
 
 /**
  * Gera uma criatura a partir da espécie base + lista de epítetos do elemento
  * (vinda do banco). Aplica variação ±`variation` (padrão 12) nos atributos.
+ * Se `prodigy` for true, aplica bônus fixo em todos os atributos (~1★ acima).
  */
 export function rollCreature(
   species: SpeciesBase,
   epithetsForElement: string[],
   rng: () => number,
-  opts: { variation?: number } = {},
+  opts: { variation?: number; prodigy?: boolean } = {},
 ): RolledCreature {
   const variation = opts.variation ?? 12;
+  const prodigy = !!opts.prodigy;
+  const bonus = prodigy ? PRODIGY_ATTR_BONUS : 0;
   const jitter = () => Math.round((rng() * 2 - 1) * variation);
   const epithet = pickEpithet(epithetsForElement, rng);
 
@@ -130,9 +139,9 @@ export function rollCreature(
   if (species.gk) {
     const g = species.gk;
     const rolled = {
-      maos: clamp100(g.maos + jitter()),
-      concentracao: clamp100(g.concentracao + jitter()),
-      elasticidade: clamp100(g.elasticidade + jitter()),
+      maos: clamp100(g.maos + bonus + jitter()),
+      concentracao: clamp100(g.concentracao + bonus + jitter()),
+      elasticidade: clamp100(g.elasticidade + bonus + jitter()),
     };
     attrs.attr_maos = rolled.maos;
     attrs.attr_concentracao = rolled.concentracao;
@@ -141,12 +150,12 @@ export function rollCreature(
   } else if (species.line) {
     const l = species.line;
     const rolled: LineAttrs = {
-      defender: clamp100(l.defender + jitter()),
-      passar:   clamp100(l.passar   + jitter()),
-      atacar:   clamp100(l.atacar   + jitter()),
-      tecnica:  clamp100(l.tecnica  + jitter()),
-      forca:    clamp100(l.forca    + jitter()),
-      pique:    clamp100(l.pique    + jitter()),
+      defender: clamp100(l.defender + bonus + jitter()),
+      passar:   clamp100(l.passar   + bonus + jitter()),
+      atacar:   clamp100(l.atacar   + bonus + jitter()),
+      tecnica:  clamp100(l.tecnica  + bonus + jitter()),
+      forca:    clamp100(l.forca    + bonus + jitter()),
+      pique:    clamp100(l.pique    + bonus + jitter()),
     };
     attrs.attr_defender = rolled.defender;
     attrs.attr_passar   = rolled.passar;
@@ -171,6 +180,7 @@ export function rollCreature(
     ...attrs,
     overall,
     market_value: computeMarketValue(overall, 18),
+    is_prodigy: prodigy,
   };
 }
 

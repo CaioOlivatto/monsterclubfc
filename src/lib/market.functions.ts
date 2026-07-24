@@ -204,6 +204,7 @@ export const buyCreature = createServerFn({ method: "POST" })
         market_value: listing.market_value,
         age: listing.age,
         aff_fogo: 0, aff_agua: 0, aff_terra: 0, aff_ar: 0, aff_gelo: 0,
+        is_prodigy: !!(listing as any).is_prodigy,
       } as any)
       .select("id")
       .single();
