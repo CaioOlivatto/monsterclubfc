@@ -14,7 +14,10 @@ import {
   XP_BURST_MULTIPLIER,
   GEM_TO_MONEY_RATE,
   GEM_EXCHANGE_PRESETS,
+  DIVISION_EXCHANGE_MULT,
+  gemExchangeRateFor,
   type ItemKey,
+  type ExchangeDivision,
 } from "./shop.server";
 
 
