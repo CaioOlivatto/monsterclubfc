@@ -85,7 +85,7 @@ export const getMarket = createServerFn({ method: "GET" })
 
     const { data: creatures } = await supabase
       .from("creatures")
-      .select("id, name, element, suggested_position, overall, energy, market_value")
+      .select("id, name, element, suggested_position, overall, energy, market_value, is_prodigy")
       .eq("owner_trainer_id", trainer.id)
       .order("overall", { ascending: false });
 

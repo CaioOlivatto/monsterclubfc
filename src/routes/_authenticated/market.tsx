@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Coins, Store, Users, Star } from "lucide-react";
+import { ArrowLeft, Coins, Store, Users, Star, Sparkles } from "lucide-react";
 import { StarRating, overallToStars, halfStarsToStars } from "@/components/StarRating";
 
 export const Route = createFileRoute("/_authenticated/market")({
@@ -318,6 +318,11 @@ function MarketPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="font-semibold truncate">{l.name}</p>
+                          {l.is_prodigy && (
+                            <Badge variant="outline" className="border-amber-400/60 bg-amber-400/15 text-amber-200 text-[10px] gap-1 px-1.5">
+                              <Sparkles className="h-3 w-3" /> Prodígio
+                            </Badge>
+                          )}
                           <Badge variant="outline" className={ELEMENT_COLORS[l.element]}>
                             {ELEMENT_LABEL[l.element]}
                           </Badge>
@@ -382,6 +387,11 @@ function MarketPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-semibold truncate">{c.name}</p>
+                        {(c as any).is_prodigy && (
+                          <Badge variant="outline" className="border-amber-400/60 bg-amber-400/15 text-amber-200 text-[10px] gap-1 px-1.5">
+                            <Sparkles className="h-3 w-3" /> Prodígio
+                          </Badge>
+                        )}
                         <Badge variant="outline" className={ELEMENT_COLORS[c.element]}>
                           {ELEMENT_LABEL[c.element]}
                         </Badge>
