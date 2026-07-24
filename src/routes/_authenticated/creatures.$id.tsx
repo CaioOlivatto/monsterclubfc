@@ -623,22 +623,77 @@ function CreatureDetail() {
             </div>
 
             <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Afinidades elementais</p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                {(["fogo", "agua", "terra", "ar", "gelo"] as const).map((k) => (
-                  <Button
-                    key={k}
-                    size="sm"
-                    variant="outline"
-                    disabled={trainMut.isPending || c.energy < 20}
-                    onClick={() => trainMut.mutate({ kind: "affinity", key: k })}
-                  >
-                    <Sparkles className="mr-1 h-3 w-3" />
-                    {ELEMENT_LABEL[k]}
-                  </Button>
-                ))}
-              </div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Afinidade elemental (CT Elemental)
+              </p>
+              {(() => {
+                const training = (c as any).training_element as string | null;
+                const finishAt = (c as any).training_completes_at as string | null;
+                const remainingMs = finishAt ? new Date(finishAt).getTime() - Date.now() : 0;
+                const totalMs = AFFINITY_TRAINING_DURATION_MS;
+                const progress = training && finishAt
+                  ? Math.max(0, Math.min(100, ((totalMs - remainingMs) / totalMs) * 100))
+                  : 0;
+                const rushCost = Math.max(1, Math.ceil(Math.max(0, remainingMs) / (10 * 60 * 1000)));
+                const hoursLeft = Math.max(0, Math.ceil(remainingMs / (60 * 60 * 1000)));
+                if (training) {
+                  return (
+                    <div className="space-y-2 rounded-md border border-border/60 bg-card/40 p-3">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium">
+                          Treinando {ELEMENT_LABEL[training] ?? training}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {remainingMs > 0 ? `${hoursLeft}h restantes` : "Pronto"}
+                        </span>
+                      </div>
+                      <Progress value={progress} />
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={rushAffMut.isPending}
+                          onClick={() => rushAffMut.mutate()}
+                        >
+                          <Gem className="mr-1 h-3 w-3" />
+                          {remainingMs > 0 ? `Acelerar (${rushCost} 💎)` : "Finalizar"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={cancelAffMut.isPending}
+                          onClick={() => cancelAffMut.mutate()}
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Cada treino leva 4h e eleva a afinidade escolhida ao teto do seu CT Elemental. Só um treino por vez.
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                      {(["fogo", "agua", "terra", "ar", "gelo"] as const).map((k) => (
+                        <Button
+                          key={k}
+                          size="sm"
+                          variant="outline"
+                          disabled={startAffMut.isPending}
+                          onClick={() => startAffMut.mutate(k)}
+                        >
+                          <Sparkles className="mr-1 h-3 w-3" />
+                          {ELEMENT_LABEL[k]}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
+
 
             <div className="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-card/40 p-3">
               <div className="min-w-0 text-sm">
