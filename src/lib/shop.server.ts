@@ -4,6 +4,8 @@ export type ItemKey =
   | "potion_individual"
   | "potion_collective"
   | "vital_crystal"
+  | "morale_individual"
+  | "morale_collective"
   | "xp_burst_5"
   | "xp_burst_10"
   | "xp_burst_15";
