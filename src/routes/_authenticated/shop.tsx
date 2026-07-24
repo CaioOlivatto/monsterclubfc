@@ -135,8 +135,10 @@ function ShopPage() {
           <TabsList>
             <TabsTrigger value="itens"><Package className="mr-2 h-4 w-4" /> Itens</TabsTrigger>
             <TabsTrigger value="gemas"><Gem className="mr-2 h-4 w-4" /> Gemas</TabsTrigger>
+            <TabsTrigger value="trocar"><Coins className="mr-2 h-4 w-4" /> Trocar</TabsTrigger>
             <TabsTrigger value="upgrades"><Zap className="mr-2 h-4 w-4" /> Upgrades</TabsTrigger>
           </TabsList>
+
 
           {/* ---------- ITENS ---------- */}
           <TabsContent value="itens" className="space-y-4">
