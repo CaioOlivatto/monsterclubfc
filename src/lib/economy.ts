@@ -24,8 +24,21 @@ export function matchSalary(overall: number): number {
   return Math.round(seasonSalary(overall) / MATCHES_PER_SEASON);
 }
 
-/** Bônus fixo de vitória fora de casa (§Economia-Por-Partida). */
-export const AWAY_WIN_BONUS = 25_000;
+/** Margem mínima garantida por vitória fora (§Economia-Por-Partida — bônus dinâmico). */
+export const AWAY_WIN_MIN_MARGIN = 8_000;
+
+/** Bônus dinâmico de vitória fora: cobre o déficit entre despesas da partida e
+ *  (receita fixa sem bilheteria + prêmio da partida), garantindo uma margem mínima.
+ *  Assim, uma vitória fora sempre fecha positivo em ~$8k, mesmo quando o jogador
+ *  sobe construções e aumenta manutenção/salários. */
+export function computeAwayWinBonus(
+  expenses: number,
+  fixedRevenueNoGate: number,
+  matchPrize: number,
+): number {
+  const deficit = expenses - fixedRevenueNoGate - matchPrize;
+  return Math.max(0, deficit) + AWAY_WIN_MIN_MARGIN;
+}
 
 /** Prêmio de fase da Copa Nacional (spec Sistema-Tres-Competicoes.md).
  *  Valores fixos, independentes de divisão — a Copa é cross-divisão. */
