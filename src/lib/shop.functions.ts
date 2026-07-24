@@ -248,9 +248,36 @@ export const useItem = createServerFn({ method: "POST" })
           .eq("id", cr.id);
       }
       msg = "Todo o elenco recuperou +25% de energia.";
+    } else if (data.itemKey === "morale_individual") {
+      if (!data.creatureId) throw new Error("Escolha uma criatura para usar o Ânimo.");
+      const { data: c } = await context.supabase
+        .from("creatures")
+        .select("id, name, morale, owner_trainer_id")
+        .eq("id", data.creatureId)
+        .maybeSingle();
+      if (!c || c.owner_trainer_id !== trainer.id) throw new Error("Criatura inválida.");
+      const cur = Math.max(0, Math.min(100, c.morale ?? 50));
+      const gain = Math.round(MORALE_BOOST_INDIVIDUAL * Math.max(0, 1 - cur / 120));
+      const next = Math.max(0, Math.min(100, cur + gain));
+      await context.supabase.from("creatures").update({ morale: next }).eq("id", c.id);
+      msg = `${c.name}: moral ${cur} → ${next} (+${gain}).`;
+    } else if (data.itemKey === "morale_collective") {
+      const { data: crs } = await context.supabase
+        .from("creatures")
+        .select("id, morale")
+        .eq("owner_trainer_id", trainer.id);
+      let total = 0;
+      for (const cr of crs ?? []) {
+        const cur = Math.max(0, Math.min(100, cr.morale ?? 50));
+        const gain = Math.round(MORALE_BOOST_COLLECTIVE * Math.max(0, 1 - cur / 120));
+        const next = Math.max(0, Math.min(100, cur + gain));
+        if (next !== cur) {
+          await context.supabase.from("creatures").update({ morale: next }).eq("id", cr.id);
+          total += gain;
+        }
+      }
+      msg = `Elenco animado (+${total} de moral no total, com ganhos decrescentes).`;
     } else if (
-      data.itemKey === "xp_burst_5" ||
-      data.itemKey === "xp_burst_10" ||
       data.itemKey === "xp_burst_15"
     ) {
       const mult = XP_BURST_MULTIPLIER[data.itemKey];
