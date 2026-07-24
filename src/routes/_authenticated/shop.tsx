@@ -62,6 +62,8 @@ function ShopPage() {
   });
 
   const [potionTarget, setPotionTarget] = useState<string>("");
+  const [exchangeAmount, setExchangeAmount] = useState<number>(100);
+
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["shop"] });
