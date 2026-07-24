@@ -116,6 +116,6 @@ export const SPEED_UNLOCK_COSTS: Record<"4x" | "instant", number> = {
 };
 
 // Conversão de gemas em dinheiro do jogo (§3.4).
-export const GEM_TO_MONEY_RATE = 500; // $ por gema
+export const GEM_TO_MONEY_RATE = 180; // $ por gema
 export const GEM_EXCHANGE_PRESETS = [100, 500, 1000, 2000];
 
