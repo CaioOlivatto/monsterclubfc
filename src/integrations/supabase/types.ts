@@ -177,6 +177,7 @@ export type Database = {
           injury_matches_remaining: number
           injury_severity: string | null
           is_goalkeeper: boolean
+          is_prodigy: boolean
           market_value: number
           morale: number
           name: string
@@ -188,6 +189,8 @@ export type Database = {
           retired: boolean
           species: string
           suggested_position: string | null
+          training_completes_at: string | null
+          training_element: string | null
           updated_at: string
           xp: number
         }
@@ -217,6 +220,7 @@ export type Database = {
           injury_matches_remaining?: number
           injury_severity?: string | null
           is_goalkeeper?: boolean
+          is_prodigy?: boolean
           market_value?: number
           morale?: number
           name: string
@@ -228,6 +232,8 @@ export type Database = {
           retired?: boolean
           species?: string
           suggested_position?: string | null
+          training_completes_at?: string | null
+          training_element?: string | null
           updated_at?: string
           xp?: number
         }
@@ -257,6 +263,7 @@ export type Database = {
           injury_matches_remaining?: number
           injury_severity?: string | null
           is_goalkeeper?: boolean
+          is_prodigy?: boolean
           market_value?: number
           morale?: number
           name?: string
@@ -268,6 +275,8 @@ export type Database = {
           retired?: boolean
           species?: string
           suggested_position?: string | null
+          training_completes_at?: string | null
+          training_element?: string | null
           updated_at?: string
           xp?: number
         }
