@@ -508,6 +508,12 @@ function FinanceSummaryCard({ summary }: { summary: any }) {
             <span className="text-red-300">−{money(totals.expense)}</span>
           </span>
         </div>
+        <div className="flex items-center justify-between border-t pt-2 text-sm">
+          <span className="font-bold uppercase tracking-wide">Total</span>
+          <span className={`font-bold ${netColor}`}>
+            {totals.net >= 0 ? "+" : "−"} {money(Math.abs(totals.net))}
+          </span>
+        </div>
       </CardContent>
     </Card>
   );
