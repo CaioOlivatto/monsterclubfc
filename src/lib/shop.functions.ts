@@ -12,8 +12,11 @@ import {
   SPEED_UNLOCK_COSTS,
   XP_BURST_MATCHES,
   XP_BURST_MULTIPLIER,
+  GEM_TO_MONEY_RATE,
+  GEM_EXCHANGE_PRESETS,
   type ItemKey,
 } from "./shop.server";
+
 
 async function loadCtx(context: { supabase: any; userId: string }) {
   const { data: trainer } = await context.supabase
