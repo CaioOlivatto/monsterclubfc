@@ -235,6 +235,57 @@ function ShopPage() {
             </p>
           </TabsContent>
 
+          {/* ---------- TROCAR ---------- */}
+          <TabsContent value="trocar" className="space-y-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Coins className="h-4 w-4 text-yellow-500" /> Trocar gemas por dinheiro
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Taxa: <span className="font-medium text-foreground">1💎 = ${catalogs.gemToMoneyRate.toLocaleString("pt-BR")}</span>
+                </p>
+
+                <div className="flex flex-wrap gap-2">
+                  {catalogs.gemExchangePresets.map((amt: number) => (
+                    <Button
+                      key={amt}
+                      size="sm"
+                      variant={exchangeAmount === amt ? "default" : "outline"}
+                      onClick={() => setExchangeAmount(amt)}
+                    >
+                      <Gem className="mr-1 h-3 w-3" /> {amt}
+                    </Button>
+                  ))}
+                </div>
+
+                <div className="rounded-md border border-border/60 bg-card/40 p-4 text-center">
+                  <div className="flex items-center justify-center gap-3 text-lg font-semibold">
+                    <span className="flex items-center gap-1"><Gem className="h-5 w-5 text-cyan-400" /> {exchangeAmount}</span>
+                    <span className="text-muted-foreground">→</span>
+                    <span className="flex items-center gap-1"><Coins className="h-5 w-5 text-yellow-500" /> ${(exchangeAmount * catalogs.gemToMoneyRate).toLocaleString("pt-BR")}</span>
+                  </div>
+                </div>
+
+                <Button
+                  className="w-full"
+                  disabled={exchangeMut.isPending || academy.gems < exchangeAmount}
+                  onClick={() => exchangeMut.mutate(exchangeAmount)}
+                >
+                  {academy.gems < exchangeAmount ? "Gemas insuficientes" : "Confirmar troca"}
+                </Button>
+
+                <p className="text-xs text-muted-foreground">
+                  ⚠️ O dinheiro não ultrapassa os limites de contratação e folha salarial da sua divisão.
+                </p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+
+
           {/* ---------- UPGRADES ---------- */}
           <TabsContent value="upgrades" className="space-y-4">
             <Card>
