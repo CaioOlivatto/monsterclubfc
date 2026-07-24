@@ -40,6 +40,20 @@ export const ITEMS: Record<ItemKey, ItemSpec> = {
     moneyPrice: 80_000,
     gemPrice: 20,
   },
+  morale_individual: {
+    key: "morale_individual",
+    name: "Ânimo Individual",
+    description: "Aumenta o moral de 1 criatura (+25 nominal, com ganhos decrescentes).",
+    moneyPrice: 10_000,
+    gemPrice: 4,
+  },
+  morale_collective: {
+    key: "morale_collective",
+    name: "Ânimo Coletivo",
+    description: "Aumenta o moral de todo o elenco (+15 nominal, com ganhos decrescentes).",
+    moneyPrice: 45_000,
+    gemPrice: 14,
+  },
   xp_burst_5: {
     key: "xp_burst_5",
     name: "Impulso de XP +5% (1 temporada)",
