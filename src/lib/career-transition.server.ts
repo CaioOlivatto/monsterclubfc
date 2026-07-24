@@ -12,14 +12,25 @@
 const DIVISION_ORDER = ["bronze", "prata", "ouro", "diamante", "lendaria"] as const;
 type Division = typeof DIVISION_ORDER[number];
 
-// Bônus de contratação por divisão do clube que oferta.
-const SIGNING_BONUS: Record<Division, number> = {
-  bronze: 20_000,
-  prata: 60_000,
-  ouro: 150_000,
-  diamante: 400_000,
-  lendaria: 900_000,
+// Bônus de boas-vindas por divisão do NOVO clube: 10× receita fixa por partida
+// (TV + Patrocínio + Merchandising, ver MATCH_REVENUE em src/lib/economy.ts).
+// Vale tanto para "aceitar proposta" quanto para "reempregar após demissão".
+export const WELCOME_BONUS: Record<Division, number> = {
+  bronze:      210_000,
+  prata:       500_000,
+  ouro:      1_030_000,
+  diamante:  2_090_000,
+  lendaria:  3_980_000,
 };
+
+// Alias legado — usa os mesmos valores agora (não duplicar lógica).
+const SIGNING_BONUS = WELCOME_BONUS;
+
+// Gatilho adicional de proposta por sequência de vitórias na temporada.
+const WIN_STREAK_TRIGGERS: { streak: number; chance: number }[] = [
+  { streak: 10, chance: 0.70 },
+  { streak: 7,  chance: 0.45 },
+];
 
 export interface SeasonOutcomeInput {
   supabase: any;
