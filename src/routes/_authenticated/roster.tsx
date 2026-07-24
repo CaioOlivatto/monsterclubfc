@@ -12,6 +12,7 @@ import { ageStatus, seasonsRemaining, type AgeStatus } from "@/lib/age";
 import { fatigueState, FATIGUE_LABEL, FATIGUE_CLASS, effectiveOverall, energyMultiplier } from "@/lib/fatigue";
 import { moraleState, MORALE_EMOJI, MORALE_LABEL, MORALE_CLASS, moraleMultiplier, moraleReason } from "@/lib/morale";
 import { StarRating, halfStarsToStars } from "@/components/StarRating";
+import { RetirementDialog } from "@/components/RetirementDialog";
 
 export const Route = createFileRoute("/_authenticated/roster")({
   head: () => ({
@@ -109,6 +110,7 @@ function RosterPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <RetirementDialog creatures={data as any} />
       <header className="border-b border-border/60 bg-card/40 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-4">
           <Link to="/dashboard">

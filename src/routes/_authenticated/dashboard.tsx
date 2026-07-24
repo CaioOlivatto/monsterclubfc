@@ -11,6 +11,7 @@ import { getMyLineup } from "@/lib/lineup.functions";
 import { getConfidence, type ConfidenceInfo } from "@/lib/career.functions";
 import { startLeague } from "@/lib/league.functions";
 import { ageStatus } from "@/lib/age";
+import { RetirementDialog } from "@/components/RetirementDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -188,6 +189,7 @@ function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
+      <RetirementDialog creatures={rosterList as any} />
       {/* Header slim: identidade + ações no canto */}
       <header className="border-b border-border/60 bg-card/40 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center gap-2 px-3 py-3 sm:px-4">
