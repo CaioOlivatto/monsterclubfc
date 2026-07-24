@@ -244,9 +244,27 @@ function ShopPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Taxa: <span className="font-medium text-foreground">1💎 = ${catalogs.gemToMoneyRate.toLocaleString("pt-BR")}</span>
-                </p>
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  <p>
+                    Taxa base:{" "}
+                    <span className="font-medium text-foreground">
+                      1💎 = ${catalogs.gemToMoneyRate.toLocaleString("pt-BR")}
+                    </span>{" "}
+                    <span className="text-xs">(ajustado para sua divisão)</span>
+                  </p>
+                  <p>
+                    Sua divisão:{" "}
+                    <span className="font-medium text-foreground uppercase">
+                      {catalogs.gemExchangeDivision}
+                    </span>{" "}
+                    <span className="text-xs">
+                      (×{catalogs.gemExchangeMultiplier.toFixed(2)}) — 1💎 ={" "}
+                      <span className="font-medium text-foreground">
+                        ${catalogs.gemToMoneyRateEffective.toLocaleString("pt-BR")}
+                      </span>
+                    </span>
+                  </p>
+                </div>
 
                 <div className="flex flex-wrap gap-2">
                   {catalogs.gemExchangePresets.map((amt: number) => (
@@ -265,7 +283,7 @@ function ShopPage() {
                   <div className="flex items-center justify-center gap-3 text-lg font-semibold">
                     <span className="flex items-center gap-1"><Gem className="h-5 w-5 text-cyan-400" /> {exchangeAmount}</span>
                     <span className="text-muted-foreground">→</span>
-                    <span className="flex items-center gap-1"><Coins className="h-5 w-5 text-yellow-500" /> ${(exchangeAmount * catalogs.gemToMoneyRate).toLocaleString("pt-BR")}</span>
+                    <span className="flex items-center gap-1"><Coins className="h-5 w-5 text-yellow-500" /> ${(exchangeAmount * catalogs.gemToMoneyRateEffective).toLocaleString("pt-BR")}</span>
                   </div>
                 </div>
 

@@ -14,14 +14,17 @@ import {
   XP_BURST_MULTIPLIER,
   GEM_TO_MONEY_RATE,
   GEM_EXCHANGE_PRESETS,
+  DIVISION_EXCHANGE_MULT,
+  gemExchangeRateFor,
   type ItemKey,
+  type ExchangeDivision,
 } from "./shop.server";
 
 
 async function loadCtx(context: { supabase: any; userId: string }) {
   const { data: trainer } = await context.supabase
     .from("trainers")
-    .select("id, xp_burst_multiplier, xp_burst_matches_left")
+    .select("id, xp_burst_multiplier, xp_burst_matches_left, current_team_id")
     .eq("user_id", context.userId)
     .maybeSingle();
   if (!trainer) throw new Error("Treinador não encontrado");
@@ -31,7 +34,16 @@ async function loadCtx(context: { supabase: any; userId: string }) {
     .eq("trainer_id", trainer.id)
     .maybeSingle();
   if (!academy) throw new Error("Academia não encontrada");
-  return { trainer, academy };
+  let division: ExchangeDivision = "bronze";
+  if (trainer.current_team_id) {
+    const { data: team } = await context.supabase
+      .from("teams")
+      .select("division")
+      .eq("id", trainer.current_team_id)
+      .maybeSingle();
+    if (team?.division) division = team.division as ExchangeDivision;
+  }
+  return { trainer, academy, division };
 }
 
 async function logTx(
@@ -53,7 +65,7 @@ async function logTx(
 export const getShopState = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { trainer, academy } = await loadCtx(context);
+    const { trainer, academy, division } = await loadCtx(context);
     const { data: items } = await context.supabase
       .from("items")
       .select("item_key, quantity")
@@ -92,6 +104,9 @@ export const getShopState = createServerFn({ method: "GET" })
         speedUnlockCosts: SPEED_UNLOCK_COSTS,
         xpBurstMatches: XP_BURST_MATCHES,
         gemToMoneyRate: GEM_TO_MONEY_RATE,
+        gemToMoneyRateEffective: gemExchangeRateFor(division),
+        gemExchangeMultiplier: DIVISION_EXCHANGE_MULT[division],
+        gemExchangeDivision: division,
         gemExchangePresets: GEM_EXCHANGE_PRESETS,
       },
     };
@@ -103,9 +118,10 @@ export const exchangeGemsForMoney = createServerFn({ method: "POST" })
     gems: z.number().int().min(1).max(100000).parse(data.gems),
   }))
   .handler(async ({ data, context }) => {
-    const { trainer, academy } = await loadCtx(context);
+    const { trainer, academy, division } = await loadCtx(context);
     if (academy.gems < data.gems) throw new Error("Gemas insuficientes.");
-    const money = data.gems * GEM_TO_MONEY_RATE;
+    const rate = gemExchangeRateFor(division);
+    const money = data.gems * rate;
     await context.supabase
       .from("academies")
       .update({
@@ -118,7 +134,7 @@ export const exchangeGemsForMoney = createServerFn({ method: "POST" })
       trainer.id,
       "income",
       money,
-      `Troca de ${data.gems}💎 por dinheiro`,
+      `Troca de ${data.gems}💎 por dinheiro (${division}, ×${DIVISION_EXCHANGE_MULT[division]})`,
     );
     return { ok: true, message: `+$${money.toLocaleString("pt-BR")} creditados.` };
   });
