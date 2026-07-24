@@ -212,6 +212,7 @@ export function generateTeamRoster(bestiary: LoadedBestiary, team: WorldTeam, di
       retired: false,
       xp: 0,
       aff_fogo: 0, aff_agua: 0, aff_terra: 0, aff_ar: 0, aff_gelo: 0,
+      is_prodigy: !!(rolled as any).is_prodigy,
     });
   }
 
