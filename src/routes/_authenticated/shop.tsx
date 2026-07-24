@@ -9,7 +9,9 @@ import {
   buyGemPackage,
   buyExtraBuilder,
   expandRoster,
+  exchangeGemsForMoney,
 } from "@/lib/shop.functions";
+
 import { listMyCreatures } from "@/lib/creatures.functions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
