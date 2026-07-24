@@ -118,9 +118,10 @@ export const exchangeGemsForMoney = createServerFn({ method: "POST" })
     gems: z.number().int().min(1).max(100000).parse(data.gems),
   }))
   .handler(async ({ data, context }) => {
-    const { trainer, academy } = await loadCtx(context);
+    const { trainer, academy, division } = await loadCtx(context);
     if (academy.gems < data.gems) throw new Error("Gemas insuficientes.");
-    const money = data.gems * GEM_TO_MONEY_RATE;
+    const rate = gemExchangeRateFor(division);
+    const money = data.gems * rate;
     await context.supabase
       .from("academies")
       .update({
@@ -133,7 +134,7 @@ export const exchangeGemsForMoney = createServerFn({ method: "POST" })
       trainer.id,
       "income",
       money,
-      `Troca de ${data.gems}💎 por dinheiro`,
+      `Troca de ${data.gems}💎 por dinheiro (${division}, ×${DIVISION_EXCHANGE_MULT[division]})`,
     );
     return { ok: true, message: `+$${money.toLocaleString("pt-BR")} creditados.` };
   });
