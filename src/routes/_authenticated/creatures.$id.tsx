@@ -252,12 +252,19 @@ function CreatureDetail() {
               {c.suggested_position}
             </p>
           </div>
-          <Badge
-            variant="outline"
-            className={"ml-auto " + (ELEMENT_COLORS[c.element] ?? "")}
-          >
-            {ELEMENT_LABEL[c.element] ?? c.element}
-          </Badge>
+          <div className="ml-auto flex items-center gap-1.5">
+            {(c as any).is_prodigy ? (
+              <Badge className="border-yellow-400/40 bg-yellow-500/15 text-yellow-200" variant="outline">
+                <Sparkles className="mr-1 h-3 w-3" /> Prodígio
+              </Badge>
+            ) : null}
+            <Badge
+              variant="outline"
+              className={ELEMENT_COLORS[c.element] ?? ""}
+            >
+              {ELEMENT_LABEL[c.element] ?? c.element}
+            </Badge>
+          </div>
         </div>
       </header>
 
