@@ -175,16 +175,16 @@ export function rollCreature(
 }
 
 /**
- * Valor de mercado com decaimento a partir dos 27 anos (§10.5).
- * Base = overall² * 22 (curva próxima da tabela §5 do balanceamento).
+ * Valor de mercado canônico (Tabela de Balanceamento §9.1):
+ * valor por estrela (band = overall / 10). Age não altera o valor.
  */
-export function computeMarketValue(overall: number, age: number): number {
-  const base = Math.max(1, overall) * Math.max(1, overall) * 22;
-  let factor = 1;
-  if (age >= 27) {
-    factor = Math.max(0.4, 1 - (age - 27) * 0.08);
-  }
-  return Math.round((base * factor) / 1000) * 1000;
+const STAR_VALUE_TABLE = [
+  15_000, 35_000, 70_000, 130_000, 240_000,
+  430_000, 780_000, 1_400_000, 2_500_000, 4_500_000,
+];
+export function computeMarketValue(overall: number, _age: number): number {
+  const band = Math.max(1, Math.min(10, Math.round((overall ?? 0) / 10)));
+  return STAR_VALUE_TABLE[band - 1];
 }
 
 // -------- Filtros sobre uma lista já carregada --------

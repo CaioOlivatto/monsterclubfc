@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { generateMarketListings, findListing } from "./market.server";
+import { generateMarketListings, findListing, sellPriceForOverall } from "./market.server";
 import {
   DIVISION_MAX_BAND,
   DIVISION_SALARY_CAP,
@@ -270,14 +270,15 @@ export const sellCreature = createServerFn({ method: "POST" })
 
     const { data: creature, error: fErr } = await supabase
       .from("creatures")
-      .select("id, name, market_value")
+      .select("id, name, overall, market_value")
       .eq("id", data.creature_id)
       .eq("owner_trainer_id", trainer.id)
       .maybeSingle();
     if (fErr) throw fErr;
     if (!creature) throw new Error("Criatura não encontrada.");
 
-    const salePrice = Math.round((creature.market_value * 0.9) / 100) * 100;
+    // §9.1 — Preço de venda canônico: valor por estrela × 90% (independente do market_value armazenado).
+    const salePrice = sellPriceForOverall(creature.overall ?? 0);
 
     const { error: dErr } = await supabase
       .from("creatures")

@@ -156,7 +156,7 @@ export function generateStarterRoster(teamKey: StarterKey, bestiary: LoadedBesti
       attr_concentracao: scl(c.attr_concentracao),
       attr_elasticidade: scl(c.attr_elasticidade),
       overall: target,
-      market_value: Math.max(1000, target * target * 20),
+      market_value: computeMarketValue(target, 18),
     };
   };
 

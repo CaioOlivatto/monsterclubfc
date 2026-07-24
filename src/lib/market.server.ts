@@ -13,10 +13,21 @@ import type { LoadedBestiary } from "./bestiary.server";
 import { rollBandForDivision, DIVISION_STAR_PROFILE, type Division } from "./economy";
 
 
-const STAR_VALUE = [
+export const STAR_VALUE = [
   15_000, 35_000, 70_000, 130_000, 240_000,
   430_000, 780_000, 1_400_000, 2_500_000, 4_500_000,
 ];
+
+/** Valor de mercado canônico por overall (Tabela de Balanceamento §9.1). */
+export function marketValueForOverall(overall: number): number {
+  const band = Math.max(1, Math.min(10, Math.round((overall ?? 0) / 10)));
+  return STAR_VALUE[band - 1];
+}
+
+/** Preço de venda canônico: valor por estrela × 90%, arredondado a 100. */
+export function sellPriceForOverall(overall: number): number {
+  return Math.round((marketValueForOverall(overall) * 0.9) / 100) * 100;
+}
 
 function mulberry32(seed: number) {
   let a = seed >>> 0;
