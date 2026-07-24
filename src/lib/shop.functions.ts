@@ -278,6 +278,8 @@ export const useItem = createServerFn({ method: "POST" })
       }
       msg = `Elenco animado (+${total} de moral no total, com ganhos decrescentes).`;
     } else if (
+      data.itemKey === "xp_burst_5" ||
+      data.itemKey === "xp_burst_10" ||
       data.itemKey === "xp_burst_15"
     ) {
       const mult = XP_BURST_MULTIPLIER[data.itemKey];
