@@ -377,22 +377,56 @@ function MatchPage() {
               <Button
                 size="sm"
                 variant={speed === 4 ? "default" : "outline"}
-                onClick={() => setSpeed(4)}
+                onClick={() => {
+                  if (data.speed?.paid_4x) setSpeed(4);
+                  else setUnlockMode("4x");
+                }}
               >
-                <FastForward className="mr-1 h-3 w-3" /> 4x
+                {data.speed?.paid_4x ? (
+                  <FastForward className="mr-1 h-3 w-3" />
+                ) : (
+                  <Lock className="mr-1 h-3 w-3" />
+                )}{" "}
+                4x
               </Button>
               <Button
                 size="sm"
                 variant={speed === 0 ? "default" : "outline"}
                 onClick={() => {
-                  setSpeed(0);
-                  setPlaying(true);
+                  if (data.speed?.paid_instant) {
+                    setSpeed(0);
+                    setPlaying(true);
+                  } else {
+                    setUnlockMode("instant");
+                  }
                 }}
               >
-                <SkipForward className="mr-1 h-3 w-3" /> Instantâneo
+                {data.speed?.paid_instant ? (
+                  <SkipForward className="mr-1 h-3 w-3" />
+                ) : (
+                  <Lock className="mr-1 h-3 w-3" />
+                )}{" "}
+                Instantâneo
               </Button>
               <TacticsSheet />
             </div>
+
+            <UnlockSpeedDialog
+              mode={unlockMode}
+              onOpenChange={(open) => !open && setUnlockMode(null)}
+              gems={data.speed?.gems ?? 0}
+              cost4x={data.speed?.cost_4x ?? 300}
+              costInstant={data.speed?.cost_instant ?? 800}
+              onUnlocked={(mode) => {
+                setUnlockMode(null);
+                if (mode === "4x") setSpeed(4);
+                else {
+                  setSpeed(0);
+                  setPlaying(true);
+                }
+              }}
+            />
+
 
           </CardContent>
         </Card>
