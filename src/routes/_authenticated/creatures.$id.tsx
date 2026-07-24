@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { getCreature, healCreatureWithGems, reduceInjuryWithGems, HEAL_GEMS_PER_MATCH } from "@/lib/creatures.functions";
 import { trainCreature, restCreature } from "@/lib/training.functions";
 import { spendHalfStar } from "@/lib/progression.functions";
+import { retireCreature, rebirthCreature } from "@/lib/lifecycle.functions";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -123,6 +124,32 @@ function CreatureDetail() {
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao reduzir"),
+  });
+
+  const retireFn = useServerFn(retireCreature);
+  const retireMut = useMutation({
+    mutationFn: () => retireFn({ data: { creature_id: id } }),
+    onSuccess: (res) => {
+      toast.success(`${res.retired} aposentada — recebeu $${res.payout.toLocaleString("pt-BR")}`);
+      qc.invalidateQueries({ queryKey: ["my-creatures"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["my-lineup"] });
+      nav({ to: "/roster" });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao aposentar"),
+  });
+
+  const rebirthFn = useServerFn(rebirthCreature);
+  const rebirthMut = useMutation({
+    mutationFn: () => rebirthFn({ data: { creature_id: id } }),
+    onSuccess: (res) => {
+      toast.success(`${res.rebirth} renasceu — ${(res.half_stars / 2).toFixed(1)}★ (OVR ${res.overall})`);
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+      qc.invalidateQueries({ queryKey: ["my-creatures"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["my-lineup"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao renascer"),
   });
 
 
