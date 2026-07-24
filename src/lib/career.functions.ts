@@ -301,13 +301,9 @@ export const declineOffer = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-const STARTING_CASH_BY_DIVISION: Record<string, number> = {
-  lendaria: 2_000_000,
-  diamante: 1_200_000,
-  ouro: 700_000,
-  prata: 400_000,
-  bronze: 200_000,
-};
+// Bônus de boas-vindas por divisão do NOVO clube: 10× receita fixa por partida.
+// Fonte única em src/lib/career-transition.server.ts.
+import { WELCOME_BONUS } from "./career-transition.server";
 
 
 export interface AcceptOfferResult {
