@@ -336,10 +336,20 @@ function ShopPage() {
               </CardHeader>
               <CardContent className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm">Ocupação: <span className="font-medium">{creaturesCount} / {academy.roster_slots}</span></p>
+                  {(() => {
+                    const remaining = academy.roster_slots - creaturesCount;
+                    const almostFull = remaining <= 1 && nextExpansion != null;
+                    return (
+                      <p className={`text-sm ${almostFull ? "text-amber-500 font-medium" : ""}`}>
+                        Você tem <span className="font-medium">{creaturesCount}</span> de{" "}
+                        <span className="font-medium">{academy.roster_slots}</span> criaturas
+                        {almostFull ? " (quase cheio)" : ""}
+                      </p>
+                    );
+                  })()}
                   <p className="text-xs text-muted-foreground">
                     {nextExpansion
-                      ? `Próxima expansão: ${nextExpansion.from} → ${nextExpansion.to} vagas.`
+                      ? `Expandir para ${nextExpansion.to} vagas (+${nextExpansion.to - nextExpansion.from} vagas)`
                       : "Você já está no máximo de vagas."}
                   </p>
                 </div>
