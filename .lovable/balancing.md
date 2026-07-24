@@ -198,10 +198,10 @@ Referência ex-ante com moral estável ~70: ~$911k. A diferença vem do custo re
 | Pacote | Gemas | Bônus | Preço |
 |---|---|---|---|
 | Punhado | 100 | — | R$ 9,90 |
-| Saco | 550 | +10% | R$ 44,90 |
-| Baú | 1.200 | +20% | R$ 89,90 |
-| Cofre | 2.600 | +30% | R$ 179,90 |
-| Tesouro | 6.000 | melhor | R$ 349,90 |
+| Saco | 550 | +10% | R$ 34,90 |
+| Baú | 1.200 | +20% | R$ 79,90 |
+| Cofre | 2.600 | +30% | R$ 159,90 |
+| Tesouro | 8.400 | melhor | R$ 289,90 |
 
 ### 3.3 Usos
 | Uso | Custo |
