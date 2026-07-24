@@ -197,6 +197,7 @@ function generateOne(bestiary: LoadedBestiary, rng: () => number, division: Divi
     seller: pick(rng, SELLERS),
     half_star_band: band,
     age,
+    is_prodigy: adjusted.is_prodigy,
   };
 }
 
