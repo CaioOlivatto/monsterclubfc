@@ -116,6 +116,22 @@ export const SPEED_UNLOCK_COSTS: Record<"4x" | "instant", number> = {
 };
 
 // Conversão de gemas em dinheiro do jogo (§3.4).
-export const GEM_TO_MONEY_RATE = 180; // $ por gema
+// Taxa BASE (referência 5ª Bronze). Multiplicador por divisão calibra o custo
+// para "zerar" o teto de folha em ~R$46 em qualquer divisão.
+export const GEM_TO_MONEY_RATE = 700; // $ por gema (base: Bronze)
 export const GEM_EXCHANGE_PRESETS = [100, 500, 1000, 2000];
+
+export type ExchangeDivision = "bronze" | "prata" | "ouro" | "diamante" | "lendaria";
+export const DIVISION_EXCHANGE_MULT: Record<ExchangeDivision, number> = {
+  bronze: 1.0,
+  prata: 1.87,
+  ouro: 3.13,
+  diamante: 5.09,
+  lendaria: 7.82,
+};
+
+export function gemExchangeRateFor(division: ExchangeDivision | null | undefined): number {
+  const mult = DIVISION_EXCHANGE_MULT[(division ?? "bronze") as ExchangeDivision] ?? 1;
+  return Math.round(GEM_TO_MONEY_RATE * mult);
+}
 
