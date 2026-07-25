@@ -51,6 +51,7 @@ function ShopPage() {
   const buyBuilderFn = useServerFn(buyExtraBuilder);
   const expandFn = useServerFn(expandRoster);
   const exchangeFn = useServerFn(exchangeGemsForMoney);
+  const unlockSpeedFn = useServerFn(unlockSpeed);
 
 
   const { data: shop, isLoading } = useQuery({
