@@ -19,6 +19,8 @@ export interface EngineCreature {
   energy: number;
   /** Moral 0..100 (default 50). Multiplica o rating (±10% no extremo). */
   morale?: number;
+  /** Idade em anos. Sem valor → tratada como auge (24). */
+  age?: number;
   affinity_fogo: number;
   affinity_agua: number;
   affinity_terra: number;
@@ -237,6 +239,41 @@ function injuryFatigueMult(energy: number | null | undefined): number {
   if (e >= 50) return 1.0;
   if (e >= 40) return 1.5;
   return 2.0;
+}
+
+/**
+ * Modificador de idade — multiplica desgaste de energia (Fadiga v3) e risco
+ * de lesão. Interpola linearmente entre âncoras (múltiplos de 3):
+ *   idade   energia   lesão
+ *   18      0.80      0.75
+ *   21      0.90      0.85
+ *   24      1.00      1.00  (auge)
+ *   27      1.10      1.15
+ *   30      1.20      1.35
+ * Fora do intervalo, clampa nas pontas. Sem idade → auge (1.00).
+ */
+function ageMult(age: number | null | undefined, anchors: [number, number][]): number {
+  if (typeof age !== "number" || !Number.isFinite(age)) return 1.0;
+  if (age <= anchors[0][0]) return anchors[0][1];
+  const last = anchors[anchors.length - 1];
+  if (age >= last[0]) return last[1];
+  for (let i = 0; i < anchors.length - 1; i++) {
+    const [a1, v1] = anchors[i];
+    const [a2, v2] = anchors[i + 1];
+    if (age >= a1 && age <= a2) {
+      const t = (age - a1) / (a2 - a1);
+      return v1 + (v2 - v1) * t;
+    }
+  }
+  return 1.0;
+}
+const AGE_ENERGY_ANCHORS: [number, number][] = [[18, 0.80], [21, 0.90], [24, 1.00], [27, 1.10], [30, 1.20]];
+const AGE_INJURY_ANCHORS: [number, number][] = [[18, 0.75], [21, 0.85], [24, 1.00], [27, 1.15], [30, 1.35]];
+export function ageEnergyMult(age: number | null | undefined): number {
+  return ageMult(age, AGE_ENERGY_ANCHORS);
+}
+export function ageInjuryMult(age: number | null | undefined): number {
+  return ageMult(age, AGE_INJURY_ANCHORS);
 }
 
 
@@ -530,7 +567,8 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
       const tMul = live === liveHome ? tH.injuryMul : tA.injuryMul;
       const fMul = injuryFatigueMult(actor.energy);
       const mMul = medicalInjuryMult(live.side.medical_level);
-      const p = Math.min(1, P_LESAO * fMul * tMul * mMul);
+      const aMul = ageInjuryMult(actor.age);
+      const p = Math.min(1, P_LESAO * fMul * tMul * mMul * aMul);
       if (rand() >= p) continue;
 
       const rr = rand();
@@ -605,9 +643,14 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
   const homeBase = outcomeLoss(true) + pressureAdj(home.tactics);
   const awayBase = outcomeLoss(false) + pressureAdj(away.tactics);
 
-  // Toda criatura que jogou (titular do início OU reserva que entrou) sofre o base.
-  for (const id of usedHome) energy_loss[id] = (energy_loss[id] ?? 0) + homeBase;
-  for (const id of usedAway) energy_loss[id] = (energy_loss[id] ?? 0) + awayBase;
+  // Toda criatura que jogou (titular do início OU reserva que entrou) sofre o base,
+  // escalado pelo modificador de idade (auge=24 → x1.00; veterana=30 → x1.20).
+  const ageById = new Map<string, number | undefined>();
+  for (const s of [...liveHome.starters, ...liveAway.starters, ...home.bench, ...away.bench]) {
+    ageById.set(s.creature.id, s.creature.age);
+  }
+  for (const id of usedHome) energy_loss[id] = (energy_loss[id] ?? 0) + Math.round(homeBase * ageEnergyMult(ageById.get(id)));
+  for (const id of usedAway) energy_loss[id] = (energy_loss[id] ?? 0) + Math.round(awayBase * ageEnergyMult(ageById.get(id)));
 
   // Cartões cumulativos.
   for (const e of events) {

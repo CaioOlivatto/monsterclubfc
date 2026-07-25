@@ -49,7 +49,7 @@ export async function buildPlayerSideFromDb(
   const { data: creatures, error } = await supabase
     .from("creatures")
     .select(
-      "id, name, element, suggested_position, overall, is_goalkeeper, attr_pique, attr_forca, energy, morale, aff_fogo, aff_agua, aff_terra, aff_ar, aff_gelo, injury_matches_remaining",
+      "id, name, element, suggested_position, overall, is_goalkeeper, attr_pique, attr_forca, energy, morale, age, aff_fogo, aff_agua, aff_terra, aff_ar, aff_gelo, injury_matches_remaining",
     )
     .in("id", allIds);
   if (error) throw error;
@@ -69,6 +69,7 @@ export async function buildPlayerSideFromDb(
         physical: Math.round(((c.attr_pique ?? 40) + (c.attr_forca ?? 40)) / 2),
         energy: c.energy ?? 100,
         morale: c.morale ?? 50,
+        age: typeof c.age === "number" ? c.age : undefined,
         affinity_fogo: c.aff_fogo ?? 0,
         affinity_agua: c.aff_agua ?? 0,
         affinity_terra: c.aff_terra ?? 0,
@@ -130,7 +131,7 @@ export async function buildPlayerSideFromDraft(
   const { data: creatures, error } = await supabase
     .from("creatures")
     .select(
-      "id, name, element, suggested_position, overall, is_goalkeeper, attr_pique, attr_forca, energy, morale, aff_fogo, aff_agua, aff_terra, aff_ar, aff_gelo, injury_matches_remaining, owner_trainer_id",
+      "id, name, element, suggested_position, overall, is_goalkeeper, attr_pique, attr_forca, energy, morale, age, aff_fogo, aff_agua, aff_terra, aff_ar, aff_gelo, injury_matches_remaining, owner_trainer_id",
     )
     .in("id", allIds);
   if (error) throw error;
@@ -156,6 +157,7 @@ export async function buildPlayerSideFromDraft(
         physical: Math.round(((c.attr_pique ?? 40) + (c.attr_forca ?? 40)) / 2),
         energy: c.energy ?? 100,
         morale: c.morale ?? 50,
+        age: typeof c.age === "number" ? c.age : undefined,
         affinity_fogo: c.aff_fogo ?? 0, affinity_agua: c.aff_agua ?? 0,
         affinity_terra: c.aff_terra ?? 0, affinity_ar: c.aff_ar ?? 0,
         affinity_gelo: c.aff_gelo ?? 0,
