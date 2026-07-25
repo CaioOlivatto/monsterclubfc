@@ -451,3 +451,22 @@ UI: na ficha da criatura, aparece "Veterano — mais propenso a cansaço e lesã
 - Ocupação de público refinada por fama.
 - Preço de ingresso ajustável pelo jogador.
 - Playtest de 5 temporadas para calibragem final.
+
+## §Descanso — Cargas compartilhadas + preço crescente
+
+Sistema manual e opcional, adicional à recuperação automática pós-partida (+2 jogou / +6 não jogou).
+
+- **Recuperação por uso:** +50 pts de energia (cap 100).
+- **Temporizador:** 15 minutos reais por uso (mesmo quando grátis). Rush = 1 💎 por 10 min restantes (separado do custo de desbloqueio).
+- **Pool grátis:** 3 cargas **compartilhadas por todo o elenco** do treinador. Cada uso consome 1 carga.
+- **Reset:** quando a pool zera, marca `rest_pool_zeroed_at`. 12 h depois a pool volta para 3 e o contador de uso pago zera.
+- **Uso extra (pool zerada) — preço em gemas crescente:**
+
+| Uso extra no ciclo | Custo |
+|---|---|
+| 1º | 15 💎 |
+| 2º | 25 💎 |
+| 3º | 40 💎 |
+| 4º+ | 60 💎 (teto) |
+
+Assim que houver ao menos 1 carga grátis disponível de novo, o próximo uso volta a ser gratuito e o contador de pago é resetado.
