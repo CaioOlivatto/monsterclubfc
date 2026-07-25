@@ -73,10 +73,45 @@ const POSITION_KEYS = ["Goleiro", "Zagueiro", "Meio-campo", "Atacante"] as const
 type AgeFilter = "all" | "veteran" | "last_season";
 
 function RosterPage() {
+  const qc = useQueryClient();
   const fetchList = useServerFn(listMyCreatures);
+  const fetchMorale = useServerFn(getMoraleSessionsState);
   const { data, isLoading } = useQuery({
     queryKey: ["my-creatures"],
     queryFn: () => fetchList(),
+  });
+  const { data: morale } = useQuery({
+    queryKey: ["morale-sessions"],
+    queryFn: () => fetchMorale(),
+    refetchInterval: 60_000,
+  });
+  const startMeetFn = useServerFn(startMoraleMeeting);
+  const rushMeetFn = useServerFn(rushMoraleMeeting);
+  const cancelMeetFn = useServerFn(cancelMoraleMeeting);
+  const startMeetMut = useMutation({
+    mutationFn: () => startMeetFn(),
+    onSuccess: () => {
+      toast.success("Reunião de equipe iniciada.");
+      qc.invalidateQueries({ queryKey: ["morale-sessions"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao iniciar reunião"),
+  });
+  const rushMeetMut = useMutation({
+    mutationFn: () => rushMeetFn(),
+    onSuccess: (r: any) => {
+      toast.success(r?.spent ? `Reunião acelerada (${r.spent} 💎).` : "Reunião concluída.");
+      qc.invalidateQueries({ queryKey: ["morale-sessions"] });
+      qc.invalidateQueries({ queryKey: ["my-creatures"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao acelerar"),
+  });
+  const cancelMeetMut = useMutation({
+    mutationFn: () => cancelMeetFn(),
+    onSuccess: () => {
+      toast.success("Reunião cancelada.");
+      qc.invalidateQueries({ queryKey: ["morale-sessions"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao cancelar"),
   });
 
   const [q, setQ] = useState("");
