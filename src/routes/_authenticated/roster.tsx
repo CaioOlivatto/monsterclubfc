@@ -1,13 +1,23 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { listMyCreatures } from "@/lib/creatures.functions";
+import {
+  getMoraleSessionsState,
+  startMoraleMeeting,
+  rushMoraleMeeting,
+  cancelMoraleMeeting,
+  MORALE_MEETING_COLLECTIVE_MS,
+  MORALE_MEETING_COLLECTIVE_BOOST,
+} from "@/lib/morale-training.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Search, BatteryCharging, Star, Clock, Hourglass, HeartPulse } from "lucide-react";
+import { ArrowLeft, Search, BatteryCharging, Star, Clock, Hourglass, HeartPulse, Gem, Users } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { ageStatus, seasonsRemaining, type AgeStatus } from "@/lib/age";
 import { fatigueState, FATIGUE_LABEL, FATIGUE_CLASS, effectiveOverall, energyMultiplier } from "@/lib/fatigue";
 import { moraleState, MORALE_EMOJI, MORALE_LABEL, MORALE_CLASS, moraleMultiplier, moraleReason } from "@/lib/morale";
@@ -63,10 +73,45 @@ const POSITION_KEYS = ["Goleiro", "Zagueiro", "Meio-campo", "Atacante"] as const
 type AgeFilter = "all" | "veteran" | "last_season";
 
 function RosterPage() {
+  const qc = useQueryClient();
   const fetchList = useServerFn(listMyCreatures);
+  const fetchMorale = useServerFn(getMoraleSessionsState);
   const { data, isLoading } = useQuery({
     queryKey: ["my-creatures"],
     queryFn: () => fetchList(),
+  });
+  const { data: morale } = useQuery({
+    queryKey: ["morale-sessions"],
+    queryFn: () => fetchMorale(),
+    refetchInterval: 60_000,
+  });
+  const startMeetFn = useServerFn(startMoraleMeeting);
+  const rushMeetFn = useServerFn(rushMoraleMeeting);
+  const cancelMeetFn = useServerFn(cancelMoraleMeeting);
+  const startMeetMut = useMutation({
+    mutationFn: () => startMeetFn(),
+    onSuccess: () => {
+      toast.success("Reunião de equipe iniciada.");
+      qc.invalidateQueries({ queryKey: ["morale-sessions"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao iniciar reunião"),
+  });
+  const rushMeetMut = useMutation({
+    mutationFn: () => rushMeetFn(),
+    onSuccess: (r: any) => {
+      toast.success(r?.spent ? `Reunião acelerada (${r.spent} 💎).` : "Reunião concluída.");
+      qc.invalidateQueries({ queryKey: ["morale-sessions"] });
+      qc.invalidateQueries({ queryKey: ["my-creatures"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao acelerar"),
+  });
+  const cancelMeetMut = useMutation({
+    mutationFn: () => cancelMeetFn(),
+    onSuccess: () => {
+      toast.success("Reunião cancelada.");
+      qc.invalidateQueries({ queryKey: ["morale-sessions"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao cancelar"),
   });
 
   const [q, setQ] = useState("");
@@ -131,6 +176,52 @@ function RosterPage() {
       </header>
 
       <main className="mx-auto max-w-6xl space-y-4 p-4">
+        {(() => {
+          const finishAt = morale?.meeting_completes_at ?? null;
+          const remainingMs = finishAt ? new Date(finishAt).getTime() - Date.now() : 0;
+          const totalMs = morale?.collective_ms ?? MORALE_MEETING_COLLECTIVE_MS;
+          const progress = finishAt
+            ? Math.max(0, Math.min(100, ((totalMs - remainingMs) / totalMs) * 100))
+            : 0;
+          const rushCost = Math.max(1, Math.ceil(Math.max(0, remainingMs) / (10 * 60 * 1000)));
+          const hoursLeft = Math.max(0, Math.ceil(remainingMs / (60 * 60 * 1000)));
+          if (finishAt && remainingMs > 0) {
+            return (
+              <div className="space-y-2 rounded-md border border-primary/30 bg-primary/5 p-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2 font-medium">
+                    <Users className="h-4 w-4" /> Reunião de equipe em andamento
+                  </span>
+                  <span className="text-xs text-muted-foreground">{hoursLeft}h restantes</span>
+                </div>
+                <Progress value={progress} />
+                <div className="flex gap-2">
+                  <Button size="sm" variant="secondary" disabled={rushMeetMut.isPending} onClick={() => rushMeetMut.mutate()}>
+                    <Gem className="mr-1 h-3 w-3" />Acelerar ({rushCost} 💎)
+                  </Button>
+                  <Button size="sm" variant="ghost" disabled={cancelMeetMut.isPending} onClick={() => cancelMeetMut.mutate()}>
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            );
+          }
+          return (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/60 bg-card/40 p-3">
+              <div className="min-w-0 text-sm">
+                <p className="flex items-center gap-2 font-medium">
+                  <Users className="h-4 w-4" /> Reunião de equipe (gratuita)
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Passa 8h e aplica +{MORALE_MEETING_COLLECTIVE_BOOST} moral nominal em todo o elenco (ganhos decrescentes).
+                </p>
+              </div>
+              <Button size="sm" onClick={() => startMeetMut.mutate()} disabled={startMeetMut.isPending}>
+                Iniciar reunião
+              </Button>
+            </div>
+          );
+        })()}
         <div className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto]">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

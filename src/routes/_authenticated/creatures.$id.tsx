@@ -13,6 +13,13 @@ import {
   cancelAffinityTraining,
   AFFINITY_TRAINING_DURATION_MS,
 } from "@/lib/affinity-training.functions";
+import {
+  startMoraleSession,
+  rushMoraleSession,
+  cancelMoraleSession,
+  MORALE_SESSION_INDIVIDUAL_MS,
+  MORALE_SESSION_INDIVIDUAL_BOOST,
+} from "@/lib/morale-training.functions";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -120,6 +127,35 @@ function CreatureDetail() {
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao acelerar"),
+  });
+
+  const startMorFn = useServerFn(startMoraleSession);
+  const rushMorFn = useServerFn(rushMoraleSession);
+  const cancelMorFn = useServerFn(cancelMoraleSession);
+  const startMorMut = useMutation({
+    mutationFn: () => startMorFn({ data: { creatureId: id } }),
+    onSuccess: () => {
+      toast.success("Sessão de incentivo iniciada.");
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao iniciar sessão"),
+  });
+  const rushMorMut = useMutation({
+    mutationFn: () => rushMorFn({ data: { creatureId: id } }),
+    onSuccess: (r: any) => {
+      toast.success(r?.spent ? `Sessão acelerada (${r.spent} 💎).` : "Sessão concluída.");
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao acelerar"),
+  });
+  const cancelMorMut = useMutation({
+    mutationFn: () => cancelMorFn({ data: { creatureId: id } }),
+    onSuccess: () => {
+      toast.success("Sessão cancelada.");
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao cancelar"),
   });
   const cancelAffMut = useMutation({
     mutationFn: () => cancelAffFn({ data: { creatureId: id } }),
@@ -719,6 +755,54 @@ function CreatureDetail() {
                         </Button>
                       ))}
                     </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Sessão de incentivo (gratuita)
+              </p>
+              {(() => {
+                const finishAt = (c as any).morale_session_completes_at as string | null;
+                const remainingMs = finishAt ? new Date(finishAt).getTime() - Date.now() : 0;
+                const totalMs = MORALE_SESSION_INDIVIDUAL_MS;
+                const progress = finishAt
+                  ? Math.max(0, Math.min(100, ((totalMs - remainingMs) / totalMs) * 100))
+                  : 0;
+                const rushCost = Math.max(1, Math.ceil(Math.max(0, remainingMs) / (10 * 60 * 1000)));
+                const hoursLeft = Math.max(0, Math.ceil(remainingMs / (60 * 60 * 1000)));
+                const cur = (c as any).morale ?? 50;
+                const expectedGain = Math.round(MORALE_SESSION_INDIVIDUAL_BOOST * Math.max(0, 1 - cur / 120));
+                if (finishAt && remainingMs > 0) {
+                  return (
+                    <div className="space-y-2 rounded-md border border-border/60 bg-card/40 p-3">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium">Sessão de incentivo</span>
+                        <span className="text-xs text-muted-foreground">{hoursLeft}h restantes</span>
+                      </div>
+                      <Progress value={progress} />
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="secondary" disabled={rushMorMut.isPending} onClick={() => rushMorMut.mutate()}>
+                          <Gem className="mr-1 h-3 w-3" />Acelerar ({rushCost} 💎)
+                        </Button>
+                        <Button size="sm" variant="ghost" disabled={cancelMorMut.isPending} onClick={() => cancelMorMut.mutate()}>
+                          Cancelar
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="space-y-2 rounded-md border border-border/60 bg-card/40 p-3">
+                    <p className="text-xs text-muted-foreground">
+                      Passa 4h com esta criatura e aplica +{MORALE_SESSION_INDIVIDUAL_BOOST} moral nominal
+                      (~+{expectedGain} real, com ganhos decrescentes). Sem custo em dinheiro.
+                    </p>
+                    <Button size="sm" onClick={() => startMorMut.mutate()} disabled={startMorMut.isPending}>
+                      Iniciar sessão de incentivo
+                    </Button>
                   </div>
                 );
               })()}

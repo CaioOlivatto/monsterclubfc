@@ -220,6 +220,29 @@ Referência ex-ante com moral estável ~70: ~$911k. A diferença vem do custo re
 
 > **Ânimo (Individual/Coletivo)** aplica a mesma fórmula de ganhos decrescentes do Sistema de Moral: `ganho_real = ganho_nominal × (1 − moral_atual / 120)`. Criaturas com moral alto recebem pouco; criaturas desanimadas recebem quase o valor cheio. Isso preserva o equilíbrio entre fadiga e moral — não é atalho para lotar 100 via compra.
 
+### Sessões de moral GRATUITAS (por tempo) — `src/lib/morale-training.functions.ts`
+Alternativa sem gastar dinheiro/gemas ao Ânimo comprado. Aplicam a mesma fórmula de ganhos decrescentes `(1 − moral_atual/120)`.
+
+| Sessão | Duração | Alvo | Boost nominal | Aceleração |
+|---|---|---|---|---|
+| Sessão de Incentivo | 4h | 1 criatura | +25 moral | 1💎 / 10min restantes |
+| Reunião de Equipe | 8h | Elenco inteiro | +15 moral | 1💎 / 10min restantes |
+
+Apenas uma sessão individual por criatura e uma reunião coletiva por vez. Sessões vencidas são aplicadas por sweep ao abrir Roster/ficha da criatura.
+
+### Crise por sequência de derrotas — `applyPostMatchXp` em `src/lib/xp.server.ts`
+Substitui a penalidade fixa `-4` de moral por derrota por uma escala baseada em `trainers.losing_streak` (persistente entre partidas). Reset a zero em qualquer vitória; empate não move o contador.
+
+| Sequência (após esta derrota) | Penalidade base de moral |
+|---|---|
+| 1–2 derrotas seguidas | −4 |
+| 3–4 derrotas | −6 |
+| 5–7 derrotas | −8 |
+| 8+ derrotas | −10 |
+
+Essa penalidade entra na cadeia de `losses` do cálculo de moral pós-partida (junto com banco, lesão etc.) e sofre o multiplicador de ganho normal — o objetivo é criar uma pressão real em más fases sem penalizar quem tropeça de vez em quando.
+
+
 ### 3.4 Troca de gemas por dinheiro do jogo
 Taxa **BASE** (referência 5ª Bronze): **1💎 = $700** (`GEM_TO_MONEY_RATE` em `src/lib/shop.server.ts`).
 

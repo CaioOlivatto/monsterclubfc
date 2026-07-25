@@ -21,6 +21,7 @@ export type Database = {
           gems: number
           id: string
           money: number
+          morale_meeting_completes_at: string | null
           paid_4x: boolean
           paid_instant: boolean
           roster_slots: number
@@ -33,6 +34,7 @@ export type Database = {
           gems?: number
           id?: string
           money?: number
+          morale_meeting_completes_at?: string | null
           paid_4x?: boolean
           paid_instant?: boolean
           roster_slots?: number
@@ -45,6 +47,7 @@ export type Database = {
           gems?: number
           id?: string
           money?: number
+          morale_meeting_completes_at?: string | null
           paid_4x?: boolean
           paid_instant?: boolean
           roster_slots?: number
@@ -180,6 +183,7 @@ export type Database = {
           is_prodigy: boolean
           market_value: number
           morale: number
+          morale_session_completes_at: string | null
           name: string
           overall: number
           owner_team_id: string | null
@@ -223,6 +227,7 @@ export type Database = {
           is_prodigy?: boolean
           market_value?: number
           morale?: number
+          morale_session_completes_at?: string | null
           name: string
           overall?: number
           owner_team_id?: string | null
@@ -266,6 +271,7 @@ export type Database = {
           is_prodigy?: boolean
           market_value?: number
           morale?: number
+          morale_session_completes_at?: string | null
           name?: string
           overall?: number
           owner_team_id?: string | null
@@ -1175,6 +1181,7 @@ export type Database = {
           last_final_position: number | null
           last_weekly_gems_at: string | null
           level: number
+          losing_streak: number
           pending_level_ups: number
           pending_transition: boolean
           season_xp_breakdown: Json
@@ -1197,6 +1204,7 @@ export type Database = {
           last_final_position?: number | null
           last_weekly_gems_at?: string | null
           level?: number
+          losing_streak?: number
           pending_level_ups?: number
           pending_transition?: boolean
           season_xp_breakdown?: Json
@@ -1219,6 +1227,7 @@ export type Database = {
           last_final_position?: number | null
           last_weekly_gems_at?: string | null
           level?: number
+          losing_streak?: number
           pending_level_ups?: number
           pending_transition?: boolean
           season_xp_breakdown?: Json
