@@ -9,8 +9,10 @@ import {
   startMoraleMeeting,
   rushMoraleMeeting,
   cancelMoraleMeeting,
+  startMoraleGeneral,
   MORALE_MEETING_COLLECTIVE_MS,
   MORALE_MEETING_COLLECTIVE_BOOST,
+  MORALE_GENERAL_BOOST,
 } from "@/lib/morale-training.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
