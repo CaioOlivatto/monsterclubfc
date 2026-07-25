@@ -11,9 +11,9 @@ import { z } from "zod";
 export const MORALE_SESSION_INDIVIDUAL_MS = 4 * 60 * 60 * 1000;
 export const MORALE_MEETING_COLLECTIVE_MS = 4 * 60 * 60 * 1000;
 export const MORALE_GENERAL_MS = 4 * 60 * 60 * 1000;
-export const MORALE_SESSION_INDIVIDUAL_BOOST = 50;
+export const MORALE_SESSION_INDIVIDUAL_BOOST = 25;
 export const MORALE_MEETING_COLLECTIVE_BOOST = 15;
-export const MORALE_GENERAL_BOOST = 50;
+export const MORALE_GENERAL_BOOST = 25;
 
 function applyDiminishing(current: number, nominal: number): number {
   const cur = Math.max(0, Math.min(100, current ?? 50));
