@@ -643,9 +643,14 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
   const homeBase = outcomeLoss(true) + pressureAdj(home.tactics);
   const awayBase = outcomeLoss(false) + pressureAdj(away.tactics);
 
-  // Toda criatura que jogou (titular do início OU reserva que entrou) sofre o base.
-  for (const id of usedHome) energy_loss[id] = (energy_loss[id] ?? 0) + homeBase;
-  for (const id of usedAway) energy_loss[id] = (energy_loss[id] ?? 0) + awayBase;
+  // Toda criatura que jogou (titular do início OU reserva que entrou) sofre o base,
+  // escalado pelo modificador de idade (auge=24 → x1.00; veterana=30 → x1.20).
+  const ageById = new Map<string, number | undefined>();
+  for (const s of [...liveHome.starters, ...liveAway.starters, ...home.bench, ...away.bench]) {
+    ageById.set(s.creature.id, s.creature.age);
+  }
+  for (const id of usedHome) energy_loss[id] = (energy_loss[id] ?? 0) + Math.round(homeBase * ageEnergyMult(ageById.get(id)));
+  for (const id of usedAway) energy_loss[id] = (energy_loss[id] ?? 0) + Math.round(awayBase * ageEnergyMult(ageById.get(id)));
 
   // Cartões cumulativos.
   for (const e of events) {
