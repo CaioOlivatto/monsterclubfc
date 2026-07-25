@@ -10,6 +10,7 @@ import {
   buyExtraBuilder,
   expandRoster,
   exchangeGemsForMoney,
+  unlockSpeed,
 } from "@/lib/shop.functions";
 
 import { listMyCreatures } from "@/lib/creatures.functions";
