@@ -1,8 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { listMyCreatures } from "@/lib/creatures.functions";
+import {
+  getMoraleSessionsState,
+  startMoraleMeeting,
+  rushMoraleMeeting,
+  cancelMoraleMeeting,
+  MORALE_MEETING_COLLECTIVE_MS,
+  MORALE_MEETING_COLLECTIVE_BOOST,
+} from "@/lib/morale-training.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
