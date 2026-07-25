@@ -43,7 +43,7 @@ export const ITEMS: Record<ItemKey, ItemSpec> = {
   morale_individual: {
     key: "morale_individual",
     name: "Ânimo Individual",
-    description: "Aumenta o moral de 1 criatura (+50 nominal, com ganhos decrescentes).",
+    description: "Aumenta o moral de 1 criatura (+25 nominal, com ganhos decrescentes).",
     moneyPrice: 10_000,
     gemPrice: 4,
   },
@@ -88,9 +88,9 @@ export const ITEM_KEYS: ItemKey[] = [
   "xp_burst_15",
 ];
 
-export const MORALE_BOOST_INDIVIDUAL = 50;
+export const MORALE_BOOST_INDIVIDUAL = 25;
 export const MORALE_BOOST_COLLECTIVE = 15;
-export const MORALE_BOOST_GENERAL = 50;
+export const MORALE_BOOST_GENERAL = 25;
 
 /** Preço por criatura do Incentivo Geral (pago), escalado pela divisão atual. */
 export const INCENTIVO_GERAL_PRICE_BY_DIVISION: Record<
