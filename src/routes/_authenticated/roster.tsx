@@ -213,7 +213,7 @@ function RosterPage() {
                   <Users className="h-4 w-4" /> Reunião de equipe (gratuita)
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Passa 8h e aplica +{MORALE_MEETING_COLLECTIVE_BOOST} moral nominal em todo o elenco (ganhos decrescentes).
+                  Passa 4h e aplica +{MORALE_MEETING_COLLECTIVE_BOOST} moral nominal em todo o elenco (ganhos decrescentes).
                 </p>
               </div>
               <Button size="sm" onClick={() => startMeetMut.mutate()} disabled={startMeetMut.isPending}>
