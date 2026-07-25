@@ -99,6 +99,11 @@ function ShopPage() {
     onSuccess: (r) => { toast.success(r.message); invalidate(); },
     onError: (e: any) => toast.error(e?.message ?? "Falha"),
   });
+  const speedMut = useMutation({
+    mutationFn: (mode: "4x" | "instant") => unlockSpeedFn({ data: { mode } }),
+    onSuccess: (r) => { toast.success(r.message); invalidate(); },
+    onError: (e: any) => toast.error(e?.message ?? "Falha"),
+  });
   const exchangeMut = useMutation({
     mutationFn: (gems: number) => exchangeFn({ data: { gems } }),
     onSuccess: (r) => { toast.success(r.message); invalidate(); },
