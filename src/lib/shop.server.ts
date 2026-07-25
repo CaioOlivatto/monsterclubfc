@@ -43,7 +43,7 @@ export const ITEMS: Record<ItemKey, ItemSpec> = {
   morale_individual: {
     key: "morale_individual",
     name: "Ânimo Individual",
-    description: "Aumenta o moral de 1 criatura (+25 nominal, com ganhos decrescentes).",
+    description: "Aumenta o moral de 1 criatura (+50 nominal, com ganhos decrescentes).",
     moneyPrice: 10_000,
     gemPrice: 4,
   },
