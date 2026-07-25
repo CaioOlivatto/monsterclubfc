@@ -81,12 +81,21 @@ function CreatureDetail() {
   const qc = useQueryClient();
   const fetchOne = useServerFn(getCreature);
   const trainFn = useServerFn(trainCreature);
-  const restFn = useServerFn(restCreature);
+  const getRestFn = useServerFn(getRestState);
+  const startRestFn = useServerFn(startRest);
+  const rushRestFn = useServerFn(rushRest);
+  const cancelRestFn = useServerFn(cancelRest);
   const spendFn = useServerFn(spendHalfStar);
   const { data: c, isLoading, error } = useQuery({
 
     queryKey: ["creature", id],
     queryFn: () => fetchOne({ data: { id } }),
+  });
+
+  const { data: restState } = useQuery({
+    queryKey: ["rest-state"],
+    queryFn: () => getRestFn(),
+    refetchInterval: 30_000,
   });
 
   const trainMut = useMutation({
@@ -99,13 +108,31 @@ function CreatureDetail() {
     onError: (e: any) => toast.error(e?.message ?? "Falha no treino"),
   });
 
-  const restMut = useMutation({
-    mutationFn: () => restFn({ data: { creatureId: id } }),
-    onSuccess: (res) => {
-      toast.success(res.message);
+  const startRestMut = useMutation({
+    mutationFn: () => startRestFn({ data: { creatureId: id } }),
+    onSuccess: (res: any) => {
+      toast.success(res?.paid_cost ? `Descanso iniciado (−${res.paid_cost} 💎).` : "Descanso iniciado.");
       qc.invalidateQueries({ queryKey: ["creature", id] });
+      qc.invalidateQueries({ queryKey: ["rest-state"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao descansar"),
+  });
+  const rushRestMut = useMutation({
+    mutationFn: () => rushRestFn({ data: { creatureId: id } }),
+    onSuccess: (r: any) => {
+      toast.success(r?.spent ? `Descanso concluído (−${r.spent} 💎).` : "Descanso concluído.");
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+      qc.invalidateQueries({ queryKey: ["rest-state"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao acelerar"),
+  });
+  const cancelRestMut = useMutation({
+    mutationFn: () => cancelRestFn({ data: { creatureId: id } }),
+    onSuccess: () => {
+      toast.success("Descanso cancelado.");
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha"),
   });
 
   const startAffFn = useServerFn(startAffinityTraining);
