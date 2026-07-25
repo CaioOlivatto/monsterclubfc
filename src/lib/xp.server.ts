@@ -77,11 +77,23 @@ export async function applyPostMatchXp(
 
   const { data: trainer } = await supabase
     .from("trainers")
-    .select("xp_burst_multiplier, xp_burst_matches_left")
+    .select("xp_burst_multiplier, xp_burst_matches_left, losing_streak")
     .eq("id", trainerId)
     .maybeSingle();
   const burstLeft = trainer?.xp_burst_matches_left ?? 0;
   const burstMult = burstLeft > 0 ? Number(trainer?.xp_burst_multiplier ?? 1) : 1;
+
+  // Sistema de Moral — sequência de derrotas do time.
+  const prevStreak = (trainer?.losing_streak ?? 0) as number;
+  let nextStreak = prevStreak;
+  if (opts.outcome === "W") nextStreak = 0;
+  else if (opts.outcome === "L") nextStreak = prevStreak + 1;
+  function lossPenaltyForStreak(s: number): number {
+    if (s >= 8) return 10;
+    if (s >= 5) return 8;
+    if (s >= 3) return 6;
+    return 4;
+  }
 
   const starterXp = Math.round(base * ctBonus * burstMult);
   const enteredXp = Math.round(base * 0.5 * ctBonus * burstMult);
