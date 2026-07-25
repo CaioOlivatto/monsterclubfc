@@ -121,18 +121,4 @@ export const trainCreature = createServerFn({ method: "POST" })
     return { creature: updated, message: msg };
   });
 
-export const restCreature = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((data: { creatureId: string }) => ({
-    creatureId: z.string().uuid().parse(data.creatureId),
-  }))
-  .handler(async ({ data, context }) => {
-    const { creature, buildings } = await loadCreatureAndTrainer(context, data.creatureId);
-    const centroMedico = levelOf(buildings, "centro_medico");
-    const gain = Math.round(40 * (1 + centroMedico * 0.25));
-    const newEnergy = Math.min(100, creature.energy + gain);
-    const { data: updated, error } = await context.supabase
-      .from("creatures").update({ energy: newEnergy }).eq("id", creature.id).select("*").single();
-    if (error) throw error;
-    return { creature: updated, message: `Energia recuperada para ${newEnergy}%.` };
-  });
+// restCreature removido — substituído por src/lib/rest.functions.ts (cargas + preço crescente).

@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { getCreature, healCreatureWithGems, reduceInjuryWithGems, HEAL_GEMS_PER_MATCH } from "@/lib/creatures.functions";
-import { trainCreature, restCreature } from "@/lib/training.functions";
+import { trainCreature } from "@/lib/training.functions";
+import { getRestState, startRest, rushRest, cancelRest, REST_DURATION_MS, REST_ENERGY_GAIN, REST_POOL_MAX } from "@/lib/rest.functions";
 import { spendHalfStar } from "@/lib/progression.functions";
 import { retireCreature, rebirthCreature } from "@/lib/lifecycle.functions";
 import {
@@ -80,12 +81,21 @@ function CreatureDetail() {
   const qc = useQueryClient();
   const fetchOne = useServerFn(getCreature);
   const trainFn = useServerFn(trainCreature);
-  const restFn = useServerFn(restCreature);
+  const getRestFn = useServerFn(getRestState);
+  const startRestFn = useServerFn(startRest);
+  const rushRestFn = useServerFn(rushRest);
+  const cancelRestFn = useServerFn(cancelRest);
   const spendFn = useServerFn(spendHalfStar);
   const { data: c, isLoading, error } = useQuery({
 
     queryKey: ["creature", id],
     queryFn: () => fetchOne({ data: { id } }),
+  });
+
+  const { data: restState } = useQuery({
+    queryKey: ["rest-state"],
+    queryFn: () => getRestFn(),
+    refetchInterval: 30_000,
   });
 
   const trainMut = useMutation({
@@ -98,13 +108,31 @@ function CreatureDetail() {
     onError: (e: any) => toast.error(e?.message ?? "Falha no treino"),
   });
 
-  const restMut = useMutation({
-    mutationFn: () => restFn({ data: { creatureId: id } }),
-    onSuccess: (res) => {
-      toast.success(res.message);
+  const startRestMut = useMutation({
+    mutationFn: () => startRestFn({ data: { creatureId: id } }),
+    onSuccess: (res: any) => {
+      toast.success(res?.paid_cost ? `Descanso iniciado (−${res.paid_cost} 💎).` : "Descanso iniciado.");
       qc.invalidateQueries({ queryKey: ["creature", id] });
+      qc.invalidateQueries({ queryKey: ["rest-state"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao descansar"),
+  });
+  const rushRestMut = useMutation({
+    mutationFn: () => rushRestFn({ data: { creatureId: id } }),
+    onSuccess: (r: any) => {
+      toast.success(r?.spent ? `Descanso concluído (−${r.spent} 💎).` : "Descanso concluído.");
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+      qc.invalidateQueries({ queryKey: ["rest-state"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao acelerar"),
+  });
+  const cancelRestMut = useMutation({
+    mutationFn: () => cancelRestFn({ data: { creatureId: id } }),
+    onSuccess: () => {
+      toast.success("Descanso cancelado.");
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha"),
   });
 
   const startAffFn = useServerFn(startAffinityTraining);
@@ -809,15 +837,73 @@ function CreatureDetail() {
             </div>
 
 
-            <div className="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-card/40 p-3">
-              <div className="min-w-0 text-sm">
-                <p className="font-medium">Descansar</p>
-                <p className="text-xs text-muted-foreground">Recupera energia com base no Centro Médico.</p>
-              </div>
-              <Button size="sm" onClick={() => restMut.mutate()} disabled={restMut.isPending || c.energy >= 100}>
-                <BatteryCharging className="mr-2 h-4 w-4" /> Descansar
-              </Button>
-            </div>
+            {(() => {
+              const finishAt = (c as any).rest_completes_at as string | null;
+              const remainingMs = finishAt ? new Date(finishAt).getTime() - Date.now() : 0;
+              const totalMs = REST_DURATION_MS;
+              const progress = finishAt
+                ? Math.max(0, Math.min(100, ((totalMs - remainingMs) / totalMs) * 100))
+                : 0;
+              const rushCost = Math.max(1, Math.ceil(Math.max(0, remainingMs) / (10 * 60 * 1000)));
+              const minsLeft = Math.max(0, Math.ceil(remainingMs / 60_000));
+              const free = restState?.free_charges ?? REST_POOL_MAX;
+              const nextFreeAt = restState?.next_free_at ?? null;
+              const nextPaidCost = restState?.next_paid_cost ?? 15;
+              const nextFreeMs = nextFreeAt ? Math.max(0, new Date(nextFreeAt).getTime() - Date.now()) : 0;
+              const nextFreeH = Math.floor(nextFreeMs / 3_600_000);
+              const nextFreeM = Math.floor((nextFreeMs % 3_600_000) / 60_000);
+              const isResting = finishAt && remainingMs > 0;
+              const atMax = (c.energy ?? 0) >= 100;
+
+              return (
+                <div className="space-y-3 rounded-md border border-border/60 bg-card/40 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 text-sm">
+                      <p className="font-medium flex items-center gap-2">
+                        <BatteryCharging className="h-4 w-4" /> Descansar
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Recupera +{REST_ENERGY_GAIN} de energia após 15 min.
+                      </p>
+                    </div>
+                    <div className="text-right text-xs">
+                      <div className="font-medium">Cargas: {free}/{REST_POOL_MAX}</div>
+                      {free <= 0 && nextFreeMs > 0 && (
+                        <div className="text-muted-foreground">Próxima grátis em {nextFreeH}h{String(nextFreeM).padStart(2, "0")}m</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {isResting ? (
+                    <>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Descansando…</span>
+                        <span>{minsLeft} min restantes</span>
+                      </div>
+                      <Progress value={progress} />
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="secondary" disabled={rushRestMut.isPending} onClick={() => rushRestMut.mutate()}>
+                          <Gem className="mr-1 h-3 w-3" />Acelerar ({rushCost} 💎)
+                        </Button>
+                        <Button size="sm" variant="ghost" disabled={cancelRestMut.isPending} onClick={() => cancelRestMut.mutate()}>
+                          Cancelar
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={() => startRestMut.mutate()}
+                      disabled={startRestMut.isPending || atMax}
+                    >
+                      {free > 0
+                        ? <>Descansar (grátis · {free} restantes)</>
+                        : <><Gem className="mr-1 h-3 w-3" />Descansar ({nextPaidCost} 💎)</>}
+                    </Button>
+                  )}
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
 
