@@ -399,6 +399,28 @@ A v2 desgastava ~36 pontos por partida (0,4/min). A v3 troca isso por eventos di
 
 Sanity: sem revezar 26 rodadas seguidas, energia estabiliza em ~45-50%. Revezando a cada 3 rodadas, mantém ~98%. Amistoso continua sem efeito nenhum de energia.
 
+### Modificador de idade (Fadiga v3 e Lesões)
+
+Multiplicador extra que empilha, de forma multiplicativa, com os fatores já existentes (Físico, Pressão, Centro Médico). Não substitui nada.
+
+| Idade | Desgaste de energia | Risco de lesão |
+| --- | --- | --- |
+| 18 | ×0,80 | ×0,75 |
+| 21 | ×0,90 | ×0,85 |
+| 24 | ×1,00 (auge) | ×1,00 (auge) |
+| 27 | ×1,10 | ×1,15 |
+| 30 | ×1,20 | ×1,35 |
+
+Fora do intervalo, clampa nas pontas. Idades fora dos múltiplos de 3 usam interpolação linear entre âncoras.
+
+**Aplicação — Fadiga:** o mult. multiplica o valor final já calculado (resultado da partida + ajuste de pressão), na mesma cadeia do Físico. Ex.: derrota (−5) + pressão média em uma criatura de 30 anos → `round(−5 × 1,20) = −6`. Cartões e lesões (adições posteriores) não são reescalonados.
+
+**Aplicação — Lesão:** o mult. multiplica a probabilidade base (0,4%/min) junto com o mult. de fadiga e a redução do Centro Médico: `p = P_LESAO × fMul × tMul × mMul × ageMul`.
+
+UI: na ficha da criatura, aparece "Veterano — mais propenso a cansaço e lesão" quando idade ≥ 27.
+
+
+
 ## FASE 2 / Pendências
 
 - Migrar §2 para `Economia-Por-Partida.md` (salário/partida, TV, patrocínios, merchandising, manutenção).
