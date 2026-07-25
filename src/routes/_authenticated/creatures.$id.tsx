@@ -13,6 +13,13 @@ import {
   cancelAffinityTraining,
   AFFINITY_TRAINING_DURATION_MS,
 } from "@/lib/affinity-training.functions";
+import {
+  startMoraleSession,
+  rushMoraleSession,
+  cancelMoraleSession,
+  MORALE_SESSION_INDIVIDUAL_MS,
+  MORALE_SESSION_INDIVIDUAL_BOOST,
+} from "@/lib/morale-training.functions";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
