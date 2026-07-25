@@ -241,6 +241,41 @@ function injuryFatigueMult(energy: number | null | undefined): number {
   return 2.0;
 }
 
+/**
+ * Modificador de idade — multiplica desgaste de energia (Fadiga v3) e risco
+ * de lesão. Interpola linearmente entre âncoras (múltiplos de 3):
+ *   idade   energia   lesão
+ *   18      0.80      0.75
+ *   21      0.90      0.85
+ *   24      1.00      1.00  (auge)
+ *   27      1.10      1.15
+ *   30      1.20      1.35
+ * Fora do intervalo, clampa nas pontas. Sem idade → auge (1.00).
+ */
+function ageMult(age: number | null | undefined, anchors: [number, number][]): number {
+  if (typeof age !== "number" || !Number.isFinite(age)) return 1.0;
+  if (age <= anchors[0][0]) return anchors[0][1];
+  const last = anchors[anchors.length - 1];
+  if (age >= last[0]) return last[1];
+  for (let i = 0; i < anchors.length - 1; i++) {
+    const [a1, v1] = anchors[i];
+    const [a2, v2] = anchors[i + 1];
+    if (age >= a1 && age <= a2) {
+      const t = (age - a1) / (a2 - a1);
+      return v1 + (v2 - v1) * t;
+    }
+  }
+  return 1.0;
+}
+const AGE_ENERGY_ANCHORS: [number, number][] = [[18, 0.80], [21, 0.90], [24, 1.00], [27, 1.10], [30, 1.20]];
+const AGE_INJURY_ANCHORS: [number, number][] = [[18, 0.75], [21, 0.85], [24, 1.00], [27, 1.15], [30, 1.35]];
+export function ageEnergyMult(age: number | null | undefined): number {
+  return ageMult(age, AGE_ENERGY_ANCHORS);
+}
+export function ageInjuryMult(age: number | null | undefined): number {
+  return ageMult(age, AGE_INJURY_ANCHORS);
+}
+
 
 function avg(nums: number[]): number {
   if (!nums.length) return 0;
