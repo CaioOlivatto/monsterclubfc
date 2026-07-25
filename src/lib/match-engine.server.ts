@@ -567,7 +567,8 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
       const tMul = live === liveHome ? tH.injuryMul : tA.injuryMul;
       const fMul = injuryFatigueMult(actor.energy);
       const mMul = medicalInjuryMult(live.side.medical_level);
-      const p = Math.min(1, P_LESAO * fMul * tMul * mMul);
+      const aMul = ageInjuryMult(actor.age);
+      const p = Math.min(1, P_LESAO * fMul * tMul * mMul * aMul);
       if (rand() >= p) continue;
 
       const rr = rand();
