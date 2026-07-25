@@ -370,6 +370,32 @@ function ShopPage() {
                 )}
               </CardContent>
             </Card>
+            {([
+              { mode: "4x" as const, title: "Velocidade 4x (permanente)", desc: "Permite acelerar a simulação da partida em 4x.", cost: catalogs.speedUnlockCosts["4x"], owned: academy.paid_4x },
+              { mode: "instant" as const, title: "Modo Instantâneo (permanente)", desc: "Pula direto para o resultado da partida.", cost: catalogs.speedUnlockCosts.instant, owned: academy.paid_instant },
+            ]).map((s) => (
+              <Card key={s.mode}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-base"><Zap className="h-4 w-4" /> {s.title}</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm">{s.desc}</p>
+                    <p className="text-xs text-muted-foreground">Desbloqueio único — vale para sempre.</p>
+                  </div>
+                  {s.owned ? (
+                    <Badge variant="secondary">Já desbloqueado</Badge>
+                  ) : (
+                    <Button
+                      disabled={speedMut.isPending || academy.gems < s.cost}
+                      onClick={() => speedMut.mutate(s.mode)}
+                    >
+                      <Gem className="mr-2 h-4 w-4" /> {s.cost}
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
           </TabsContent>
         </Tabs>
 
