@@ -128,6 +128,35 @@ function CreatureDetail() {
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao acelerar"),
   });
+
+  const startMorFn = useServerFn(startMoraleSession);
+  const rushMorFn = useServerFn(rushMoraleSession);
+  const cancelMorFn = useServerFn(cancelMoraleSession);
+  const startMorMut = useMutation({
+    mutationFn: () => startMorFn({ data: { creatureId: id } }),
+    onSuccess: () => {
+      toast.success("Sessão de incentivo iniciada.");
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao iniciar sessão"),
+  });
+  const rushMorMut = useMutation({
+    mutationFn: () => rushMorFn({ data: { creatureId: id } }),
+    onSuccess: (r: any) => {
+      toast.success(r?.spent ? `Sessão acelerada (${r.spent} 💎).` : "Sessão concluída.");
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao acelerar"),
+  });
+  const cancelMorMut = useMutation({
+    mutationFn: () => cancelMorFn({ data: { creatureId: id } }),
+    onSuccess: () => {
+      toast.success("Sessão cancelada.");
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao cancelar"),
+  });
   const cancelAffMut = useMutation({
     mutationFn: () => cancelAffFn({ data: { creatureId: id } }),
     onSuccess: () => {
