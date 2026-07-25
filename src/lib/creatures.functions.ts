@@ -527,6 +527,8 @@ export const getCreature = createServerFn({ method: "GET" })
     if (!trainer) throw new Error("Treinador não encontrado.");
     const { sweepAffinityTrainings } = await import("./affinity-training.functions");
     await sweepAffinityTrainings(supabase, trainer.id);
+    const { sweepMoraleSessions } = await import("./morale-training.functions");
+    await sweepMoraleSessions(supabase, trainer.id);
     const { data: creature, error } = await supabase
       .from("creatures")
       .select("*")
