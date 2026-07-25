@@ -9,8 +9,10 @@ import {
   startMoraleMeeting,
   rushMoraleMeeting,
   cancelMoraleMeeting,
+  startMoraleGeneral,
   MORALE_MEETING_COLLECTIVE_MS,
   MORALE_MEETING_COLLECTIVE_BOOST,
+  MORALE_GENERAL_BOOST,
 } from "@/lib/morale-training.functions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -88,6 +90,7 @@ function RosterPage() {
   const startMeetFn = useServerFn(startMoraleMeeting);
   const rushMeetFn = useServerFn(rushMoraleMeeting);
   const cancelMeetFn = useServerFn(cancelMoraleMeeting);
+  const startGeneralFn = useServerFn(startMoraleGeneral);
   const startMeetMut = useMutation({
     mutationFn: () => startMeetFn(),
     onSuccess: () => {
@@ -112,6 +115,17 @@ function RosterPage() {
       qc.invalidateQueries({ queryKey: ["morale-sessions"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao cancelar"),
+  });
+  const startGeneralMut = useMutation({
+    mutationFn: () => startGeneralFn(),
+    onSuccess: (r: any) => {
+      toast.success(
+        `Incentivo Geral iniciado em ${r?.applied ?? 0} criaturas por $${(r?.total_cost ?? 0).toLocaleString("pt-BR")}.`,
+      );
+      qc.invalidateQueries({ queryKey: ["morale-sessions"] });
+      qc.invalidateQueries({ queryKey: ["my-creatures"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao aplicar Incentivo Geral"),
   });
 
   const [q, setQ] = useState("");
@@ -218,6 +232,53 @@ function RosterPage() {
               </div>
               <Button size="sm" onClick={() => startMeetMut.mutate()} disabled={startMeetMut.isPending}>
                 Iniciar reunião
+              </Button>
+            </div>
+          );
+        })()}
+        {(() => {
+          const g = (morale as any)?.general;
+          if (!g) return null;
+          const money = (morale as any)?.money ?? 0;
+          const insufficient = money < g.total_price;
+          const noneEligible = g.appliable_count <= 0;
+          const divLabel = {
+            bronze: "Bronze",
+            prata: "Prata",
+            ouro: "Ouro",
+            diamante: "Diamante",
+            lendaria: "Lendária",
+          }[g.division as string] ?? g.division;
+          return (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
+              <div className="min-w-0 text-sm">
+                <p className="flex items-center gap-2 font-medium">
+                  <HeartPulse className="h-4 w-4 text-amber-400" /> Incentivo Geral (pago)
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Passa 4h e aplica +{MORALE_GENERAL_BOOST} moral nominal em todo o elenco (ganhos decrescentes).
+                  {" "}Preço em {divLabel}: ${g.price_per_creature.toLocaleString("pt-BR")} por criatura.
+                </p>
+                <p className="mt-1 text-xs">
+                  Aplicar em <b>{g.appliable_count}</b> criaturas por{" "}
+                  <b className={insufficient ? "text-red-400" : "text-amber-300"}>
+                    ${g.total_price.toLocaleString("pt-BR")}
+                  </b>
+                  {g.appliable_count < g.eligible_count && (
+                    <span className="text-muted-foreground">
+                      {" "}({g.eligible_count - g.appliable_count} já em sessão)
+                    </span>
+                  )}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={startGeneralMut.isPending || insufficient || noneEligible}
+                onClick={() => startGeneralMut.mutate()}
+                title={insufficient ? "Dinheiro insuficiente" : noneEligible ? "Todas em sessão" : ""}
+              >
+                Aplicar Incentivo Geral
               </Button>
             </div>
           );
