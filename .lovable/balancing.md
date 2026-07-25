@@ -209,7 +209,7 @@ Referência ex-ante com moral estável ~70: ~$911k. A diferença vem do custo re
 | Poção Individual (100% energia de 1) | $8.000 ou 3💎 |
 | Poção Coletiva (+15% energia elenco) | $40.000 ou 12💎 |
 | Cristal Vital (+25% energia elenco) | $80.000 ou 20💎 |
-| **Ânimo Individual** (+50 moral nominal, 1 criatura) | **$10.000 ou 4💎** |
+| **Ânimo Individual** (+25 moral nominal, 1 criatura) | **$10.000 ou 4💎** |
 | **Ânimo Coletivo** (+15 moral nominal, todo elenco) | **$45.000 ou 14💎** |
 | Acelerar obra | 1💎 / 10 min restantes |
 | Construtor 2º / 3º / 4º | 250 / 600 / 1.200 💎 |
@@ -225,13 +225,13 @@ Alternativa sem gastar dinheiro/gemas ao Ânimo comprado. Aplicam a mesma fórmu
 
 | Sessão | Duração | Alvo | Boost nominal | Aceleração |
 |---|---|---|---|---|
-| Sessão de Incentivo | 4h | 1 criatura | +50 moral | 1💎 / 10min restantes |
+| Sessão de Incentivo | 4h | 1 criatura | +25 moral | 1💎 / 10min restantes |
 | Reunião de Equipe | 4h | Elenco inteiro | +15 moral | 1💎 / 10min restantes |
 
 Apenas uma sessão individual por criatura e uma reunião coletiva por vez. Sessões vencidas são aplicadas por sweep ao abrir Roster/ficha da criatura.
 
 ### Incentivo Geral (pago) — `startMoraleGeneral` em `src/lib/morale-training.functions.ts`
-Versão paga da Sessão de Incentivo aplicada em paralelo a todo o elenco não aposentado. Mesma duração (4h) e mesmo boost nominal (+50) da versão individual gratuita, sujeita à mesma fórmula de ganhos decrescentes. Custa dinheiro do clube, calculado como `preço_por_criatura × nº_de_criaturas_aplicáveis`, escalado pela divisão atual do time:
+Versão paga da Sessão de Incentivo aplicada em paralelo a todo o elenco não aposentado. Mesma duração (4h) e mesmo boost nominal (+25) da versão individual gratuita, sujeita à mesma fórmula de ganhos decrescentes. Custa dinheiro do clube, calculado como `preço_por_criatura × nº_de_criaturas_aplicáveis`, escalado pela divisão atual do time:
 
 | Divisão | Preço por criatura |
 |---|---|
