@@ -236,6 +236,53 @@ function RosterPage() {
             </div>
           );
         })()}
+        {(() => {
+          const g = (morale as any)?.general;
+          if (!g) return null;
+          const money = (morale as any)?.money ?? 0;
+          const insufficient = money < g.total_price;
+          const noneEligible = g.appliable_count <= 0;
+          const divLabel = {
+            bronze: "Bronze",
+            prata: "Prata",
+            ouro: "Ouro",
+            diamante: "Diamante",
+            lendaria: "Lendária",
+          }[g.division as string] ?? g.division;
+          return (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
+              <div className="min-w-0 text-sm">
+                <p className="flex items-center gap-2 font-medium">
+                  <HeartPulse className="h-4 w-4 text-amber-400" /> Incentivo Geral (pago)
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Passa 4h e aplica +{MORALE_GENERAL_BOOST} moral nominal em todo o elenco (ganhos decrescentes).
+                  {" "}Preço em {divLabel}: ${g.price_per_creature.toLocaleString("pt-BR")} por criatura.
+                </p>
+                <p className="mt-1 text-xs">
+                  Aplicar em <b>{g.appliable_count}</b> criaturas por{" "}
+                  <b className={insufficient ? "text-red-400" : "text-amber-300"}>
+                    ${g.total_price.toLocaleString("pt-BR")}
+                  </b>
+                  {g.appliable_count < g.eligible_count && (
+                    <span className="text-muted-foreground">
+                      {" "}({g.eligible_count - g.appliable_count} já em sessão)
+                    </span>
+                  )}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={startGeneralMut.isPending || insufficient || noneEligible}
+                onClick={() => startGeneralMut.mutate()}
+                title={insufficient ? "Dinheiro insuficiente" : noneEligible ? "Todas em sessão" : ""}
+              >
+                Aplicar Incentivo Geral
+              </Button>
+            </div>
+          );
+        })()}
         <div className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto]">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
