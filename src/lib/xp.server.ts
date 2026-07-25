@@ -226,6 +226,9 @@ export async function applyPostMatchXp(
     ...updatePromises,
     tickBurst(supabase, trainerId, burstLeft),
     awardTrainerXp(supabase, trainerId, src, 1),
+    nextStreak !== prevStreak
+      ? supabase.from("trainers").update({ losing_streak: nextStreak }).eq("id", trainerId)
+      : Promise.resolve(),
   ]);
 }
 
