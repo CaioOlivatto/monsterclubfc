@@ -146,7 +146,8 @@ export async function applyPostMatchXp(
     .eq("owner_trainer_id", trainerId);
 
   const goalsByCreature = opts.goalsByCreature ?? {};
-  const outcomeMorale = opts.outcome === "W" ? +3 : opts.outcome === "D" ? 0 : -4;
+  const lossPenalty = lossPenaltyForStreak(nextStreak);
+  const outcomeMorale = opts.outcome === "W" ? +3 : opts.outcome === "D" ? 0 : -lossPenalty;
 
   const energyDebug: Array<{ id: string; prev: number; loss: number; rec: number; next: number; played: boolean }> = [];
   const updatePromises: Promise<any>[] = [];
