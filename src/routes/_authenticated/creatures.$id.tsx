@@ -344,6 +344,11 @@ function CreatureDetail() {
                   <span className="text-muted-foreground">Idade</span>
                   <span className="font-medium">{age} anos</span>
                 </div>
+                {age >= 27 && status !== "retired" && (
+                  <p className="text-xs text-amber-500">
+                    Veterano — mais propenso a cansaço e lesão.
+                  </p>
+                )}
                 <div>
                   <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
                     <span>Progresso da carreira</span>
