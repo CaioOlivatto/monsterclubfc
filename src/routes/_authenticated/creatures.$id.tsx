@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { getCreature, healCreatureWithGems, reduceInjuryWithGems, HEAL_GEMS_PER_MATCH } from "@/lib/creatures.functions";
-import { trainCreature, restCreature } from "@/lib/training.functions";
+import { trainCreature } from "@/lib/training.functions";
+import { getRestState, startRest, rushRest, cancelRest, REST_DURATION_MS, REST_ENERGY_GAIN, REST_POOL_MAX } from "@/lib/rest.functions";
 import { spendHalfStar } from "@/lib/progression.functions";
 import { retireCreature, rebirthCreature } from "@/lib/lifecycle.functions";
 import {
