@@ -88,8 +88,21 @@ export const ITEM_KEYS: ItemKey[] = [
   "xp_burst_15",
 ];
 
-export const MORALE_BOOST_INDIVIDUAL = 25;
+export const MORALE_BOOST_INDIVIDUAL = 50;
 export const MORALE_BOOST_COLLECTIVE = 15;
+export const MORALE_BOOST_GENERAL = 50;
+
+/** Preço por criatura do Incentivo Geral (pago), escalado pela divisão atual. */
+export const INCENTIVO_GERAL_PRICE_BY_DIVISION: Record<
+  "bronze" | "prata" | "ouro" | "diamante" | "lendaria",
+  number
+> = {
+  bronze: 3_000,
+  prata: 5_600,
+  ouro: 9_400,
+  diamante: 15_300,
+  lendaria: 23_500,
+};
 
 export const XP_BURST_MATCHES = 26;
 export const XP_BURST_MULTIPLIER: Record<string, number> = {
