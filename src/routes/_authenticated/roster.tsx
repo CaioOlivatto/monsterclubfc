@@ -90,6 +90,7 @@ function RosterPage() {
   const startMeetFn = useServerFn(startMoraleMeeting);
   const rushMeetFn = useServerFn(rushMoraleMeeting);
   const cancelMeetFn = useServerFn(cancelMoraleMeeting);
+  const startGeneralFn = useServerFn(startMoraleGeneral);
   const startMeetMut = useMutation({
     mutationFn: () => startMeetFn(),
     onSuccess: () => {
@@ -114,6 +115,17 @@ function RosterPage() {
       qc.invalidateQueries({ queryKey: ["morale-sessions"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao cancelar"),
+  });
+  const startGeneralMut = useMutation({
+    mutationFn: () => startGeneralFn(),
+    onSuccess: (r: any) => {
+      toast.success(
+        `Incentivo Geral iniciado em ${r?.applied ?? 0} criaturas por $${(r?.total_cost ?? 0).toLocaleString("pt-BR")}.`,
+      );
+      qc.invalidateQueries({ queryKey: ["morale-sessions"] });
+      qc.invalidateQueries({ queryKey: ["my-creatures"] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao aplicar Incentivo Geral"),
   });
 
   const [q, setQ] = useState("");
