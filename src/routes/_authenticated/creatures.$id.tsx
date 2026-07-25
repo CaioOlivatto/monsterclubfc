@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, BatteryCharging, Clock, Coins, Dumbbell, Gem, HeartPulse, Hourglass, Sparkles, Star } from "lucide-react";
-import { ageStatus, seasonsRemaining, rebirthHalfStarsPreview, sellValuePreview } from "@/lib/age";
+import { ageStatus, seasonsRemaining, rebirthHalfStarsPreview, sellValuePreview, matchesUntilExhausted } from "@/lib/age";
 import { moraleState, MORALE_EMOJI, MORALE_LABEL } from "@/lib/morale";
 import { StarRating, halfStarsToStars } from "@/components/StarRating";
 
@@ -345,10 +345,35 @@ function CreatureDetail() {
                   <span className="font-medium">{age} anos</span>
                 </div>
                 {age >= 27 && status !== "retired" && (
-                  <p className="text-xs text-amber-500">
-                    Veterano — mais propenso a cansaço e lesão.
-                  </p>
+                  <div className="space-y-1">
+                    <p className="text-xs text-amber-500">
+                      Veterano — mais propenso a cansaço e lesão.
+                    </p>
+                    {(() => {
+                      const n = matchesUntilExhausted(age, c.energy);
+                      if (n === null) {
+                        return (
+                          <p className="text-xs text-muted-foreground">
+                            No ritmo atual, não deve ficar exausto tão cedo.
+                          </p>
+                        );
+                      }
+                      if (n === 0) {
+                        return (
+                          <p className="text-xs text-red-500">
+                            Já está exausto — precisa descansar.
+                          </p>
+                        );
+                      }
+                      return (
+                        <p className="text-xs text-amber-500">
+                          No ritmo atual, fica Exausto em aproximadamente {n} {n === 1 ? "rodada" : "rodadas"}.
+                        </p>
+                      );
+                    })()}
+                  </div>
                 )}
+
                 <div>
                   <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
                     <span>Progresso da carreira</span>
