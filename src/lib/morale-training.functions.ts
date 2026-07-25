@@ -346,4 +346,3 @@ export const startMoraleGeneral = createServerFn({ method: "POST" })
       completes_at: completesAt,
     };
   });
-  });
