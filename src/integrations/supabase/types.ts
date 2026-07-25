@@ -190,6 +190,7 @@ export type Database = {
           owner_trainer_id: string | null
           pending_half_stars: number
           power_key: string
+          rest_completes_at: string | null
           retired: boolean
           species: string
           suggested_position: string | null
@@ -234,6 +235,7 @@ export type Database = {
           owner_trainer_id?: string | null
           pending_half_stars?: number
           power_key?: string
+          rest_completes_at?: string | null
           retired?: boolean
           species?: string
           suggested_position?: string | null
@@ -278,6 +280,7 @@ export type Database = {
           owner_trainer_id?: string | null
           pending_half_stars?: number
           power_key?: string
+          rest_completes_at?: string | null
           retired?: boolean
           species?: string
           suggested_position?: string | null
@@ -1184,6 +1187,9 @@ export type Database = {
           losing_streak: number
           pending_level_ups: number
           pending_transition: boolean
+          rest_free_charges: number
+          rest_paid_uses: number
+          rest_pool_zeroed_at: string | null
           season_xp_breakdown: Json
           seasons_at_current_club: number
           status: string
@@ -1207,6 +1213,9 @@ export type Database = {
           losing_streak?: number
           pending_level_ups?: number
           pending_transition?: boolean
+          rest_free_charges?: number
+          rest_paid_uses?: number
+          rest_pool_zeroed_at?: string | null
           season_xp_breakdown?: Json
           seasons_at_current_club?: number
           status?: string
@@ -1230,6 +1239,9 @@ export type Database = {
           losing_streak?: number
           pending_level_ups?: number
           pending_transition?: boolean
+          rest_free_charges?: number
+          rest_paid_uses?: number
+          rest_pool_zeroed_at?: string | null
           season_xp_breakdown?: Json
           seasons_at_current_club?: number
           status?: string
