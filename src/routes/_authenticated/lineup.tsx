@@ -139,9 +139,12 @@ function LineupPage() {
     queryFn: () => fetchProg({ data: { draft: debouncedDraft } }),
     retry: false,
     // Desabilita durante a confirmação para não competir com a criação da partida.
+    // Gate pelo MESMO draft que a query envia (debounced). Usar `starters`
+    // aqui liberava a chamada com o draft antigo ainda incompleto → erro
+    // "Preencha os 11 titulares".
     enabled:
       !!data &&
-      starters.filter((s) => s.creature_id).length === 11 &&
+      (debouncedDraft?.starters ?? []).filter((s: any) => s?.creature_id).length === 11 &&
       !isConfirming,
     staleTime: 60_000,
   });

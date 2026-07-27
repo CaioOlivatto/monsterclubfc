@@ -145,6 +145,7 @@ export interface GeneratedCreature {
   attr_elasticidade: number;
   overall: number;
   half_stars_earned: number;
+  career_baseline_xp: number;
   pending_half_stars: number;
   energy: number;
   market_value: number;
