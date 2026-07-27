@@ -20,6 +20,7 @@ import {
   type WorldTeam,
 } from "./catalog";
 import { generateSchedule } from "@/lib/league.server";
+import { xpForHalfStars } from "@/lib/xp.server";
 
 // ---------- RNG determinístico ----------
 

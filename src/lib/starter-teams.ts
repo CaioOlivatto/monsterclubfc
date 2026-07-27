@@ -12,6 +12,7 @@ import {
   type SpeciesBase,
 } from "./bestiary";
 import type { LoadedBestiary } from "./bestiary.server";
+import { xpForHalfStars } from "./xp.server";
 
 export type StarterKey =
   | "titas_pedra"
