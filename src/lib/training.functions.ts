@@ -9,6 +9,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { computeLineOverall, computeGkOverall, computeMarketValue } from "./bestiary";
 import { halfStarsFromXp } from "./xp.server";
+import { attrTrainingDurationMs, BASE_ATTR_TRAINING_DURATION_MS } from "./training-elements";
+
 
 const LINE_ATTR_KEYS = ["defender", "passar", "atacar", "tecnica", "forca", "pique"] as const;
 const GK_ATTR_KEYS = ["maos", "concentracao", "elasticidade"] as const;
