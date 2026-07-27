@@ -832,12 +832,7 @@ function CreatureDetail() {
             {(() => {
               const finishAt = (c as any).rest_completes_at as string | null;
               const remainingMs = finishAt ? new Date(finishAt).getTime() - Date.now() : 0;
-              const totalMs = REST_DURATION_MS;
-              const progress = finishAt
-                ? Math.max(0, Math.min(100, ((totalMs - remainingMs) / totalMs) * 100))
-                : 0;
-              const rushCost = Math.max(1, Math.ceil(Math.max(0, remainingMs) / (10 * 60 * 1000)));
-              const minsLeft = Math.max(0, Math.ceil(remainingMs / 60_000));
+              const free = restState?.free_charges ?? REST_POOL_MAX;
               const free = restState?.free_charges ?? REST_POOL_MAX;
               const nextFreeAt = restState?.next_free_at ?? null;
               const nextPaidCost = restState?.next_paid_cost ?? 15;
