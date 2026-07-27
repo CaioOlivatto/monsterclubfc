@@ -9,6 +9,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { computeLineOverall, computeGkOverall, computeMarketValue } from "./bestiary";
 import { halfStarsFromXp } from "./xp.server";
+import { attrTrainingDurationMs, BASE_ATTR_TRAINING_DURATION_MS } from "./training-elements";
+
 
 const LINE_ATTR_KEYS = ["defender", "passar", "atacar", "tecnica", "forca", "pique"] as const;
 const GK_ATTR_KEYS = ["maos", "concentracao", "elasticidade"] as const;
@@ -19,7 +21,9 @@ const attrColumn = {
   maos: "attr_maos", concentracao: "attr_concentracao", elasticidade: "attr_elasticidade",
 } as const;
 
-export const ATTR_TRAINING_DURATION_MS = 4 * 60 * 60 * 1000;
+/** Duração base da sessão (4h). O elemento nativo pode reduzi-la. */
+export const ATTR_TRAINING_DURATION_MS = BASE_ATTR_TRAINING_DURATION_MS;
+
 /** XP consumido por sessão — 100 XP = +1 ponto de atributo. */
 export const ATTR_TRAINING_XP_COST = 100;
 export const ATTR_TRAINING_ENERGY_COST = 20;
@@ -127,7 +131,9 @@ export const startAttributeTraining = createServerFn({ method: "POST" })
     const newXp = (c.xp ?? 0) - ATTR_TRAINING_XP_COST;
     const applied = c.half_stars_earned ?? 0;
     const pending = Math.max(0, Math.min(10 - applied, halfStarsFromXp(newXp) - applied));
-    const completes = new Date(Date.now() + ATTR_TRAINING_DURATION_MS).toISOString();
+    const durationMs = attrTrainingDurationMs(c.element, data.key, !!isGk);
+    const completes = new Date(Date.now() + durationMs).toISOString();
+
 
     const { error: uErr } = await supabase
       .from("creatures")
@@ -141,7 +147,7 @@ export const startAttributeTraining = createServerFn({ method: "POST" })
       .eq("id", c.id);
     if (uErr) throw uErr;
 
-    return { completes_at: completes, xp_spent: ATTR_TRAINING_XP_COST, xp_left: newXp };
+    return { completes_at: completes, duration_ms: durationMs, xp_spent: ATTR_TRAINING_XP_COST, xp_left: newXp };
   });
 
 export const rushAttributeTraining = createServerFn({ method: "POST" })

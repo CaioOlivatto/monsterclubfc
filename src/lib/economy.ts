@@ -87,7 +87,7 @@ export function maintenancePerMatch(
   const key =
     buildingType === "estadio" ? "estadio" as const
     : buildingType === "centro_medico" ? "centro_medico" as const
-    : (buildingType === "ct_treino" || buildingType === "ct_elemental") ? "ct" as const
+    : buildingType === "ct_treino" ? "ct" as const
     : null;
   if (!key) return 0;
   const scale = Math.pow(1.4, level - 1);

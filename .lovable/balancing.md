@@ -4,7 +4,7 @@ Complemento numérico do GDD e do Bestiário. Valores já aplicados no código, 
 
 Decisões já fechadas nesta versão:
 - Empate dá 50% de XP.
-- XP enche a barra → força/overall sobe. Afinidades sobem via treino nos CTs.
+- XP enche a barra → força/overall sobe. Não existe afinidade elemental treinável: o elemento é nativo e fixo.
 - Salários por temporada.
 - Curva de XP difícil, ~1 temporada por meia-estrela no começo.
 - Mercado renova por temporada (24 criaturas).
@@ -159,7 +159,6 @@ Antes desta correção, `CUP_PHASE_BONUS` estava com valores 3–4% da spec ($20
 |---|---|---|---|---|---|
 | Estádio | 2.000 | 4.500 | 9.000 | 16.000 | 27.000 |
 | CT Treino | 1.000 | 2.200 | 4.500 | 9.000 | 16.000 |
-| CT Elemental | 1.000 | 2.200 | 4.500 | 9.000 | 16.000 |
 | Centro Médico | 800 | 1.800 | 3.600 | 6.500 | 12.000 |
 
 ### 2.7 Sanity check (temporada mediana 13V/5E/8D, estádio dimensionado à divisão, 80% ocupação)
@@ -297,15 +296,6 @@ A tela de troca (aba Trocar da Loja) exibe a taxa base como referência e a taxa
 | 4 | 900.000 | 2d |
 | 5 | 2.200.000 | 4d |
 
-### CT Elemental (teto de afinidade: 5 / 8 / 11 / 13 / 15%)
-| Nv | $ | Tempo |
-|---|---|---|
-| 1 | 80.000 | 6h |
-| 2 | 250.000 | 16h |
-| 3 | 650.000 | 1,5d |
-| 4 | 1.500.000 | 3d |
-| 5 | 3.200.000 | 5d |
-
 ### Estádio (capacidade 8k / 15k / 25k / 40k / 60k)
 | Nv | $ | Tempo |
 |---|---|---|
@@ -349,7 +339,7 @@ A tela de troca (aba Trocar da Loja) exibe a taxa base como referência e a taxa
 - Construtores: 1
 - Elenco: **22 criaturas** (time inicial escolhido, 0,5★–3★)
 - Vagas de elenco: 26
-- Estádio nv 1, CT Treinamento nv 1, Centro Médico nv 1, CT Elemental **nv 0**
+- Estádio nv 1, CT Treinamento nv 1, Centro Médico nv 1
 - Divisão inicial: **5ª Divisão – Liga Bronze**
 - Itens: 3 Poção Individual + 1 Poção Coletiva
 
@@ -506,8 +496,36 @@ Assim que houver ao menos 1 carga grátis disponível de novo, o próximo uso vo
 ## §9 — Treinamento de atributo (v2)
 O treino NÃO gera XP. Ele direciona o XP já acumulado em partidas:
 - Custo: 100 XP do saldo da criatura + 20 de energia
-- Duração: 4h reais, acelerável por gemas (1 gema / 10 min restantes)
+- Duração base: 4h reais, acelerável por gemas (1 gema / 10 min restantes) e reduzida pelo elemento nativo (§9.1)
 - Resultado: +1 ponto no atributo escolhido (recalcula overall e valor de mercado)
 - XP gasto é gasto: sai do saldo e atrasa a próxima meia-estrela (curva 800 × 1,25^n intacta)
 - Sem XP suficiente, o treino fica bloqueado até a criatura jogar mais partidas
 - Cancelar devolve XP e energia integralmente
+
+### §9.1 — Elemento nativo acelera o treino
+O elemento nativo (fixo) reduz apenas o TEMPO da sessão. XP (100) e energia (20) não mudam,
+e o teto de meia-estrelas da carreira permanece idêntico.
+
+Jogadores de linha (base 4h):
+| Elemento | Principal (−25% → 3h) | Secundário |
+|---|---|---|
+| 🔥 Fogo | Atacar | Passar −5% |
+| 💧 Água | Defender | Força −5% |
+| 🌪️ Ar | Pique | Técnica −5% |
+| 🌍 Terra | Força | Técnica −15% |
+| ❄️ Gelo | Passar | Técnica −15% |
+
+Goleiros (base 4h):
+| Elemento | Principal (−25% → 3h) | Secundário |
+|---|---|---|
+| 🔥 Fogo | Elasticidade | Concentração −5% |
+| 💧 Água | Mãos | Elasticidade −5% |
+| 🌪️ Ar | Concentração | Mãos −5% |
+| 🌍 Terra | Mãos | Concentração −15% |
+| ❄️ Gelo | Elasticidade | Mãos −15% |
+
+Atributo fora da tabela do elemento → tempo padrão de 4h.
+
+### §9.2 — CT Elemental descontinuado
+A construção CT Elemental e a afinidade elemental treinável foram removidas.
+Todo o valor investido pelos jogadores foi ressarcido ao caixa da academia.
