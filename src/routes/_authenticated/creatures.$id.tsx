@@ -833,7 +833,6 @@ function CreatureDetail() {
               const finishAt = (c as any).rest_completes_at as string | null;
               const remainingMs = finishAt ? new Date(finishAt).getTime() - Date.now() : 0;
               const free = restState?.free_charges ?? REST_POOL_MAX;
-              const free = restState?.free_charges ?? REST_POOL_MAX;
               const nextFreeAt = restState?.next_free_at ?? null;
               const nextPaidCost = restState?.next_paid_cost ?? 15;
               const nextFreeMs = nextFreeAt ? Math.max(0, new Date(nextFreeAt).getTime() - Date.now()) : 0;
