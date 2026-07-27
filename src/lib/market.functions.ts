@@ -148,8 +148,14 @@ export const buyCreature = createServerFn({ method: "POST" })
     const listing = findListing(bestiary, trainer.id, trainer.season_number, trainer.division, data.listing_id);
     if (!listing) throw new Error("Oferta não encontrada ou já expirou.");
 
-    // §8.1 — Calibre por divisão
+    // §8.1 — Calibre por divisão (avaliado do zero a cada proposta)
     const maxBand = DIVISION_MAX_BAND[trainer.division];
+    const refuse = refusalChance(trainer.division, listing.half_star_band);
+    console.log(
+      `[market/buy] trainer=${trainer.id} division_atual=${trainer.division} (fonte: time atual do jogador) ` +
+        `alvo=${listing.name} band=${listing.half_star_band} (${(listing.half_star_band / 2).toFixed(1)}★) ` +
+        `max_band=${maxBand} chance_recusa=${refuse}`,
+    );
     if (listing.half_star_band > maxBand) {
       throw new Error(
         `Sua divisão só pode contratar até ${Math.ceil(maxBand / 2)}★. Essa criatura tem ${(listing.half_star_band / 2).toFixed(1)}★.`,
@@ -157,10 +163,10 @@ export const buyCreature = createServerFn({ method: "POST" })
     }
 
     // Chance de recusa em contratações no limite (§8.1)
-    const refuse = refusalChance(trainer.division, listing.half_star_band);
     if (refuse > 0 && Math.random() < refuse) {
       throw new Error(`${listing.name} recusou a proposta — sua divisão ainda é pequena demais.`);
     }
+
 
     // §8.2 — Teto de folha salarial
     const payroll = await currentPayroll(supabase, trainer.id);
