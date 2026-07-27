@@ -866,22 +866,19 @@ function CreatureDetail() {
                     </div>
                   </div>
 
-                  {isResting ? (
-                    <>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">Descansando…</span>
-                        <span>{minsLeft} min restantes</span>
-                      </div>
-                      <Progress value={progress} />
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="secondary" disabled={rushRestMut.isPending} onClick={() => rushRestMut.mutate()}>
-                          <Gem className="mr-1 h-3 w-3" />Acelerar ({rushCost} 💎)
-                        </Button>
-                        <Button size="sm" variant="ghost" disabled={cancelRestMut.isPending} onClick={() => cancelRestMut.mutate()}>
-                          Cancelar
-                        </Button>
-                      </div>
-                    </>
+                  {isResting && finishAt ? (
+                    <RushTimer target={finishAt} totalMs={REST_DURATION_MS} label="Descansando…">
+                      {({ cost }) => (
+                        <div className="flex gap-2 pt-1">
+                          <Button size="sm" variant="secondary" disabled={rushRestMut.isPending} onClick={() => rushRestMut.mutate()}>
+                            <Gem className="mr-1 h-3 w-3" />Concluir agora ({cost} 💎)
+                          </Button>
+                          <Button size="sm" variant="ghost" disabled={cancelRestMut.isPending} onClick={() => cancelRestMut.mutate()}>
+                            Cancelar
+                          </Button>
+                        </div>
+                      )}
+                    </RushTimer>
                   ) : (
                     <Button
                       size="sm"
