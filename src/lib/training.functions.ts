@@ -8,7 +8,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { computeLineOverall, computeGkOverall, computeMarketValue } from "./bestiary";
-import { halfStarsFromXp } from "./xp.server";
+import { pendingHalfStarsFor } from "./xp.server";
 import { attrTrainingDurationMs, BASE_ATTR_TRAINING_DURATION_MS } from "./training-elements";
 
 
@@ -130,7 +130,9 @@ export const startAttributeTraining = createServerFn({ method: "POST" })
 
     const newXp = (c.xp ?? 0) - ATTR_TRAINING_XP_COST;
     const applied = c.half_stars_earned ?? 0;
-    const pending = Math.max(0, Math.min(10 - applied, halfStarsFromXp(newXp) - applied));
+    // XP sai do saldo gastável mas continua contando na curva (xp_spent_training).
+    const newSpent = (c.xp_spent_training ?? 0) + ATTR_TRAINING_XP_COST;
+    const pending = pendingHalfStarsFor({ ...c, xp: newXp, xp_spent_training: newSpent }, applied);
     const durationMs = attrTrainingDurationMs(c.element, data.key, !!isGk);
     const completes = new Date(Date.now() + durationMs).toISOString();
 
@@ -139,6 +141,7 @@ export const startAttributeTraining = createServerFn({ method: "POST" })
       .from("creatures")
       .update({
         xp: newXp,
+        xp_spent_training: newSpent,
         pending_half_stars: pending,
         energy: Math.max(0, (c.energy ?? 0) - ATTR_TRAINING_ENERGY_COST),
         attr_training_key: data.key,
@@ -194,20 +197,22 @@ export const cancelAttributeTraining = createServerFn({ method: "POST" })
 
     const { data: c } = await supabase
       .from("creatures")
-      .select("id, xp, energy, half_stars_earned, attr_training_completes_at")
+      .select("id, xp, xp_spent_training, career_baseline_xp, energy, half_stars_earned, attr_training_completes_at")
       .eq("id", data.creatureId)
       .eq("owner_trainer_id", trainer.id)
       .maybeSingle();
     if (!c || !c.attr_training_completes_at) throw new Error("Nenhum treino em andamento.");
 
     const newXp = (c.xp ?? 0) + ATTR_TRAINING_XP_COST;
+    const newSpent = Math.max(0, (c.xp_spent_training ?? 0) - ATTR_TRAINING_XP_COST);
     const applied = c.half_stars_earned ?? 0;
-    const pending = Math.max(0, Math.min(10 - applied, halfStarsFromXp(newXp) - applied));
+    const pending = pendingHalfStarsFor({ ...c, xp: newXp, xp_spent_training: newSpent }, applied);
 
     const { error } = await supabase
       .from("creatures")
       .update({
         xp: newXp,
+        xp_spent_training: newSpent,
         pending_half_stars: pending,
         energy: Math.min(100, (c.energy ?? 0) + ATTR_TRAINING_ENERGY_COST),
         attr_training_key: null,

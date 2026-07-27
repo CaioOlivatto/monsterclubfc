@@ -250,6 +250,7 @@ export const buyCreature = createServerFn({ method: "POST" })
         // Estrelas são a força inata (mesma regra do elenco inicial e do mundo):
         // meia-estrelas = overall/10. Sem isso, a criatura comprada nascia com 0★.
         half_stars_earned: Math.max(0, Math.min(10, Math.round((listing.overall ?? 0) / 10))),
+        career_baseline_xp: xpForHalfStars(Math.max(0, Math.min(10, Math.round((listing.overall ?? 0) / 10)))),
         energy: 100,
 
         market_value: listing.market_value,
