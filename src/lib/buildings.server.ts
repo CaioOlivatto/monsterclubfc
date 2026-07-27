@@ -1,6 +1,6 @@
 // Catálogo e helpers de edifícios da academia — Tabela de Balanceamento §5.
 
-export type BuildingType = "ct_treino" | "ct_elemental" | "estadio" | "centro_medico";
+export type BuildingType = "ct_treino" | "estadio" | "centro_medico";
 
 export interface BuildingSpec {
   type: BuildingType;
@@ -17,7 +17,6 @@ export const MAX_LEVEL = 5;
 // e Centro Médico em nível 1 (portanto, upgrade a partir do nível 2).
 const COSTS: Record<BuildingType, number[]> = {
   ct_treino:     [0,       120_000,   350_000,   900_000,   2_200_000],
-  ct_elemental:  [80_000,  250_000,   650_000,   1_500_000, 3_200_000],
   estadio:       [0,       200_000,   600_000,   1_600_000, 3_800_000],
   centro_medico: [60_000,  180_000,   500_000,   1_300_000, 3_000_000],
 };
@@ -27,16 +26,12 @@ const H = 3600;
 const D = 24 * H;
 const DURATIONS: Record<BuildingType, number[]> = {
   ct_treino:     [0,      8 * H,  20 * H, 2 * D, 4 * D],
-  ct_elemental:  [6 * H,  16 * H, 1.5 * D, 3 * D, 5 * D],
   estadio:       [0,      12 * H, 1 * D,  2.5 * D, 5 * D],
   centro_medico: [5 * H,  14 * H, 1.5 * D, 3 * D, 5 * D],
 };
 
 // Estádio: capacidade por nível (1..5)
 const STADIUM_CAPACITY = [8_000, 15_000, 25_000, 40_000, 60_000];
-
-// CT Elemental: teto de afinidade treinável por nível (1..5)
-const AFFINITY_CAP_BY_LEVEL = [5, 8, 11, 13, 15];
 
 export const BUILDINGS: Record<BuildingType, BuildingSpec> = {
   ct_treino: {
@@ -46,15 +41,6 @@ export const BUILDINGS: Record<BuildingType, BuildingSpec> = {
     effectByLevel: (l) => (l === 0 ? "Sem efeito" : `+${l * 5}% XP`),
     cost: (n) => COSTS.ct_treino[n - 1],
     duration: (n) => DURATIONS.ct_treino[n - 1],
-  },
-  ct_elemental: {
-    type: "ct_elemental",
-    name: "CT Elemental",
-    description: "Libera e acelera o treino de afinidade elemental.",
-    effectByLevel: (l) =>
-      l === 0 ? "Não construído" : `Afinidade até +${AFFINITY_CAP_BY_LEVEL[l - 1]}%`,
-    cost: (n) => COSTS.ct_elemental[n - 1],
-    duration: (n) => DURATIONS.ct_elemental[n - 1],
   },
   estadio: {
     type: "estadio",
@@ -78,7 +64,7 @@ export const BUILDINGS: Record<BuildingType, BuildingSpec> = {
 };
 
 export const BUILDING_TYPES: BuildingType[] = [
-  "ct_treino", "ct_elemental", "estadio", "centro_medico",
+  "ct_treino", "estadio", "centro_medico",
 ];
 
 /** Capacidade do estádio (torcedores). Nível 0 = sem estádio construído. */
@@ -92,8 +78,3 @@ export function trainingXpMultiplier(ctTreinoLevel: number): number {
   return 1 + ctTreinoLevel * 0.05;
 }
 
-/** Teto de afinidade elemental treinável (%). Nível 0 = não treina afinidade. */
-export function affinityCap(ctElementalLevel: number): number {
-  if (ctElementalLevel <= 0) return 0;
-  return AFFINITY_CAP_BY_LEVEL[Math.min(ctElementalLevel, AFFINITY_CAP_BY_LEVEL.length) - 1];
-}
