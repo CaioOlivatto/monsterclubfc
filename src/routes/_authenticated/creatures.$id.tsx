@@ -26,6 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { RushTimer } from "@/components/RushTimer";
 import { ArrowLeft, BatteryCharging, Clock, Coins, Dumbbell, Gem, HeartPulse, Hourglass, Sparkles, Star } from "lucide-react";
 import { ageStatus, seasonsRemaining, rebirthHalfStarsPreview, sellValuePreview, matchesUntilExhausted } from "@/lib/age";
 import { moraleState, MORALE_EMOJI, MORALE_LABEL } from "@/lib/morale";
@@ -723,47 +724,40 @@ function CreatureDetail() {
               {(() => {
                 const training = (c as any).training_element as string | null;
                 const finishAt = (c as any).training_completes_at as string | null;
-                const remainingMs = finishAt ? new Date(finishAt).getTime() - Date.now() : 0;
-                const totalMs = AFFINITY_TRAINING_DURATION_MS;
-                const progress = training && finishAt
-                  ? Math.max(0, Math.min(100, ((totalMs - remainingMs) / totalMs) * 100))
-                  : 0;
-                const rushCost = Math.max(1, Math.ceil(Math.max(0, remainingMs) / (10 * 60 * 1000)));
-                const hoursLeft = Math.max(0, Math.ceil(remainingMs / (60 * 60 * 1000)));
                 if (training) {
                   return (
-                    <div className="space-y-2 rounded-md border border-border/60 bg-card/40 p-3">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium">
-                          Treinando {ELEMENT_LABEL[training] ?? training}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {remainingMs > 0 ? `${hoursLeft}h restantes` : "Pronto"}
-                        </span>
-                      </div>
-                      <Progress value={progress} />
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={rushAffMut.isPending}
-                          onClick={() => rushAffMut.mutate()}
-                        >
-                          <Gem className="mr-1 h-3 w-3" />
-                          {remainingMs > 0 ? `Acelerar (${rushCost} 💎)` : "Finalizar"}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={cancelAffMut.isPending}
-                          onClick={() => cancelAffMut.mutate()}
-                        >
-                          Cancelar
-                        </Button>
-                      </div>
+                    <div className="rounded-md border border-border/60 bg-card/40 p-3">
+                      <RushTimer
+                        target={finishAt ?? new Date().toISOString()}
+                        totalMs={AFFINITY_TRAINING_DURATION_MS}
+                        label={`Treinando ${ELEMENT_LABEL[training] ?? training}`}
+                      >
+                        {({ cost, done }) => (
+                          <div className="flex gap-2 pt-1">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={rushAffMut.isPending}
+                              onClick={() => rushAffMut.mutate()}
+                            >
+                              <Gem className="mr-1 h-3 w-3" />
+                              {done ? "Finalizar" : `Concluir agora (${cost} 💎)`}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={cancelAffMut.isPending}
+                              onClick={() => cancelAffMut.mutate()}
+                            >
+                              Cancelar
+                            </Button>
+                          </div>
+                        )}
+                      </RushTimer>
                     </div>
                   );
                 }
+
                 return (
                   <div className="space-y-2">
                     <p className="text-xs text-muted-foreground">
@@ -795,33 +789,31 @@ function CreatureDetail() {
               {(() => {
                 const finishAt = (c as any).morale_session_completes_at as string | null;
                 const remainingMs = finishAt ? new Date(finishAt).getTime() - Date.now() : 0;
-                const totalMs = MORALE_SESSION_INDIVIDUAL_MS;
-                const progress = finishAt
-                  ? Math.max(0, Math.min(100, ((totalMs - remainingMs) / totalMs) * 100))
-                  : 0;
-                const rushCost = Math.max(1, Math.ceil(Math.max(0, remainingMs) / (10 * 60 * 1000)));
-                const hoursLeft = Math.max(0, Math.ceil(remainingMs / (60 * 60 * 1000)));
                 const cur = (c as any).morale ?? 50;
                 const expectedGain = Math.round(MORALE_SESSION_INDIVIDUAL_BOOST * Math.max(0, 1 - cur / 120));
                 if (finishAt && remainingMs > 0) {
                   return (
-                    <div className="space-y-2 rounded-md border border-border/60 bg-card/40 p-3">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium">Sessão de incentivo</span>
-                        <span className="text-xs text-muted-foreground">{hoursLeft}h restantes</span>
-                      </div>
-                      <Progress value={progress} />
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="secondary" disabled={rushMorMut.isPending} onClick={() => rushMorMut.mutate()}>
-                          <Gem className="mr-1 h-3 w-3" />Acelerar ({rushCost} 💎)
-                        </Button>
-                        <Button size="sm" variant="ghost" disabled={cancelMorMut.isPending} onClick={() => cancelMorMut.mutate()}>
-                          Cancelar
-                        </Button>
-                      </div>
+                    <div className="rounded-md border border-border/60 bg-card/40 p-3">
+                      <RushTimer
+                        target={finishAt}
+                        totalMs={MORALE_SESSION_INDIVIDUAL_MS}
+                        label="Sessão de incentivo"
+                      >
+                        {({ cost }) => (
+                          <div className="flex gap-2 pt-1">
+                            <Button size="sm" variant="secondary" disabled={rushMorMut.isPending} onClick={() => rushMorMut.mutate()}>
+                              <Gem className="mr-1 h-3 w-3" />Concluir agora ({cost} 💎)
+                            </Button>
+                            <Button size="sm" variant="ghost" disabled={cancelMorMut.isPending} onClick={() => cancelMorMut.mutate()}>
+                              Cancelar
+                            </Button>
+                          </div>
+                        )}
+                      </RushTimer>
                     </div>
                   );
                 }
+
                 return (
                   <div className="space-y-2 rounded-md border border-border/60 bg-card/40 p-3">
                     <p className="text-xs text-muted-foreground">
@@ -840,12 +832,6 @@ function CreatureDetail() {
             {(() => {
               const finishAt = (c as any).rest_completes_at as string | null;
               const remainingMs = finishAt ? new Date(finishAt).getTime() - Date.now() : 0;
-              const totalMs = REST_DURATION_MS;
-              const progress = finishAt
-                ? Math.max(0, Math.min(100, ((totalMs - remainingMs) / totalMs) * 100))
-                : 0;
-              const rushCost = Math.max(1, Math.ceil(Math.max(0, remainingMs) / (10 * 60 * 1000)));
-              const minsLeft = Math.max(0, Math.ceil(remainingMs / 60_000));
               const free = restState?.free_charges ?? REST_POOL_MAX;
               const nextFreeAt = restState?.next_free_at ?? null;
               const nextPaidCost = restState?.next_paid_cost ?? 15;
@@ -874,22 +860,19 @@ function CreatureDetail() {
                     </div>
                   </div>
 
-                  {isResting ? (
-                    <>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">Descansando…</span>
-                        <span>{minsLeft} min restantes</span>
-                      </div>
-                      <Progress value={progress} />
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="secondary" disabled={rushRestMut.isPending} onClick={() => rushRestMut.mutate()}>
-                          <Gem className="mr-1 h-3 w-3" />Acelerar ({rushCost} 💎)
-                        </Button>
-                        <Button size="sm" variant="ghost" disabled={cancelRestMut.isPending} onClick={() => cancelRestMut.mutate()}>
-                          Cancelar
-                        </Button>
-                      </div>
-                    </>
+                  {isResting && finishAt ? (
+                    <RushTimer target={finishAt} totalMs={REST_DURATION_MS} label="Descansando…">
+                      {({ cost }) => (
+                        <div className="flex gap-2 pt-1">
+                          <Button size="sm" variant="secondary" disabled={rushRestMut.isPending} onClick={() => rushRestMut.mutate()}>
+                            <Gem className="mr-1 h-3 w-3" />Concluir agora ({cost} 💎)
+                          </Button>
+                          <Button size="sm" variant="ghost" disabled={cancelRestMut.isPending} onClick={() => cancelRestMut.mutate()}>
+                            Cancelar
+                          </Button>
+                        </div>
+                      )}
+                    </RushTimer>
                   ) : (
                     <Button
                       size="sm"
