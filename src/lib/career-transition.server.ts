@@ -194,6 +194,8 @@ export async function applySeasonOutcome(input: SeasonOutcomeInput): Promise<Sea
     // Pausa de pré-temporada: energia 100% para todo o mundo do treinador
     // (inclui lesionados; moral NÃO é alterado).
     reset_energy: true,
+    // Mesma lógica de recomeço: pool de "Descansar" volta a 3/3 grátis.
+    reset_rest_pool: true,
     trainer_update: trainerUpdate,
     career_events: careerEvents,
     qualifications,
