@@ -213,17 +213,23 @@ function BuildingsPage() {
                   {b.upgrading && b.completes_at ? (
                     <div className="rounded-md border bg-muted/40 p-3">
                       <p className="mb-1 text-xs font-semibold">Obra em andamento</p>
-                      <Countdown target={b.completes_at} totalSec={b.nextDurationSec ?? undefined} />
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="mt-2 h-8 w-full"
-                        disabled={finishMut.isPending}
-                        onClick={() => finishMut.mutate(b.type)}
+                      <RushTimer
+                        target={b.completes_at}
+                        totalMs={(b.nextDurationSec ?? 0) * 1000}
                       >
-                        <Zap className="mr-1 h-3 w-3" />
-                        Concluir agora (💎)
-                      </Button>
+                        {({ cost, done }) => (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="mt-1 h-8 w-full"
+                            disabled={finishMut.isPending}
+                            onClick={() => finishMut.mutate(b.type)}
+                          >
+                            <Zap className="mr-1 h-3 w-3" />
+                            {done ? "Finalizar" : `Concluir agora (${cost} 💎)`}
+                          </Button>
+                        )}
+                      </RushTimer>
                     </div>
                   ) : maxed ? (
                     <p className="text-xs font-medium text-emerald-400">Nível máximo atingido</p>
