@@ -247,7 +247,11 @@ export const buyCreature = createServerFn({ method: "POST" })
         attr_concentracao: listing.attr_concentracao,
         attr_elasticidade: listing.attr_elasticidade,
         overall: listing.overall,
+        // Estrelas são a força inata (mesma regra do elenco inicial e do mundo):
+        // meia-estrelas = overall/10. Sem isso, a criatura comprada nascia com 0★.
+        half_stars_earned: Math.max(0, Math.min(10, Math.round((listing.overall ?? 0) / 10))),
         energy: 100,
+
         market_value: listing.market_value,
         age: listing.age,
         aff_fogo: 0, aff_agua: 0, aff_terra: 0, aff_ar: 0, aff_gelo: 0,
