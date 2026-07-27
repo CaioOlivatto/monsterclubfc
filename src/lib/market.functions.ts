@@ -58,10 +58,14 @@ async function getTrainerWithAcademy(
 async function currentPayroll(supabase: any, trainerId: string): Promise<number> {
   const { data } = await supabase
     .from("creatures")
-    .select("overall")
+    .select("overall, salary_mult")
     .eq("owner_trainer_id", trainerId);
-  return (data ?? []).reduce((acc: number, c: any) => acc + seasonSalary(c.overall ?? 40), 0);
+  return (data ?? []).reduce(
+    (acc: number, c: any) => acc + Math.round(seasonSalary(c.overall ?? 40) * (c.salary_mult ?? 1)),
+    0,
+  );
 }
+
 
 export const getMarket = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
