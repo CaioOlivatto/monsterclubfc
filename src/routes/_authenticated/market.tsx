@@ -353,7 +353,7 @@ function MarketPage() {
                           size="sm"
                           className="h-8"
                           disabled={disabled}
-                          onClick={() => buyMut.mutate(l.id)}
+                          onClick={() => buyMut.mutate({ listing_id: l.id })}
                         >
                           {btnLabel}
                         </Button>
