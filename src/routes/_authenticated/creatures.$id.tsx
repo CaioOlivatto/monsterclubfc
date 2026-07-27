@@ -88,7 +88,9 @@ function CreatureDetail() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const fetchOne = useServerFn(getCreature);
-  const trainFn = useServerFn(trainCreature);
+  const startAttrFn = useServerFn(startAttributeTraining);
+  const rushAttrFn = useServerFn(rushAttributeTraining);
+  const cancelAttrFn = useServerFn(cancelAttributeTraining);
   const getRestFn = useServerFn(getRestState);
   const startRestFn = useServerFn(startRest);
   const rushRestFn = useServerFn(rushRest);
@@ -107,13 +109,28 @@ function CreatureDetail() {
   });
 
   const trainMut = useMutation({
-    mutationFn: (focus: { kind: "attribute"; key: any } | { kind: "affinity"; key: any }) =>
-      trainFn({ data: { creatureId: id, focus } }),
-    onSuccess: (res) => {
-      toast.success(res.message);
+    mutationFn: (key: string) => startAttrFn({ data: { creatureId: id, key: key as any } }),
+    onSuccess: () => {
+      toast.success(`Treino iniciado — −${ATTR_TRAINING_XP_COST} XP e −${ATTR_TRAINING_ENERGY_COST} de energia.`);
       qc.invalidateQueries({ queryKey: ["creature", id] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha no treino"),
+  });
+  const rushAttrMut = useMutation({
+    mutationFn: () => rushAttrFn({ data: { creatureId: id } }),
+    onSuccess: (r: any) => {
+      toast.success(r?.spent ? `Treino concluído (−${r.spent} 💎).` : "Treino concluído.");
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao acelerar"),
+  });
+  const cancelAttrMut = useMutation({
+    mutationFn: () => cancelAttrFn({ data: { creatureId: id } }),
+    onSuccess: () => {
+      toast.success("Treino cancelado — XP e energia devolvidos.");
+      qc.invalidateQueries({ queryKey: ["creature", id] });
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Falha ao cancelar"),
   });
 
   const startRestMut = useMutation({
