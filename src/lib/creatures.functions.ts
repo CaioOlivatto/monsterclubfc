@@ -314,7 +314,6 @@ export const createInitialTrainer = createServerFn({ method: "POST" })
     if (aErr) throw aErr;
 
     // 3. Prédios iniciais (Estádio nv1, CT Treinamento nv1, Centro Médico nv1)
-    //    CT Elemental começa não construído (§7).
     await supabase.from("buildings").insert([
       { trainer_id: trainer.id, building_type: "estadio",        level: 1 },
       { trainer_id: trainer.id, building_type: "ct_treino",      level: 1 },
@@ -499,8 +498,6 @@ export const listMyCreatures = createServerFn({ method: "GET" })
       .eq("user_id", userId)
       .maybeSingle();
     if (!trainer) return [];
-    const { sweepAffinityTrainings } = await import("./affinity-training.functions");
-    await sweepAffinityTrainings(supabase, trainer.id);
     const { sweepMoraleSessions } = await import("./morale-training.functions");
     await sweepMoraleSessions(supabase, trainer.id);
     const { sweepAttributeTrainings } = await import("./training.functions");
@@ -508,7 +505,7 @@ export const listMyCreatures = createServerFn({ method: "GET" })
     const { data, error } = await supabase
       .from("creatures")
       .select(
-        "id, name, species, epithet, element, suggested_position, is_goalkeeper, power_key, overall, energy, morale, xp, half_stars_earned, market_value, age, injury_matches_remaining, injury_severity, is_prodigy, training_element, training_completes_at, morale_session_completes_at, attr_training_key, attr_training_completes_at",
+        "id, name, species, epithet, element, suggested_position, is_goalkeeper, power_key, overall, energy, morale, xp, half_stars_earned, market_value, age, injury_matches_remaining, injury_severity, is_prodigy, morale_session_completes_at, attr_training_key, attr_training_completes_at",
       )
       .eq("owner_trainer_id", trainer.id)
       .order("overall", { ascending: false });
@@ -527,8 +524,6 @@ export const getCreature = createServerFn({ method: "GET" })
       .eq("user_id", userId)
       .maybeSingle();
     if (!trainer) throw new Error("Treinador não encontrado.");
-    const { sweepAffinityTrainings } = await import("./affinity-training.functions");
-    await sweepAffinityTrainings(supabase, trainer.id);
     const { sweepMoraleSessions } = await import("./morale-training.functions");
     await sweepMoraleSessions(supabase, trainer.id);
     const { sweepAttributeTrainings } = await import("./training.functions");

@@ -94,7 +94,7 @@ export const getBuildings = createServerFn({ method: "GET" })
 export const startUpgrade = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((raw: unknown) =>
-    z.object({ type: z.enum(["ct_treino", "ct_elemental", "estadio", "centro_medico"]) }).parse(raw),
+    z.object({ type: z.enum(["ct_treino", "estadio", "centro_medico"]) }).parse(raw),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -171,7 +171,7 @@ export const startUpgrade = createServerFn({ method: "POST" })
 export const finishNowWithGems = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((raw: unknown) =>
-    z.object({ type: z.enum(["ct_treino", "ct_elemental", "estadio", "centro_medico"]) }).parse(raw),
+    z.object({ type: z.enum(["ct_treino", "estadio", "centro_medico"]) }).parse(raw),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;

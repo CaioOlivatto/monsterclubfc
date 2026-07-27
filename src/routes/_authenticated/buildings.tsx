@@ -49,7 +49,6 @@ export const Route = createFileRoute("/_authenticated/buildings")({
 
 const ICONS: Record<string, ReactNode> = {
   ct_treino: <Dumbbell className="h-5 w-5" />,
-  ct_elemental: <Sparkles className="h-5 w-5" />,
   estadio: <Trophy className="h-5 w-5" />,
   centro_medico: <HeartPulse className="h-5 w-5" />,
 };
