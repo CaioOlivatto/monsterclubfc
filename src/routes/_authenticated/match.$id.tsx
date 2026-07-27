@@ -433,11 +433,7 @@ function MatchPage() {
           </CardContent>
         </Card>
 
-        <EventsPanel events={revealed} />
-
-        {isFinal && (data.match as any).finance_summary && (
-          <FinanceSummaryCard summary={(data.match as any).finance_summary} />
-        )}
+        {!isFinal && <EventsPanel events={revealed} />}
 
         {isFinal && (() => {
           const playerTeamId = (data as any)?.player_team_id ?? homeId;
@@ -446,12 +442,35 @@ function MatchPage() {
           const theirGoals = playerIsHome ? awayGoals : homeGoals;
           const label = myGoals > theirGoals ? "Vitória! 🏆" : myGoals < theirGoals ? "Derrota." : "Empate.";
           return (
-            <Card>
-              <CardContent className="py-4 text-center">
-                <p className="mb-3 text-sm">{label}</p>
-                <Button onClick={() => navigate({ to: "/dashboard" })}>Voltar ao painel</Button>
-              </CardContent>
-            </Card>
+            <Tabs defaultValue="resumo" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="resumo">Resumo</TabsTrigger>
+                <TabsTrigger value="detalhes">Detalhes</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="resumo" className="space-y-4">
+                <Card>
+                  <CardContent className="py-4 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      {data.home?.name} {homeGoals} × {awayGoals} {data.away?.name}
+                    </p>
+                    <p className="mt-1 text-lg font-semibold">{label}</p>
+                  </CardContent>
+                </Card>
+
+                {(data.match as any).finance_summary && (
+                  <FinanceSummaryCard summary={(data.match as any).finance_summary} />
+                )}
+
+                <div className="text-center">
+                  <Button onClick={() => navigate({ to: "/dashboard" })}>Voltar ao painel</Button>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="detalhes">
+                <EventsPanel events={revealed} />
+              </TabsContent>
+            </Tabs>
           );
         })()}
       </main>
