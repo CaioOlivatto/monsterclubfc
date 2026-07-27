@@ -15,12 +15,7 @@ import {
 import { getRestState, startRest, rushRest, cancelRest, REST_DURATION_MS, REST_ENERGY_GAIN, REST_POOL_MAX } from "@/lib/rest.functions";
 import { spendHalfStar } from "@/lib/progression.functions";
 import { retireCreature, rebirthCreature } from "@/lib/lifecycle.functions";
-import {
-  startAffinityTraining,
-  rushAffinityTraining,
-  cancelAffinityTraining,
-  AFFINITY_TRAINING_DURATION_MS,
-} from "@/lib/affinity-training.functions";
+import { attrTrainingDurationMs, formatTrainingDuration } from "@/lib/training-elements";
 import {
   startMoraleSession,
   rushMoraleSession,
@@ -160,28 +155,6 @@ function CreatureDetail() {
     onError: (e: any) => toast.error(e?.message ?? "Falha"),
   });
 
-  const startAffFn = useServerFn(startAffinityTraining);
-  const rushAffFn = useServerFn(rushAffinityTraining);
-  const cancelAffFn = useServerFn(cancelAffinityTraining);
-  const startAffMut = useMutation({
-    mutationFn: (element: "fogo" | "agua" | "terra" | "ar" | "gelo") =>
-      startAffFn({ data: { creatureId: id, element } }),
-    onSuccess: () => {
-      toast.success("Treino elemental iniciado.");
-      qc.invalidateQueries({ queryKey: ["creature", id] });
-    },
-    onError: (e: any) => toast.error(e?.message ?? "Falha ao iniciar treino"),
-  });
-  const rushAffMut = useMutation({
-    mutationFn: () => rushAffFn({ data: { creatureId: id } }),
-    onSuccess: (r: any) => {
-      toast.success(r?.spent ? `Treino acelerado (${r.spent} 💎).` : "Treino concluído.");
-      qc.invalidateQueries({ queryKey: ["creature", id] });
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
-    },
-    onError: (e: any) => toast.error(e?.message ?? "Falha ao acelerar"),
-  });
-
   const startMorFn = useServerFn(startMoraleSession);
   const rushMorFn = useServerFn(rushMoraleSession);
   const cancelMorFn = useServerFn(cancelMoraleSession);
@@ -210,17 +183,8 @@ function CreatureDetail() {
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao cancelar"),
   });
-  const cancelAffMut = useMutation({
-    mutationFn: () => cancelAffFn({ data: { creatureId: id } }),
-    onSuccess: () => {
-      toast.success("Treino cancelado.");
-      qc.invalidateQueries({ queryKey: ["creature", id] });
-    },
-    onError: (e: any) => toast.error(e?.message ?? "Falha ao cancelar"),
-  });
-
   const spendMut = useMutation({
-    mutationFn: (focus: { kind: "attribute"; key: any } | { kind: "affinity"; key: any }) =>
+    mutationFn: (focus: { kind: "attribute"; key: any }) =>
       spendFn({ data: { creatureId: id, focus } }),
     onSuccess: (res) => {
       toast.success(res.message);
@@ -319,14 +283,6 @@ function CreatureDetail() {
     tecnica: "Técnica", forca: "Força", pique: "Pique",
     maos: "Mãos", concentracao: "Concentração", elasticidade: "Elasticidade",
   };
-
-  const affinities: [string, number, string][] = [
-    ["Fogo", c.aff_fogo, "fogo"],
-    ["Água", c.aff_agua, "agua"],
-    ["Terra", c.aff_terra, "terra"],
-    ["Ar", c.aff_ar, "ar"],
-    ["Gelo", c.aff_gelo, "gelo"],
-  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -633,7 +589,7 @@ function CreatureDetail() {
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-xs text-muted-foreground">
-                Escolha onde investir. +5 no atributo escolhido, ou +1 numa afinidade.
+                Escolha onde investir: +5 no atributo escolhido.
               </p>
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Atributo (+5)</p>
@@ -646,23 +602,6 @@ function CreatureDetail() {
                       onClick={() => spendMut.mutate({ kind: "attribute", key: k })}
                     >
                       {ATTR_LABELS[k]}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Afinidade (+1)</p>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                  {(["fogo", "agua", "terra", "ar", "gelo"] as const).map((k) => (
-                    <Button
-                      key={k}
-                      size="sm"
-                      variant="outline"
-                      disabled={spendMut.isPending}
-                      onClick={() => spendMut.mutate({ kind: "affinity", key: k })}
-                    >
-                      <Sparkles className="mr-1 h-3 w-3" />
-                      {ELEMENT_LABEL[k]}
                     </Button>
                   ))}
                 </div>
@@ -696,25 +635,6 @@ function CreatureDetail() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Afinidades elementais</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2">
-            {affinities.map(([label, v, key]) => (
-              <div key={key}>
-                <div className="mb-1 flex items-center justify-between text-sm">
-                  <Badge variant="outline" className={ELEMENT_COLORS[key] ?? ""}>
-                    {label}
-                  </Badge>
-                  <span className="font-medium">{v}</span>
-                </div>
-                <Progress value={v} className="h-2" />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <Dumbbell className="h-4 w-4" /> Treinamento
             </CardTitle>
@@ -723,7 +643,7 @@ function CreatureDetail() {
             <p className="text-xs text-muted-foreground">
               O treino não gera XP novo: ele <strong>direciona</strong> o XP que a criatura já ganhou jogando.
               Cada sessão consome {ATTR_TRAINING_XP_COST} XP do saldo e {ATTR_TRAINING_ENERGY_COST} de energia,
-              leva 4h e concede +1 ponto no atributo escolhido. O XP gasto sai do saldo e atrasa a próxima meia-estrela.
+              leva até 4h (o elemento nativo pode acelerar) e concede +1 ponto no atributo escolhido. O XP gasto sai do saldo e atrasa a próxima meia-estrela.
             </p>
 
             <div>
