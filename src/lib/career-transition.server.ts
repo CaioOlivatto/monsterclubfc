@@ -191,6 +191,9 @@ export async function applySeasonOutcome(input: SeasonOutcomeInput): Promise<Sea
     trainer_id: trainerId,
     next_season: nextSeason,
     expire_old_offers: true,
+    // Pausa de pré-temporada: energia 100% para todo o mundo do treinador
+    // (inclui lesionados; moral NÃO é alterado).
+    reset_energy: true,
     trainer_update: trainerUpdate,
     career_events: careerEvents,
     qualifications,
