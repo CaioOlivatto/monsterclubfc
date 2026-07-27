@@ -721,24 +721,80 @@ function CreatureDetail() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-xs text-muted-foreground">
-              Cada sessão consome 20 de energia e concede XP. A cada 100 XP em um atributo, +1 ponto (recalcula overall e meia-estrelas). Sessões de afinidade têm chance de +1 no elemento treinado.
+              O treino não gera XP novo: ele <strong>direciona</strong> o XP que a criatura já ganhou jogando.
+              Cada sessão consome {ATTR_TRAINING_XP_COST} XP do saldo e {ATTR_TRAINING_ENERGY_COST} de energia,
+              leva 4h e concede +1 ponto no atributo escolhido. O XP gasto sai do saldo e atrasa a próxima meia-estrela.
             </p>
 
             <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Atributos</p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {ATTR_KEYS.map((k) => (
-                  <Button
-                    key={k}
-                    size="sm"
-                    variant="secondary"
-                    disabled={trainMut.isPending || c.energy < 20}
-                    onClick={() => trainMut.mutate({ kind: "attribute", key: k })}
-                  >
-                    {ATTR_LABELS[k]}
-                  </Button>
-                ))}
-              </div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Atributos · saldo de XP: {c.xp ?? 0}
+              </p>
+              {(() => {
+                const trainingKey = (c as any).attr_training_key as string | null;
+                const finishAt = (c as any).attr_training_completes_at as string | null;
+                if (trainingKey && finishAt) {
+                  return (
+                    <div className="rounded-md border border-border/60 bg-card/40 p-3">
+                      <RushTimer
+                        target={finishAt}
+                        totalMs={ATTR_TRAINING_DURATION_MS}
+                        label={`Treinando ${ATTR_LABELS[trainingKey as keyof typeof ATTR_LABELS] ?? trainingKey}`}
+                      >
+                        {({ cost, done }) => (
+                          <div className="flex gap-2 pt-1">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={rushAttrMut.isPending}
+                              onClick={() => rushAttrMut.mutate()}
+                            >
+                              <Gem className="mr-1 h-3 w-3" />
+                              {done ? "Finalizar" : `Concluir agora (${cost} 💎)`}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={cancelAttrMut.isPending}
+                              onClick={() => cancelAttrMut.mutate()}
+                            >
+                              Cancelar
+                            </Button>
+                          </div>
+                        )}
+                      </RushTimer>
+                    </div>
+                  );
+                }
+
+                const noXp = (c.xp ?? 0) < ATTR_TRAINING_XP_COST;
+                const noEnergy = (c.energy ?? 0) < ATTR_TRAINING_ENERGY_COST;
+                return (
+                  <div className="space-y-2">
+                    {noXp && (
+                      <p className="text-xs text-amber-600">
+                        XP insuficiente ({c.xp ?? 0}/{ATTR_TRAINING_XP_COST}). Jogue mais partidas para acumular XP.
+                      </p>
+                    )}
+                    {noEnergy && !noXp && (
+                      <p className="text-xs text-amber-600">Energia insuficiente — descanse a criatura.</p>
+                    )}
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {ATTR_KEYS.map((k) => (
+                        <Button
+                          key={k}
+                          size="sm"
+                          variant="secondary"
+                          disabled={trainMut.isPending || noXp || noEnergy}
+                          onClick={() => trainMut.mutate(k)}
+                        >
+                          {ATTR_LABELS[k]}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div>
