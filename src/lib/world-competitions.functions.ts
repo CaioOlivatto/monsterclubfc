@@ -209,7 +209,7 @@ async function simulatePlayerMatch(
 
       // Reads em paralelo
       const [rosterRes, bldgsRes, acadRes] = await Promise.all([
-        supabase.from("creatures").select("overall").eq("owner_trainer_id", trainerId),
+        supabase.from("creatures").select("overall, salary_mult").eq("owner_trainer_id", trainerId),
         supabase.from("buildings").select("building_type, level").eq("trainer_id", trainerId),
         supabase.from("academies").select("money").eq("trainer_id", trainerId).maybeSingle(),
       ]);
@@ -217,7 +217,7 @@ async function simulatePlayerMatch(
       const bldgs = (bldgsRes as any).data as Array<{ building_type: string; level: number }> | null;
       const acad = (acadRes as any).data as { money: number } | null;
 
-      const salaries = (roster ?? []).reduce((a: number, c: any) => a + matchSalary(c.overall ?? 40), 0);
+      const salaries = (roster ?? []).reduce((a: number, c: any) => a + Math.round(matchSalary(c.overall ?? 40) * (c.salary_mult ?? 1)), 0);
       const maintenance = totalMaintenancePerMatch(div, bldgs ?? []);
       const awayWinBonus = !isHome && outcome === "W"
         ? computeAwayWinBonus(salaries + maintenance, rev.tv + rev.sponsor + rev.merch, matchPrize)

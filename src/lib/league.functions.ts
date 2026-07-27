@@ -60,7 +60,7 @@ async function ensureCurrentSeason(supabase: any, trainerId: string) {
 }
 
 async function playerAverage(supabase: any, trainerId: string): Promise<number> {
-  const { data } = await supabase.from("creatures").select("overall").eq("owner_trainer_id", trainerId);
+  const { data } = await supabase.from("creatures").select("overall, salary_mult").eq("owner_trainer_id", trainerId);
   const list = (data ?? []) as { overall: number }[];
   if (!list.length) return 45;
   return Math.round(list.reduce((a, c) => a + c.overall, 0) / list.length);
@@ -452,7 +452,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
           gate = Math.round(attendanceInfo.attendance * 25);
         }
 
-        const salaries = (roster ?? []).reduce((a: number, c: any) => a + matchSalary(c.overall ?? 40), 0);
+        const salaries = (roster ?? []).reduce((a: number, c: any) => a + Math.round(matchSalary(c.overall ?? 40) * (c.salary_mult ?? 1)), 0);
         const maintenance = totalMaintenancePerMatch(division as EconDivision, bldgs ?? []);
         const awayWinBonus = !isHome && outcome === "W"
           ? computeAwayWinBonus(salaries + maintenance, rev.tv + rev.sponsor + rev.merch, matchPrize)
