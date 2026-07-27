@@ -64,28 +64,6 @@ function formatDuration(sec: number) {
   return `${Math.round(sec / 360) / 10}h`;
 }
 
-function Countdown({ target, totalSec }: { target: string; totalSec?: number }) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const remaining = Math.max(0, new Date(target).getTime() - now);
-  const s = Math.floor(remaining / 1000);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const ss = s % 60;
-  const pct = totalSec ? Math.max(0, Math.min(100, 100 - (s / totalSec) * 100)) : 0;
-  return (
-    <div className="space-y-1">
-      <p className="font-mono text-xs">
-        {h > 0 ? `${h}h ` : ""}
-        {m.toString().padStart(2, "0")}m {ss.toString().padStart(2, "0")}s
-      </p>
-      {totalSec ? <Progress value={pct} className="h-1.5" /> : null}
-    </div>
-  );
-}
 
 function BuildingsPage() {
   const qc = useQueryClient();
