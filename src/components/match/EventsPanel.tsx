@@ -33,14 +33,29 @@ interface Props {
   events: RevealedEvent[];
 }
 
+// Remove entradas idênticas (mesmo minuto/tipo/texto) que possam ter sido
+// reveladas duas vezes — típico dos eventos do minuto 90 (fim de jogo/cartão).
+function dedupe(events: RevealedEvent[]): RevealedEvent[] {
+  const seen = new Set<string>();
+  const out: RevealedEvent[] = [];
+  for (const e of events) {
+    const key = `${e.minute}|${e.event_type}|${e.description ?? ""}|${e.narration ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(e);
+  }
+  return out;
+}
+
 export function EventsPanel({ events }: Props) {
   const [tab, setTab] = useState<"current" | "important">("current");
 
-  const important = events.filter((e) =>
+  const unique = dedupe(events);
+  const important = unique.filter((e) =>
     ["goal", "yellow_card", "red_card", "injury", "substitution"].includes(e.event_type),
   );
 
-  const list = tab === "current" ? [...events].reverse() : [...important].reverse();
+  const list = tab === "current" ? [...unique].reverse() : [...important].reverse();
 
   return (
     <Card>
