@@ -7,14 +7,8 @@ import { awardTrainerXp } from "./trainer-xp.server";
 
 const LINE_ATTR_KEYS = ["defender","passar","atacar","tecnica","forca","pique"] as const;
 const GK_ATTR_KEYS = ["maos","concentracao","elasticidade"] as const;
-const AFF_KEYS = ["fogo","agua","terra","ar","gelo"] as const;
 type LineAttr = (typeof LINE_ATTR_KEYS)[number];
 type GkAttr = (typeof GK_ATTR_KEYS)[number];
-type AffKey = (typeof AFF_KEYS)[number];
-
-const affColumn: Record<AffKey, string> = {
-  fogo: "aff_fogo", agua: "aff_agua", terra: "aff_terra", ar: "aff_ar", gelo: "aff_gelo",
-};
 
 const attrColumn = {
   defender: "attr_defender", passar: "attr_passar", atacar: "attr_atacar",
@@ -26,7 +20,6 @@ const SpendSchema = z.object({
   creatureId: z.string().uuid(),
   focus: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("attribute"), key: z.enum([...LINE_ATTR_KEYS, ...GK_ATTR_KEYS]) }),
-    z.object({ kind: z.literal("affinity"),  key: z.enum(AFF_KEYS) }),
   ]),
 });
 
@@ -42,7 +35,7 @@ export const spendHalfStar = createServerFn({ method: "POST" })
     const { data: c } = await supabase
       .from("creatures")
       .select(
-        "id, is_goalkeeper, suggested_position, age, attr_defender, attr_passar, attr_atacar, attr_tecnica, attr_forca, attr_pique, attr_maos, attr_concentracao, attr_elasticidade, aff_fogo, aff_agua, aff_terra, aff_ar, aff_gelo, pending_half_stars, half_stars_earned",
+        "id, is_goalkeeper, suggested_position, age, attr_defender, attr_passar, attr_atacar, attr_tecnica, attr_forca, attr_pique, attr_maos, attr_concentracao, attr_elasticidade, pending_half_stars, half_stars_earned",
       )
       .eq("id", data.creatureId)
       .eq("owner_trainer_id", trainer.id)
@@ -56,7 +49,7 @@ export const spendHalfStar = createServerFn({ method: "POST" })
       half_stars_earned: (c.half_stars_earned ?? 0) + 1,
     };
 
-    if (data.focus.kind === "attribute") {
+    {
       const key = data.focus.key;
       if (isGk && !GK_ATTR_KEYS.includes(key as GkAttr)) {
         throw new Error("Goleiro só treina Mãos, Concentração ou Elasticidade.");
@@ -67,10 +60,6 @@ export const spendHalfStar = createServerFn({ method: "POST" })
       const col = (attrColumn as any)[key] as string;
       const current = (c as any)[col] as number;
       update[col] = Math.min(100, current + 5);
-    } else {
-      const col = affColumn[data.focus.key as AffKey];
-      const current = (c as any)[col] as number;
-      update[col] = Math.min(15, current + 1);
     }
 
     // Recalcula overall
