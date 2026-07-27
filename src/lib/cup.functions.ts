@@ -44,7 +44,7 @@ async function getTrainer(supabase: any, userId: string) {
 }
 
 async function playerAverage(supabase: any, trainerId: string): Promise<number> {
-  const { data } = await supabase.from("creatures").select("overall").eq("owner_trainer_id", trainerId);
+  const { data } = await supabase.from("creatures").select("overall, salary_mult").eq("owner_trainer_id", trainerId);
   const list = (data ?? []) as { overall: number }[];
   if (!list.length) return 45;
   return Math.round(list.reduce((a, c) => a + c.overall, 0) / list.length);
@@ -474,7 +474,7 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
         const rev = MATCH_REVENUE[division];
 
         const [rosterRes, bldgsRes, acadRes] = await Promise.all([
-          supabase.from("creatures").select("overall").eq("owner_trainer_id", trainer.id),
+          supabase.from("creatures").select("overall, salary_mult").eq("owner_trainer_id", trainer.id),
           supabase.from("buildings").select("building_type, level").eq("trainer_id", trainer.id),
           supabase.from("academies").select("money").eq("trainer_id", trainer.id).maybeSingle(),
         ]);
@@ -482,7 +482,7 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
         const bldgs = (bldgsRes as any).data as Array<{ building_type: string; level: number }> | null;
         const acad = (acadRes as any).data as { money: number } | null;
 
-        const salaries = (roster ?? []).reduce((a: number, c: any) => a + matchSalary(c.overall ?? 40), 0);
+        const salaries = (roster ?? []).reduce((a: number, c: any) => a + Math.round(matchSalary(c.overall ?? 40) * (c.salary_mult ?? 1)), 0);
         const maintenance = totalMaintenancePerMatch(division, bldgs ?? []);
         const awayWinBonus = !isHome && outcome === "W"
           ? computeAwayWinBonus(salaries + maintenance, rev.tv + rev.sponsor + rev.merch, matchPrize)

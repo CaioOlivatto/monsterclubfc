@@ -192,6 +192,7 @@ export type Database = {
           power_key: string
           rest_completes_at: string | null
           retired: boolean
+          salary_mult: number
           species: string
           suggested_position: string | null
           training_completes_at: string | null
@@ -237,6 +238,7 @@ export type Database = {
           power_key?: string
           rest_completes_at?: string | null
           retired?: boolean
+          salary_mult?: number
           species?: string
           suggested_position?: string | null
           training_completes_at?: string | null
@@ -282,6 +284,7 @@ export type Database = {
           power_key?: string
           rest_completes_at?: string | null
           retired?: boolean
+          salary_mult?: number
           species?: string
           suggested_position?: string | null
           training_completes_at?: string | null

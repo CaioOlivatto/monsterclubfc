@@ -1,0 +1,1 @@
+ALTER TABLE public.creatures ADD COLUMN IF NOT EXISTS salary_mult real NOT NULL DEFAULT 1;
