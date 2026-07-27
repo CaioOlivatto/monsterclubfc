@@ -11,16 +11,38 @@ import {
   type Division,
 } from "./economy";
 
+/** Divisão ATUAL do time do jogador. Cada trainer tem uma competição "league"
+ *  ativa por divisão (o mundo inteiro), então a divisão vem do time do jogador,
+ *  nunca de um match único em competitions (que retornava null -> bronze). */
 async function currentDivision(supabase: any, trainerId: string): Promise<Division> {
-  const { data } = await supabase
-    .from("competitions")
+  const { data: trainer } = await supabase
+    .from("trainers")
+    .select("current_team_id")
+    .eq("id", trainerId)
+    .maybeSingle();
+
+  if (trainer?.current_team_id) {
+    const { data: team } = await supabase
+      .from("teams")
+      .select("division")
+      .eq("id", trainer.current_team_id)
+      .maybeSingle();
+    if (team?.division) return team.division as Division;
+  }
+
+  const { data: fallback } = await supabase
+    .from("teams")
     .select("division")
     .eq("trainer_id", trainerId)
-    .eq("type", "league")
-    .eq("status", "active")
+    .eq("is_player", true)
+    .not("division", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
-  return ((data?.division as Division) ?? "bronze") as Division;
+
+  return ((fallback?.division as Division) ?? "bronze") as Division;
 }
+
 
 async function currentSeasonNumber(supabase: any, trainerId: string): Promise<number> {
   const { data } = await supabase
