@@ -26,6 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { RushTimer } from "@/components/RushTimer";
 import { ArrowLeft, BatteryCharging, Clock, Coins, Dumbbell, Gem, HeartPulse, Hourglass, Sparkles, Star } from "lucide-react";
 import { ageStatus, seasonsRemaining, rebirthHalfStarsPreview, sellValuePreview, matchesUntilExhausted } from "@/lib/age";
 import { moraleState, MORALE_EMOJI, MORALE_LABEL } from "@/lib/morale";
