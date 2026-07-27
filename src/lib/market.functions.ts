@@ -129,9 +129,16 @@ export const getMarket = createServerFn({ method: "GET" })
     };
   });
 
+/** Multiplicador da contraproposta do veterano (passe e salário). */
+export const VETERAN_COUNTER_MULT = 1.5;
+/** Idade mínima para o veterano topar "descer" mediante pagamento. */
+export const VETERAN_MIN_AGE = 25;
+
 export const buyCreature = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) => z.object({ listing_id: z.string() }).parse(raw))
+  .inputValidator((raw: unknown) =>
+    z.object({ listing_id: z.string(), accept_counter: z.boolean().optional() }).parse(raw),
+  )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const trainer = await getTrainerWithAcademy(supabase, userId);
@@ -158,7 +165,7 @@ export const buyCreature = createServerFn({ method: "POST" })
     console.log(
       `[market/buy] trainer=${trainer.id} division_atual=${trainer.division} (fonte: time atual do jogador) ` +
         `alvo=${listing.name} band=${listing.half_star_band} (${(listing.half_star_band / 2).toFixed(1)}★) ` +
-        `max_band=${maxBand} chance_recusa=${refuse}`,
+        `max_band=${maxBand} chance_recusa=${refuse} idade=${listing.age} accept_counter=${!!data.accept_counter}`,
     );
     if (listing.half_star_band > maxBand) {
       throw new Error(
@@ -166,15 +173,47 @@ export const buyCreature = createServerFn({ method: "POST" })
       );
     }
 
-    // Chance de recusa em contratações no limite (§8.1)
-    if (refuse > 0 && Math.random() < refuse) {
-      throw new Error(`${listing.name} recusou a proposta — sua divisão ainda é pequena demais.`);
+    // Zona de recusa (banda mais alta permitida em Bronze/Prata/Ouro).
+    const inRefusalZone = refuse > 0;
+    const isVeteran = (listing.age ?? 18) >= VETERAN_MIN_AGE;
+    // Aceitar a contraproposta só é válido dentro da zona de recusa e para veteranos.
+    const premium = inRefusalZone && isVeteran && !!data.accept_counter;
+
+    const baseSalary = seasonSalary(listing.overall);
+
+    if (inRefusalZone && !premium && Math.random() < refuse) {
+      // §8.1b — Negociação por idade
+      if (!isVeteran) {
+        return {
+          refused: true as const,
+          counter_offer: null,
+          name: listing.name,
+          message: `${listing.name} recusou a proposta e não quer negociar.`,
+        };
+      }
+      return {
+        refused: true as const,
+        name: listing.name,
+        message: `${listing.name} recusou a proposta, mas topa por outros termos:`,
+        counter_offer: {
+          listing_id: listing.id,
+          age: listing.age,
+          price: Math.round(listing.price * VETERAN_COUNTER_MULT),
+          base_price: listing.price,
+          salary: Math.round(baseSalary * VETERAN_COUNTER_MULT),
+          base_salary: baseSalary,
+          salary_per_match: Math.round(matchSalary(listing.overall) * VETERAN_COUNTER_MULT),
+          multiplier: VETERAN_COUNTER_MULT,
+        },
+      };
     }
 
+    const salaryMult = premium ? VETERAN_COUNTER_MULT : 1;
+    const price = premium ? Math.round(listing.price * VETERAN_COUNTER_MULT) : listing.price;
 
     // §8.2 — Teto de folha salarial
     const payroll = await currentPayroll(supabase, trainer.id);
-    const addSalary = seasonSalary(listing.overall);
+    const addSalary = Math.round(baseSalary * salaryMult);
     const cap = DIVISION_SALARY_CAP[trainer.division];
     if (payroll + addSalary > cap) {
       throw new Error(
@@ -182,9 +221,10 @@ export const buyCreature = createServerFn({ method: "POST" })
       );
     }
 
-    if (trainer.money < listing.price) {
+    if (trainer.money < price) {
       throw new Error("Dinheiro insuficiente para essa contratação.");
     }
+
 
     const { data: created, error: cErr } = await supabase
       .from("creatures")
