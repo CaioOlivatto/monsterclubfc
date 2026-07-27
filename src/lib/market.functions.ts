@@ -252,6 +252,7 @@ export const buyCreature = createServerFn({ method: "POST" })
         age: listing.age,
         aff_fogo: 0, aff_agua: 0, aff_terra: 0, aff_ar: 0, aff_gelo: 0,
         is_prodigy: !!(listing as any).is_prodigy,
+        salary_mult: salaryMult,
       } as any)
       .select("id")
       .single();
@@ -259,21 +260,21 @@ export const buyCreature = createServerFn({ method: "POST" })
 
     const { error: aErr } = await supabase
       .from("academies")
-      .update({ money: trainer.money - listing.price })
+      .update({ money: trainer.money - price })
       .eq("trainer_id", trainer.id);
     if (aErr) throw aErr;
 
     await supabase.from("financial_transactions").insert({
       trainer_id: trainer.id,
       transaction_type: "expense",
-      amount: listing.price,
-      description: `Contratação: ${listing.name} (${listing.seller})`,
+      amount: price,
+      description: `Contratação: ${listing.name} (${listing.seller})${premium ? " — contraproposta aceita" : ""}`,
     });
     await supabase.from("transfers").insert({
       trainer_id: trainer.id,
       creature_id: created.id,
       transfer_type: "buy",
-      amount: listing.price,
+      amount: price,
     });
     await supabase.from("market_purchases").insert({
       trainer_id: trainer.id,
@@ -284,11 +285,14 @@ export const buyCreature = createServerFn({ method: "POST" })
 
     const newPayroll = payroll + addSalary;
     return {
+      refused: false as const,
+      counter_offer: null,
+      message: null,
       creature_id: created.id,
       name: listing.name,
-      price: listing.price,
+      price,
       salary: addSalary,
-      salary_per_match: matchSalary(listing.overall),
+      salary_per_match: Math.round(matchSalary(listing.overall) * salaryMult),
       element: listing.element,
       position: listing.suggested_position,
       overall: listing.overall,
