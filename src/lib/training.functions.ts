@@ -21,7 +21,9 @@ const attrColumn = {
   maos: "attr_maos", concentracao: "attr_concentracao", elasticidade: "attr_elasticidade",
 } as const;
 
-export const ATTR_TRAINING_DURATION_MS = 4 * 60 * 60 * 1000;
+/** Duração base da sessão (4h). O elemento nativo pode reduzi-la. */
+export const ATTR_TRAINING_DURATION_MS = BASE_ATTR_TRAINING_DURATION_MS;
+
 /** XP consumido por sessão — 100 XP = +1 ponto de atributo. */
 export const ATTR_TRAINING_XP_COST = 100;
 export const ATTR_TRAINING_ENERGY_COST = 20;
