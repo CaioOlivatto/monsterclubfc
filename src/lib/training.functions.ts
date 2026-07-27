@@ -147,7 +147,7 @@ export const startAttributeTraining = createServerFn({ method: "POST" })
       .eq("id", c.id);
     if (uErr) throw uErr;
 
-    return { completes_at: completes, xp_spent: ATTR_TRAINING_XP_COST, xp_left: newXp };
+    return { completes_at: completes, duration_ms: durationMs, xp_spent: ATTR_TRAINING_XP_COST, xp_left: newXp };
   });
 
 export const rushAttributeTraining = createServerFn({ method: "POST" })
