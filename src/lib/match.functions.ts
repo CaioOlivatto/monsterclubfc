@@ -115,7 +115,9 @@ export const createFriendlyMatch = createServerFn({ method: "POST" })
       .eq("is_player", true)
       .not("competition_id", "is", null)
       .maybeSingle();
-    const division = ((playerLeagueTeam?.division as DivisionSlug | undefined) ?? "bronze");
+    const { resolvePlayerDivision } = await import("./division.server");
+    const division = (await resolvePlayerDivision(supabase, trainer.id)) as DivisionSlug;
+
     const pool = (WORLD_TEAMS[division] ?? WORLD_TEAMS.bronze).filter(
       (t) => t.name !== playerLeagueTeam?.name && t.name !== trainer.academy_name,
     );

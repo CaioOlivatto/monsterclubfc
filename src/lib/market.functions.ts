@@ -11,37 +11,12 @@ import {
   type Division,
 } from "./economy";
 
-/** Divisão ATUAL do time do jogador. Cada trainer tem uma competição "league"
- *  ativa por divisão (o mundo inteiro), então a divisão vem do time do jogador,
- *  nunca de um match único em competitions (que retornava null -> bronze). */
+/** Divisão ATUAL do jogador — fonte única (time atual), nunca `competitions`. */
 async function currentDivision(supabase: any, trainerId: string): Promise<Division> {
-  const { data: trainer } = await supabase
-    .from("trainers")
-    .select("current_team_id")
-    .eq("id", trainerId)
-    .maybeSingle();
-
-  if (trainer?.current_team_id) {
-    const { data: team } = await supabase
-      .from("teams")
-      .select("division")
-      .eq("id", trainer.current_team_id)
-      .maybeSingle();
-    if (team?.division) return team.division as Division;
-  }
-
-  const { data: fallback } = await supabase
-    .from("teams")
-    .select("division")
-    .eq("trainer_id", trainerId)
-    .eq("is_player", true)
-    .not("division", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  return ((fallback?.division as Division) ?? "bronze") as Division;
+  const { resolvePlayerDivision } = await import("./division.server");
+  return (await resolvePlayerDivision(supabase, trainerId)) as Division;
 }
+
 
 
 async function currentSeasonNumber(supabase: any, trainerId: string): Promise<number> {
@@ -173,8 +148,14 @@ export const buyCreature = createServerFn({ method: "POST" })
     const listing = findListing(bestiary, trainer.id, trainer.season_number, trainer.division, data.listing_id);
     if (!listing) throw new Error("Oferta não encontrada ou já expirou.");
 
-    // §8.1 — Calibre por divisão
+    // §8.1 — Calibre por divisão (avaliado do zero a cada proposta)
     const maxBand = DIVISION_MAX_BAND[trainer.division];
+    const refuse = refusalChance(trainer.division, listing.half_star_band);
+    console.log(
+      `[market/buy] trainer=${trainer.id} division_atual=${trainer.division} (fonte: time atual do jogador) ` +
+        `alvo=${listing.name} band=${listing.half_star_band} (${(listing.half_star_band / 2).toFixed(1)}★) ` +
+        `max_band=${maxBand} chance_recusa=${refuse}`,
+    );
     if (listing.half_star_band > maxBand) {
       throw new Error(
         `Sua divisão só pode contratar até ${Math.ceil(maxBand / 2)}★. Essa criatura tem ${(listing.half_star_band / 2).toFixed(1)}★.`,
@@ -182,10 +163,10 @@ export const buyCreature = createServerFn({ method: "POST" })
     }
 
     // Chance de recusa em contratações no limite (§8.1)
-    const refuse = refusalChance(trainer.division, listing.half_star_band);
     if (refuse > 0 && Math.random() < refuse) {
       throw new Error(`${listing.name} recusou a proposta — sua divisão ainda é pequena demais.`);
     }
+
 
     // §8.2 — Teto de folha salarial
     const payroll = await currentPayroll(supabase, trainer.id);

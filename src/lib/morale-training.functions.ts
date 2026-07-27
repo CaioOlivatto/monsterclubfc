@@ -218,20 +218,9 @@ export const getMoraleSessionsState = createServerFn({ method: "GET" })
       .eq("id", trainer.academyId)
       .maybeSingle();
     // Preço do Incentivo Geral (pago): preço por criatura × elenco não aposentado, escalado pela divisão atual.
-    const { data: trainerRow } = await supabase
-      .from("trainers")
-      .select("current_team_id")
-      .eq("id", trainer.id)
-      .maybeSingle();
-    let division: "bronze" | "prata" | "ouro" | "diamante" | "lendaria" = "bronze";
-    if (trainerRow?.current_team_id) {
-      const { data: team } = await supabase
-        .from("teams")
-        .select("division")
-        .eq("id", trainerRow.current_team_id)
-        .maybeSingle();
-      if (team?.division) division = team.division as any;
-    }
+    const { resolvePlayerDivision } = await import("./division.server");
+    const division = await resolvePlayerDivision(supabase, trainer.id);
+
     const { INCENTIVO_GERAL_PRICE_BY_DIVISION } = await import("./shop.server");
     const pricePer = INCENTIVO_GERAL_PRICE_BY_DIVISION[division];
     const { data: allCrs } = await supabase
@@ -273,21 +262,10 @@ export const startMoraleGeneral = createServerFn({ method: "POST" })
     const trainer = await loadTrainer(supabase, userId);
     await sweepMoraleSessions(supabase, trainer.id);
 
-    // Descobre divisão atual
-    const { data: trainerRow } = await supabase
-      .from("trainers")
-      .select("current_team_id")
-      .eq("id", trainer.id)
-      .maybeSingle();
-    let division: "bronze" | "prata" | "ouro" | "diamante" | "lendaria" = "bronze";
-    if (trainerRow?.current_team_id) {
-      const { data: team } = await supabase
-        .from("teams")
-        .select("division")
-        .eq("id", trainerRow.current_team_id)
-        .maybeSingle();
-      if (team?.division) division = team.division as any;
-    }
+    // Descobre divisão atual (fonte única: time atual do jogador)
+    const { resolvePlayerDivision } = await import("./division.server");
+    const division = await resolvePlayerDivision(supabase, trainer.id);
+
     const { INCENTIVO_GERAL_PRICE_BY_DIVISION } = await import("./shop.server");
     const pricePer = INCENTIVO_GERAL_PRICE_BY_DIVISION[division];
 
