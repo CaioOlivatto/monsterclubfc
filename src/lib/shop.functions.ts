@@ -36,15 +36,13 @@ async function loadCtx(context: { supabase: any; userId: string }) {
     .eq("trainer_id", trainer.id)
     .maybeSingle();
   if (!academy) throw new Error("Academia não encontrada");
-  let division: ExchangeDivision = "bronze";
-  if (trainer.current_team_id) {
-    const { data: team } = await context.supabase
-      .from("teams")
-      .select("division")
-      .eq("id", trainer.current_team_id)
-      .maybeSingle();
-    if (team?.division) division = team.division as ExchangeDivision;
-  }
+  const { resolvePlayerDivision } = await import("./division.server");
+  const division = (await resolvePlayerDivision(
+    context.supabase,
+    trainer.id,
+    trainer.current_team_id,
+  )) as ExchangeDivision;
+
   return { trainer, academy, division };
 }
 
