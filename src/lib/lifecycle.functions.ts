@@ -95,6 +95,9 @@ export const rebirthCreature = createServerFn({ method: "POST" })
       half_stars_earned: newHs,
       pending_half_stars: 0,
       energy: 100,
+      // Renasceu jovem (18 anos): perde qualquer prêmio salarial de veterano.
+      salary_mult: 1,
+
       epithet,
       name: newName,
       attr_defender: scl(c.attr_defender), attr_passar: scl(c.attr_passar),
