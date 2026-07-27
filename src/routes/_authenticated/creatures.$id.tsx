@@ -797,70 +797,8 @@ function CreatureDetail() {
               })()}
             </div>
 
-            <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Afinidade elemental (CT Elemental)
-              </p>
-              {(() => {
-                const training = (c as any).training_element as string | null;
-                const finishAt = (c as any).training_completes_at as string | null;
-                if (training) {
-                  return (
-                    <div className="rounded-md border border-border/60 bg-card/40 p-3">
-                      <RushTimer
-                        target={finishAt ?? new Date().toISOString()}
-                        totalMs={AFFINITY_TRAINING_DURATION_MS}
-                        label={`Treinando ${ELEMENT_LABEL[training] ?? training}`}
-                      >
-                        {({ cost, done }) => (
-                          <div className="flex gap-2 pt-1">
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              disabled={rushAffMut.isPending}
-                              onClick={() => rushAffMut.mutate()}
-                            >
-                              <Gem className="mr-1 h-3 w-3" />
-                              {done ? "Finalizar" : `Concluir agora (${cost} 💎)`}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              disabled={cancelAffMut.isPending}
-                              onClick={() => cancelAffMut.mutate()}
-                            >
-                              Cancelar
-                            </Button>
-                          </div>
-                        )}
-                      </RushTimer>
-                    </div>
-                  );
-                }
 
-                return (
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">
-                      Cada treino leva 4h e eleva a afinidade escolhida ao teto do seu CT Elemental. Só um treino por vez.
-                    </p>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                      {(["fogo", "agua", "terra", "ar", "gelo"] as const).map((k) => (
-                        <Button
-                          key={k}
-                          size="sm"
-                          variant="outline"
-                          disabled={startAffMut.isPending}
-                          onClick={() => startAffMut.mutate(k)}
-                        >
-                          <Sparkles className="mr-1 h-3 w-3" />
-                          {ELEMENT_LABEL[k]}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
+
 
             <div>
               <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
