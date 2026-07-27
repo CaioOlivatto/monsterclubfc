@@ -780,18 +780,28 @@ function CreatureDetail() {
                       <p className="text-xs text-amber-600">Energia insuficiente — descanse a criatura.</p>
                     )}
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {ATTR_KEYS.map((k) => (
-                        <Button
-                          key={k}
-                          size="sm"
-                          variant="secondary"
-                          disabled={trainMut.isPending || noXp || noEnergy}
-                          onClick={() => trainMut.mutate(k)}
-                        >
-                          {ATTR_LABELS[k]}
-                        </Button>
-                      ))}
+                      {ATTR_KEYS.map((k) => {
+                        const ms = attrTrainingDurationMs(c.element, k, isGk);
+                        const bonus = ms < ATTR_TRAINING_DURATION_MS;
+                        return (
+                          <Button
+                            key={k}
+                            size="sm"
+                            variant="secondary"
+                            className="h-auto flex-col gap-0.5 py-2"
+                            disabled={trainMut.isPending || noXp || noEnergy}
+                            onClick={() => trainMut.mutate(k)}
+                          >
+                            <span>{ATTR_LABELS[k]}</span>
+                            <span className="text-[10px] font-normal opacity-80">
+                              {formatTrainingDuration(ms)}
+                              {bonus ? ` · bônus de ${ELEMENT_LABEL[c.element] ?? c.element}` : ""}
+                            </span>
+                          </Button>
+                        );
+                      })}
                     </div>
+
                   </div>
                 );
               })()}
