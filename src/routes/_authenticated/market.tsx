@@ -77,9 +77,21 @@ function MarketPage() {
   const [sortBy, setSortBy] = useState<string>("price");
   const [search, setSearch] = useState("");
 
+  const [counter, setCounter] = useState<any | null>(null);
+
   const buyMut = useMutation({
-    mutationFn: (listing_id: string) => buyFn({ data: { listing_id } }),
-    onSuccess: (res) => {
+    mutationFn: (vars: { listing_id: string; accept_counter?: boolean }) =>
+      buyFn({ data: vars }),
+    onSuccess: (res: any) => {
+      if (res.refused) {
+        if (res.counter_offer) {
+          setCounter({ ...res.counter_offer, name: res.name, message: res.message });
+        } else {
+          toast.error(res.message);
+        }
+        return;
+      }
+      setCounter(null);
       // Remoção otimista imediata da oferta
       qc.setQueryData(["market"], (old: any) => {
         if (!old) return old;
