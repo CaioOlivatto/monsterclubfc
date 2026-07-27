@@ -391,6 +391,23 @@ Enforced em `src/lib/economy.ts` + `buyCreature`:
 | 2ª – Diamante | 5★ | — |
 | 1ª – Lendária | 5★ | — |
 
+### 8.1b Negociação por idade (zona de recusa)
+Vale apenas na **zona de recusa** (banda mais alta permitida em Bronze, Prata e Ouro).
+Diamante e Lendária não têm zona de recusa — proposta normal sempre aceita.
+
+O comprador sempre envia a proposta **normal** (passe e salário padrão). Se a
+criatura recusar:
+
+| Idade | Resultado |
+|---|---|
+| 18–24 | Recusa e **não** faz contraproposta. Fim da negociação. |
+| 25–33 (veterano) | Recusa a proposta normal e apresenta **contraproposta**: passe ×1,5 (+50%) e salário ×1,5 (+50%). O comprador aceita (transferência concluída nos novos termos) ou desiste (sem custo). |
+
+O salário majorado é persistido em `creatures.salary_mult` (1,5) e entra no teto de
+folha e no custo salarial por partida (liga, copa e mundiais).
+
+
+
 ### 8.2 Teto de folha salarial (~35% da receita típica)
 | Divisão | Receita típica | Teto de folha |
 |---|---|---|
