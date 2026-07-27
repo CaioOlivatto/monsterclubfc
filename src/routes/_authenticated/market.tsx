@@ -15,6 +15,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ArrowLeft, Coins, Store, Users, Star, Sparkles } from "lucide-react";
 import { StarRating, overallToStars, halfStarsToStars } from "@/components/StarRating";
 
@@ -443,6 +451,50 @@ function MarketPage() {
           </div>
         )}
       </main>
+
+      <Dialog open={!!counter} onOpenChange={(o) => !o && setCounter(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{counter?.name}</DialogTitle>
+            <DialogDescription>{counter?.message}</DialogDescription>
+          </DialogHeader>
+          {counter && (
+            <div className="space-y-2 text-sm">
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 space-y-1">
+                <p>
+                  Passe: <span className="font-semibold">{formatMoney(counter.price)}</span>{" "}
+                  <span className="text-muted-foreground line-through">{formatMoney(counter.base_price)}</span>{" "}
+                  <span className="text-amber-300">(+50%)</span>
+                </p>
+                <p>
+                  Salário: <span className="font-semibold">{formatMoney(counter.salary)}/temporada</span>{" "}
+                  <span className="text-muted-foreground line-through">{formatMoney(counter.base_salary)}</span>{" "}
+                  <span className="text-amber-300">(+50%)</span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {formatMoney(counter.salary_per_match)}/partida · {counter.age} anos (veterano)
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Recusar não custa nada — a negociação simplesmente não avança.
+              </p>
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setCounter(null)} disabled={buyMut.isPending}>
+              Desistir
+            </Button>
+            <Button
+              disabled={buyMut.isPending}
+              onClick={() =>
+                buyMut.mutate({ listing_id: counter.listing_id, accept_counter: true })
+              }
+            >
+              Aceitar contraproposta
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
