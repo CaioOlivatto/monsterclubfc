@@ -738,7 +738,7 @@ function CreatureDetail() {
                     <div className="rounded-md border border-border/60 bg-card/40 p-3">
                       <RushTimer
                         target={finishAt}
-                        totalMs={ATTR_TRAINING_DURATION_MS}
+                        totalMs={attrTrainingDurationMs(c.element, trainingKey, isGk)}
                         label={`Treinando ${ATTR_LABELS[trainingKey as keyof typeof ATTR_LABELS] ?? trainingKey}`}
                       >
                         {({ cost, done }) => (
