@@ -131,7 +131,9 @@ export const startAttributeTraining = createServerFn({ method: "POST" })
     const newXp = (c.xp ?? 0) - ATTR_TRAINING_XP_COST;
     const applied = c.half_stars_earned ?? 0;
     const pending = Math.max(0, Math.min(10 - applied, halfStarsFromXp(newXp) - applied));
-    const completes = new Date(Date.now() + ATTR_TRAINING_DURATION_MS).toISOString();
+    const durationMs = attrTrainingDurationMs(c.element, data.key, !!isGk);
+    const completes = new Date(Date.now() + durationMs).toISOString();
+
 
     const { error: uErr } = await supabase
       .from("creatures")
