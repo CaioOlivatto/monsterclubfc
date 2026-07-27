@@ -25,6 +25,7 @@ import { fatigueState, FATIGUE_LABEL, FATIGUE_CLASS, effectiveOverall, energyMul
 import { moraleState, MORALE_EMOJI, MORALE_LABEL, MORALE_CLASS, moraleMultiplier, moraleReason } from "@/lib/morale";
 import { StarRating, halfStarsToStars } from "@/components/StarRating";
 import { RetirementDialog } from "@/components/RetirementDialog";
+import { RushTimer } from "@/components/RushTimer";
 
 export const Route = createFileRoute("/_authenticated/roster")({
   head: () => ({
