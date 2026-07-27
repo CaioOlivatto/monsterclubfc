@@ -7,6 +7,7 @@ import { unlockSpeed } from "@/lib/shop.functions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Play, Pause, FastForward, SkipForward, Lock, Gem } from "lucide-react";
 import { PlayBanner } from "@/components/match/PlayBanner";
 import { EventsPanel, type RevealedEvent } from "@/components/match/EventsPanel";
