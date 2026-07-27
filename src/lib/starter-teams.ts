@@ -12,6 +12,7 @@ import {
   type SpeciesBase,
 } from "./bestiary";
 import type { LoadedBestiary } from "./bestiary.server";
+import { xpForHalfStars } from "./xp.server";
 
 export type StarterKey =
   | "titas_pedra"
@@ -211,6 +212,7 @@ export function rosterToDbRows(trainerId: string, roster: RolledCreature[]) {
     overall: c.overall,
     xp: 0,
     half_stars_earned: Math.max(0, Math.min(10, Math.round(c.overall / 10))),
+    career_baseline_xp: xpForHalfStars(Math.max(0, Math.min(10, Math.round(c.overall / 10)))),
     pending_half_stars: 0,
     energy: 100,
     market_value: c.market_value,

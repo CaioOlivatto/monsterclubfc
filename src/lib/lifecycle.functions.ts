@@ -91,7 +91,10 @@ export const rebirthCreature = createServerFn({ method: "POST" })
     const patch: any = {
       age: 18,
       career_season: 1,
-      xp: targetXp,
+      // O renascimento devolve progresso de CURVA, não saldo gastável em treino.
+      xp: 0,
+      xp_spent_training: 0,
+      career_baseline_xp: targetXp,
       half_stars_earned: newHs,
       pending_half_stars: 0,
       energy: 100,

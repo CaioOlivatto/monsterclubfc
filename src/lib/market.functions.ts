@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { generateMarketListings, findListing, sellPriceForOverall } from "./market.server";
+import { xpForHalfStars } from "./xp.server";
 import {
   DIVISION_MAX_BAND,
   DIVISION_SALARY_CAP,
@@ -250,6 +251,7 @@ export const buyCreature = createServerFn({ method: "POST" })
         // Estrelas são a força inata (mesma regra do elenco inicial e do mundo):
         // meia-estrelas = overall/10. Sem isso, a criatura comprada nascia com 0★.
         half_stars_earned: Math.max(0, Math.min(10, Math.round((listing.overall ?? 0) / 10))),
+        career_baseline_xp: xpForHalfStars(Math.max(0, Math.min(10, Math.round((listing.overall ?? 0) / 10)))),
         energy: 100,
 
         market_value: listing.market_value,

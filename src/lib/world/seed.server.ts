@@ -20,6 +20,7 @@ import {
   type WorldTeam,
 } from "./catalog";
 import { generateSchedule } from "@/lib/league.server";
+import { xpForHalfStars } from "@/lib/xp.server";
 
 // ---------- RNG determinístico ----------
 
@@ -205,6 +206,7 @@ export function generateTeamRoster(bestiary: LoadedBestiary, team: WorldTeam, di
       attr_elasticidade: scaled.attr_elasticidade,
       overall: target,
       half_stars_earned: half,
+      career_baseline_xp: xpForHalfStars(half),
       pending_half_stars: 0,
       energy: 100,
       market_value: Math.round(marketValue),

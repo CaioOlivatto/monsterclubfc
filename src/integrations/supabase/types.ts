@@ -172,6 +172,7 @@ export type Database = {
           attr_tecnica: number
           attr_training_completes_at: string | null
           attr_training_key: string | null
+          career_baseline_xp: number
           career_season: number
           created_at: string
           element: Database["public"]["Enums"]["element_type"]
@@ -201,6 +202,7 @@ export type Database = {
           training_element: string | null
           updated_at: string
           xp: number
+          xp_spent_training: number
         }
         Insert: {
           aff_agua?: number
@@ -220,6 +222,7 @@ export type Database = {
           attr_tecnica?: number
           attr_training_completes_at?: string | null
           attr_training_key?: string | null
+          career_baseline_xp?: number
           career_season?: number
           created_at?: string
           element: Database["public"]["Enums"]["element_type"]
@@ -249,6 +252,7 @@ export type Database = {
           training_element?: string | null
           updated_at?: string
           xp?: number
+          xp_spent_training?: number
         }
         Update: {
           aff_agua?: number
@@ -268,6 +272,7 @@ export type Database = {
           attr_tecnica?: number
           attr_training_completes_at?: string | null
           attr_training_key?: string | null
+          career_baseline_xp?: number
           career_season?: number
           created_at?: string
           element?: Database["public"]["Enums"]["element_type"]
@@ -297,6 +302,7 @@ export type Database = {
           training_element?: string | null
           updated_at?: string
           xp?: number
+          xp_spent_training?: number
         }
         Relationships: [
           {

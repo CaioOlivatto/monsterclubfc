@@ -32,6 +32,27 @@ export function xpForHalfStars(n: number): number {
   return acc;
 }
 
+/**
+ * Progresso histórico na curva de meia-estrelas.
+ * baseline (estrelas de nascimento) + XP já gasto em treino + saldo atual.
+ * O saldo GASTÁVEL em treino continua sendo apenas `xp`.
+ */
+export function careerCurveXp(c: {
+  xp?: number | null;
+  career_baseline_xp?: number | null;
+  xp_spent_training?: number | null;
+}): number {
+  return (c.career_baseline_xp ?? 0) + (c.xp_spent_training ?? 0) + (c.xp ?? 0);
+}
+
+/** Meia-estrelas pendentes de aplicação, dado o progresso histórico. */
+export function pendingHalfStarsFor(
+  c: { xp?: number | null; career_baseline_xp?: number | null; xp_spent_training?: number | null },
+  applied: number,
+): number {
+  return Math.max(0, Math.min(10 - applied, halfStarsFromXp(careerCurveXp(c)) - applied));
+}
+
 export async function applyPostMatchXp(
   supabase: any,
   trainerId: string,
@@ -141,7 +162,7 @@ export async function applyPostMatchXp(
 
   const { data: creatures } = await supabase
     .from("creatures")
-    .select("id, xp, pending_half_stars, half_stars_earned, energy, morale, injury_matches_remaining, injury_severity")
+    .select("id, xp, career_baseline_xp, xp_spent_training, pending_half_stars, half_stars_earned, energy, morale, injury_matches_remaining, injury_severity")
     .in("id", allTrainerIds)
     .eq("owner_trainer_id", trainerId);
 
@@ -154,9 +175,8 @@ export async function applyPostMatchXp(
   for (const c of creatures ?? []) {
     const add = targets.filter((t) => t.id === c.id).reduce((a, t) => a + t.add, 0);
     const newXp = (c.xp ?? 0) + add;
-    const totalHalfStars = halfStarsFromXp(newXp);
     const applied = c.half_stars_earned ?? 0;
-    const pending = Math.max(0, Math.min(10 - applied, totalHalfStars - applied));
+    const pending = pendingHalfStarsFor({ ...c, xp: newXp }, applied);
     const loss = opts.energy_loss[c.id] ?? 0;
     const played = starterSet.has(c.id) || enteredSet.has(c.id);
     const rec = played ? RECOVERY_PLAYED : RECOVERY_RESTED;
