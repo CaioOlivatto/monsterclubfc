@@ -112,7 +112,9 @@ export const getLineupPrognostic = createServerFn({ method: "POST" })
       opponentSide = generateCpuSideFor(hashSeed(oppId), oppId, opp?.name ?? "Adversário", strength, bestiary);
       opponentInfo = { name: opp?.name ?? "Adversário", is_next_official: true, round: nextMatch.round, is_home: playerIsHome };
     } else {
-      const division = ((playerLeagueTeam?.division as DivisionSlug | undefined) ?? "bronze");
+      const { resolvePlayerDivision } = await import("./division.server");
+      const division = (await resolvePlayerDivision(supabase, trainer.id)) as DivisionSlug;
+
       const pool = (WORLD_TEAMS[division] ?? WORLD_TEAMS.bronze).filter((t) => t.name !== playerName);
       const opp = pool[Math.floor(Math.random() * pool.length)] ?? pool[0];
       const { data: creatures } = await supabase
