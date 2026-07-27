@@ -170,6 +170,8 @@ export type Database = {
           attr_passar: number
           attr_pique: number
           attr_tecnica: number
+          attr_training_completes_at: string | null
+          attr_training_key: string | null
           career_season: number
           created_at: string
           element: Database["public"]["Enums"]["element_type"]
@@ -216,6 +218,8 @@ export type Database = {
           attr_passar?: number
           attr_pique?: number
           attr_tecnica?: number
+          attr_training_completes_at?: string | null
+          attr_training_key?: string | null
           career_season?: number
           created_at?: string
           element: Database["public"]["Enums"]["element_type"]
@@ -262,6 +266,8 @@ export type Database = {
           attr_passar?: number
           attr_pique?: number
           attr_tecnica?: number
+          attr_training_completes_at?: string | null
+          attr_training_key?: string | null
           career_season?: number
           created_at?: string
           element?: Database["public"]["Enums"]["element_type"]

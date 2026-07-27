@@ -502,3 +502,12 @@ Sistema manual e opcional, adicional à recuperação automática pós-partida (
 | 4º+ | 60 💎 (teto) |
 
 Assim que houver ao menos 1 carga grátis disponível de novo, o próximo uso volta a ser gratuito e o contador de pago é resetado.
+
+## §9 — Treinamento de atributo (v2)
+O treino NÃO gera XP. Ele direciona o XP já acumulado em partidas:
+- Custo: 100 XP do saldo da criatura + 20 de energia
+- Duração: 4h reais, acelerável por gemas (1 gema / 10 min restantes)
+- Resultado: +1 ponto no atributo escolhido (recalcula overall e valor de mercado)
+- XP gasto é gasto: sai do saldo e atrasa a próxima meia-estrela (curva 800 × 1,25^n intacta)
+- Sem XP suficiente, o treino fica bloqueado até a criatura jogar mais partidas
+- Cancelar devolve XP e energia integralmente
