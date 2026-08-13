@@ -860,7 +860,6 @@ export const advanceWorldLeagueRoundBackground = createServerFn({ method: "POST"
     const stamp = (label: string) =>
       console.log(`[advanceWorldLeagueRoundBackground] +${Date.now() - t0}ms ${label}`);
     const { supabase, userId } = context;
-    const bestiaryPromise = loadEngineBestiary(supabase);
     const trainer = await getTrainer(supabase, userId);
     const { data: comp } = await supabase
       .from("competitions").select("id").eq("id", data.competition_id).eq("trainer_id", trainer.id).eq("type", "world_league").maybeSingle();

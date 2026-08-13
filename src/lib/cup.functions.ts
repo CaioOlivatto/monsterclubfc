@@ -64,8 +64,6 @@ export const getCup = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    // O bestiário não depende do treinador; começa a carregar logo no início.
-    const bestiaryPromise = loadEngineBestiary(supabase);
     const trainer = await getTrainer(supabase, userId);
     const { data: cup } = await supabase
       .from("competitions")
