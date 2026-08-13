@@ -418,7 +418,7 @@ function MatchRow({
   );
   if (finished && involvesPlayer) {
     return (
-      <Link to="/match/$id" params={{ id: m.id }} className="block hover:opacity-90">
+      <Link to="/match/$id" params={{ id: m.id }} preload="intent" className="block hover:opacity-90">
         {content}
       </Link>
     );

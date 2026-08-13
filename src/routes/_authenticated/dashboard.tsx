@@ -500,6 +500,7 @@ function AlertsBell({ alerts }: { alerts: Alert[] }) {
             <Link
               key={a.key}
               to={a.to}
+              preload="intent"
               className="flex items-center gap-3 rounded-lg border border-border/60 bg-card/40 p-3 transition-colors hover:bg-card/70"
             >
               <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-md border ${TONE_BADGE[a.tone]}`}>
@@ -583,6 +584,7 @@ function NavigationHubs() {
                 <Link
                   key={l.to}
                   to={l.to}
+                  preload="intent"
                   className="flex items-center gap-3 rounded-lg border border-border/60 bg-card/40 p-3 transition-colors hover:bg-card/70"
                 >
                   <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">

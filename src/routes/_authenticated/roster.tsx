@@ -408,7 +408,7 @@ function renderCard(c: any) {
       ? "border-amber-500/40 hover:border-amber-400/60"
       : "hover:border-primary/40 hover:bg-card/70";
   return (
-    <Link key={c.id} to="/creatures/$id" params={{ id: c.id }} className="block">
+    <Link key={c.id} to="/creatures/$id" params={{ id: c.id }} preload="intent" className="block">
       <Card className={"transition-colors " + cardBorder}>
         <CardContent className="p-4">
           <div className="flex items-start justify-between gap-2">
