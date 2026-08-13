@@ -53,24 +53,24 @@ export const getCareer = createServerFn({ method: "GET" })
     if (tErr) throw tErr;
     if (!trainer) throw new Error("Treinador não encontrado.");
 
-    let currentTeamName: string | null = null;
-    let currentDivision: string | null = null;
-    if (trainer.current_team_id) {
-      const { data: team } = await supabase
-        .from("teams")
-        .select("name, division")
-        .eq("id", trainer.current_team_id)
-        .maybeSingle();
-      currentTeamName = team?.name ?? null;
-      currentDivision = (team?.division as string | null) ?? null;
-    }
-
-    const { data: rows, error: cErr } = await supabase
-      .from("trainer_career")
-      .select("id, team_id, team_name, division, season_start, season_end, final_position, event, title, created_at")
-      .eq("trainer_id", trainer.id)
-      .order("season_start", { ascending: false })
-      .order("created_at", { ascending: false });
+    const [teamResult, careerResult] = await Promise.all([
+      trainer.current_team_id
+        ? supabase
+            .from("teams")
+            .select("name, division")
+            .eq("id", trainer.current_team_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      supabase
+        .from("trainer_career")
+        .select("id, team_id, team_name, division, season_start, season_end, final_position, event, title, created_at")
+        .eq("trainer_id", trainer.id)
+        .order("season_start", { ascending: false })
+        .order("created_at", { ascending: false }),
+    ]);
+    const currentTeamName = teamResult.data?.name ?? null;
+    const currentDivision = (teamResult.data?.division as string | null) ?? null;
+    const { data: rows, error: cErr } = careerResult;
     if (cErr) throw cErr;
 
     const entries = (rows ?? []) as CareerEntry[];
@@ -284,22 +284,23 @@ export const listOffers = createServerFn({ method: "GET" })
       .maybeSingle();
     if (!trainer) throw new Error("Treinador não encontrado.");
 
-    let currentTeamName: string | null = null;
-    if (trainer.current_team_id) {
-      const { data: t } = await supabase
-        .from("teams")
-        .select("name")
-        .eq("id", trainer.current_team_id)
-        .maybeSingle();
-      currentTeamName = t?.name ?? null;
-    }
-
-    const { data: offers } = await supabase
-      .from("job_offers")
-      .select("id, team_id, team_name, division, season_offered, reason, status, signing_bonus, message, created_at")
-      .eq("trainer_id", trainer.id)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false });
+    const [teamResult, offersResult] = await Promise.all([
+      trainer.current_team_id
+        ? supabase
+            .from("teams")
+            .select("name")
+            .eq("id", trainer.current_team_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      supabase
+        .from("job_offers")
+        .select("id, team_id, team_name, division, season_offered, reason, status, signing_bonus, message, created_at")
+        .eq("trainer_id", trainer.id)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false }),
+    ]);
+    const currentTeamName = teamResult.data?.name ?? null;
+    const { data: offers } = offersResult;
 
     return {
       status: (trainer.status as "employed" | "dismissed") ?? "employed",

@@ -30,13 +30,17 @@ async function loadCtx(context: { supabase: any; userId: string }) {
     .eq("user_id", context.userId)
     .maybeSingle();
   if (!trainer) throw new Error("Treinador não encontrado");
-  const { data: academy } = await context.supabase
+  const academyPromise = context.supabase
     .from("academies")
     .select("*")
     .eq("trainer_id", trainer.id)
     .maybeSingle();
+  const divisionModulePromise = import("./division.server");
+  const [{ data: academy }, { resolvePlayerDivision }] = await Promise.all([
+    academyPromise,
+    divisionModulePromise,
+  ]);
   if (!academy) throw new Error("Academia não encontrada");
-  const { resolvePlayerDivision } = await import("./division.server");
   const division = (await resolvePlayerDivision(
     context.supabase,
     trainer.id,
@@ -66,14 +70,18 @@ export const getShopState = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { trainer, academy, division } = await loadCtx(context);
-    const { data: items } = await context.supabase
-      .from("items")
-      .select("item_key, quantity")
-      .eq("trainer_id", trainer.id);
-    const { count: creaturesCount } = await context.supabase
-      .from("creatures")
-      .select("id", { count: "exact", head: true })
-      .eq("owner_trainer_id", trainer.id);
+    const [itemsResult, creaturesResult] = await Promise.all([
+      context.supabase
+        .from("items")
+        .select("item_key, quantity")
+        .eq("trainer_id", trainer.id),
+      context.supabase
+        .from("creatures")
+        .select("id", { count: "exact", head: true })
+        .eq("owner_trainer_id", trainer.id),
+    ]);
+    const { data: items } = itemsResult;
+    const { count: creaturesCount } = creaturesResult;
 
     const inventory: Record<string, number> = {};
     for (const k of ITEM_KEYS) inventory[k] = 0;

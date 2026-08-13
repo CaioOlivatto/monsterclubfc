@@ -27,13 +27,13 @@ async function finalizeCompletedUpgrades(supabase: any, trainerId: string) {
     .not("upgrade_completes_at", "is", null)
     .lte("upgrade_completes_at", nowIso);
   if (!done || done.length === 0) return;
-  for (const b of done) {
-    await supabase
+  await Promise.all(done.flatMap((b: { id: string; level: number | null }) => [
+    supabase
       .from("buildings")
       .update({ level: (b.level ?? 0) + 1, upgrade_completes_at: null })
-      .eq("id", b.id);
-    await awardTrainerXp(supabase, trainerId, "building", 1);
-  }
+      .eq("id", b.id),
+    awardTrainerXp(supabase, trainerId, "building", 1),
+  ]));
 }
 
 
@@ -102,25 +102,28 @@ export const startUpgrade = createServerFn({ method: "POST" })
     await finalizeCompletedUpgrades(supabase, trainer.id);
 
     // Regra: 1 construtor ativo por vez.
-    const { data: busy } = await supabase
-      .from("buildings")
-      .select("id")
-      .eq("trainer_id", trainer.id)
-      .not("upgrade_completes_at", "is", null)
-      .limit(1);
+    const type = data.type as BuildingType;
+    const [busyResult, existingResult] = await Promise.all([
+      supabase
+        .from("buildings")
+        .select("id")
+        .eq("trainer_id", trainer.id)
+        .not("upgrade_completes_at", "is", null)
+        .limit(1),
+      supabase
+        .from("buildings")
+        .select("id, level")
+        .eq("trainer_id", trainer.id)
+        .eq("building_type", type)
+        .maybeSingle(),
+    ]);
+    const { data: busy } = busyResult;
     if (busy && busy.length > 0) {
       throw new Error("Seu construtor já está ocupado com outra obra.");
     }
 
-    const type = data.type as BuildingType;
     const spec = BUILDINGS[type];
-
-    const { data: existing } = await supabase
-      .from("buildings")
-      .select("id, level")
-      .eq("trainer_id", trainer.id)
-      .eq("building_type", type)
-      .maybeSingle();
+    const { data: existing } = existingResult;
 
     const currentLevel = existing?.level ?? 0;
     if (currentLevel >= MAX_LEVEL) throw new Error("Nível máximo já atingido.");
