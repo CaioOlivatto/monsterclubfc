@@ -131,8 +131,9 @@ async function simulatePlayerMatch(
     }
     return generateCpuSideFor(hashSeed(t.id), t.id, t.name, t.cpu_strength ?? 45, bestiary);
   };
-  const homeSide = await buildSide(home);
-  const awaySide = await buildSide(away);
+  // O lado do jogador consulta o banco, enquanto o lado CPU é gerado localmente.
+  // Prepará-los juntos reduz a espera antes da simulação mundial.
+  const [homeSide, awaySide] = await Promise.all([buildSide(home), buildSide(away)]);
   const seed = hashSeed(matchRow.id);
   const result = simulate(homeSide, awaySide, seed);
 
@@ -771,6 +772,7 @@ export const simulateWorldLeagueRound = createServerFn({ method: "POST" })
     const stamp = (label: string) =>
       console.log(`[simulateWorldLeagueRound] +${Date.now() - t0}ms ${label}`);
     const { supabase, userId } = context;
+    const bestiaryPromise = loadEngineBestiary(supabase);
     const trainer = await getTrainer(supabase, userId);
     const season = await getCurrentSeason(supabase, trainer.id);
     const { data: comp } = await supabase
@@ -786,17 +788,20 @@ export const simulateWorldLeagueRound = createServerFn({ method: "POST" })
     if (!pending || !pending.length) throw new Error("Nenhuma rodada pendente.");
     const nextRound = Number(pending[0].round ?? 1);
 
-    // RETRY-ON-ENTRY
-    try { await recoverStaleWorldLeagueRounds(supabase, comp.id, nextRound); stamp("recover"); }
-    catch (e) { console.error("[simulateWorldLeagueRound] ERRO na recuperação:", e); }
-
     const roundMatches = (pending as any[]).filter((m: any) => m.round === nextRound);
-    const { data: playerRow } = await supabase
-      .from("teams").select("id").eq("trainer_id", trainer.id).eq("is_player", true).not("division", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    // Recuperação, busca do time e bestiário são independentes nesta etapa.
+    const recoverPromise = recoverStaleWorldLeagueRounds(supabase, comp.id, nextRound)
+      .then(() => stamp("recover"))
+      .catch((e) => console.error("[simulateWorldLeagueRound] ERRO na recuperação:", e));
+    const [{ data: playerRow }, bestiary] = await Promise.all([
+      supabase
+        .from("teams").select("id").eq("trainer_id", trainer.id).eq("is_player", true)
+        .not("division", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      bestiaryPromise,
+    ]);
     const playerTeamId = playerRow?.id as string | undefined;
 
     const isGroupPhase = nextRound <= 5;
-    const bestiary = await loadEngineBestiary(supabase);
     stamp("bestiary");
 
     // FOREGROUND: só a partida do jogador
@@ -805,6 +810,7 @@ export const simulateWorldLeagueRound = createServerFn({ method: "POST" })
     );
     let playerMatchId: string | null = null;
     if (playerMatch && playerTeamId) {
+      await recoverPromise;
       await simulatePlayerMatch(supabase, trainer.id, playerMatch, playerTeamId, bestiary, {
         competition: "world_league", round: nextRound, isGroupPhase, division: (comp.division as string) ?? "bronze",
       });
@@ -842,6 +848,7 @@ export const advanceWorldLeagueRoundBackground = createServerFn({ method: "POST"
     const stamp = (label: string) =>
       console.log(`[advanceWorldLeagueRoundBackground] +${Date.now() - t0}ms ${label}`);
     const { supabase, userId } = context;
+    const bestiaryPromise = loadEngineBestiary(supabase);
     const trainer = await getTrainer(supabase, userId);
     const { data: comp } = await supabase
       .from("competitions").select("id").eq("id", data.competition_id).eq("trainer_id", trainer.id).eq("type", "world_league").maybeSingle();
@@ -1072,15 +1079,17 @@ export const simulateWorldCupRound = createServerFn({ method: "POST" })
     if (!pending || !pending.length) throw new Error("Nenhuma rodada pendente.");
     const nextRound = Number(pending[0].round ?? 1);
 
-    // RETRY-ON-ENTRY
-    try { await recoverStaleWorldCupRounds(supabase, comp.id, nextRound); stamp("recover"); }
-    catch (e) { console.error("[simulateWorldCupRound] ERRO na recuperação:", e); }
-
     const roundMatches = (pending as any[]).filter((m: any) => m.round === nextRound);
-    const { data: playerRow } = await supabase
-      .from("teams").select("id").eq("trainer_id", trainer.id).eq("is_player", true).not("division", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const recoverPromise = recoverStaleWorldCupRounds(supabase, comp.id, nextRound)
+      .then(() => stamp("recover"))
+      .catch((e) => console.error("[simulateWorldCupRound] ERRO na recuperação:", e));
+    const [{ data: playerRow }, bestiary] = await Promise.all([
+      supabase
+        .from("teams").select("id").eq("trainer_id", trainer.id).eq("is_player", true)
+        .not("division", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      bestiaryPromise,
+    ]);
     const playerTeamId = playerRow?.id as string | undefined;
-    const bestiary = await loadEngineBestiary(supabase);
     stamp("bestiary");
 
     const playerMatch = roundMatches.find((m: any) =>
@@ -1088,6 +1097,7 @@ export const simulateWorldCupRound = createServerFn({ method: "POST" })
     );
     let playerMatchId: string | null = null;
     if (playerMatch && playerTeamId) {
+      await recoverPromise;
       await simulatePlayerMatch(supabase, trainer.id, playerMatch, playerTeamId, bestiary, {
         competition: "world_cup", round: nextRound, isGroupPhase: false,
         division: ((comp as any).division as string) ?? "bronze",
