@@ -193,27 +193,25 @@ export const getMatch = createServerFn({ method: "GET" })
   .inputValidator((raw: unknown) => z.object({ id: z.string().uuid() }).parse(raw))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const trainer = await getTrainerCtx(supabase, userId);
-
-    const { data: match, error } = await supabase
-      .from("matches")
-      .select("id, home_team_id, away_team_id, home_score, away_score, status, is_friendly, played_at, clima, finance_summary")
-      .eq("id", data.id)
-      .maybeSingle();
+    // O contexto do treinador e os dados da partida não dependem um do outro.
+    // Começar ambos juntos reduz a espera para abrir a tela de jogo.
+    const [trainer, matchResult] = await Promise.all([
+      getTrainerCtx(supabase, userId),
+      supabase
+        .from("matches")
+        .select("id, home_team_id, away_team_id, home_score, away_score, status, is_friendly, played_at, clima, finance_summary")
+        .eq("id", data.id)
+        .maybeSingle(),
+    ]);
+    const { data: match, error } = matchResult;
     if (error) throw error;
     if (!match) throw new Error("Partida não encontrada.");
 
-    const { data: teams } = await supabase
-      .from("teams")
-      .select("id, name, is_player, trainer_id")
-      .in("id", [match.home_team_id, match.away_team_id]);
-    const home = teams?.find((t: any) => t.id === match.home_team_id);
-    const away = teams?.find((t: any) => t.id === match.away_team_id);
-
-    const isPlayerMatch = home?.trainer_id === trainer.id || away?.trainer_id === trainer.id;
-    if (!isPlayerMatch) throw new Error("Você não tem acesso a essa partida.");
-
-    const [{ data: events }, { data: academy }] = await Promise.all([
+    const [{ data: teams }, { data: events }, { data: academy }] = await Promise.all([
+      supabase
+        .from("teams")
+        .select("id, name, is_player, trainer_id")
+        .in("id", [match.home_team_id, match.away_team_id]),
       supabase
         .from("match_events")
         .select("minute, event_type, description, actor_creature_id, actor_team_id, meta")
@@ -226,6 +224,11 @@ export const getMatch = createServerFn({ method: "GET" })
         .eq("trainer_id", trainer.id)
         .maybeSingle(),
     ]);
+    const home = teams?.find((t: any) => t.id === match.home_team_id);
+    const away = teams?.find((t: any) => t.id === match.away_team_id);
+
+    const isPlayerMatch = home?.trainer_id === trainer.id || away?.trainer_id === trainer.id;
+    if (!isPlayerMatch) throw new Error("Você não tem acesso a essa partida.");
 
     const playerTeamId = home?.trainer_id === trainer.id ? home.id : away?.id ?? null;
 

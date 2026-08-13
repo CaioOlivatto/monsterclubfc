@@ -29,13 +29,18 @@ export async function buildPlayerSideFromDb(
   teamId: string,
   teamName: string,
 ): Promise<EngineSide> {
-  const { data: lineup } = await supabase
-    .from("team_lineups")
-    .select("formation, strategy, starters, bench, default_tactics")
-    .eq("trainer_id", trainerId)
-    .maybeSingle();
+  // Estas três consultas são independentes. Executá-las juntas reduz duas
+  // viagens ao banco em toda partida oficial, amistoso e cálculo de odds.
+  const [{ data: lineup }, medicalLevel, division] = await Promise.all([
+    supabase
+      .from("team_lineups")
+      .select("formation, strategy, starters, bench, default_tactics")
+      .eq("trainer_id", trainerId)
+      .maybeSingle(),
+    fetchMedicalLevel(supabase, trainerId),
+    fetchTeamDivision(supabase, teamId),
+  ]);
   if (!lineup) throw new Error("Você ainda não tem escalação salva. Vá em Escalação primeiro.");
-  const medicalLevel = await fetchMedicalLevel(supabase, trainerId);
 
 
   const savedStarters = (lineup.starters ?? []) as {
@@ -105,7 +110,6 @@ export async function buildPlayerSideFromDb(
     .map((c: any) => toEngine(c, posToRole(c.suggested_position)));
 
   const tactics: Tactics = (lineup.default_tactics as Tactics | null) ?? NEUTRAL_TACTICS;
-  const division = await fetchTeamDivision(supabase, teamId);
   return { team_id: teamId, team_name: teamName, starters, bench, strategy: lineup.strategy, tactics, medical_level: medicalLevel, division };
 }
 
@@ -195,5 +199,4 @@ export async function buildPlayerSideFromDraft(
     division,
   };
 }
-
 
