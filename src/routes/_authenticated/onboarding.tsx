@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
   DialogContent,
@@ -80,6 +81,8 @@ function Onboarding() {
   const [detail, setDetail] = useState<any>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [setupProgress, setSetupProgress] = useState(0);
+  const [setupStep, setSetupStep] = useState("Preparando sua jornada...");
 
   // Inputs de nome — aparecem no diálogo se o treinador ainda não existe
   // Nome do treinador — aparece no diálogo se ele ainda não existe.
@@ -90,6 +93,30 @@ function Onboarding() {
   useEffect(() => {
     if (trainer?.has_roster) nav({ to: "/dashboard", replace: true });
   }, [trainer, nav]);
+
+  useEffect(() => {
+    if (!submitting) return;
+
+    const phases = [
+      { progress: 12, label: "Criando seu treinador..." },
+      { progress: 28, label: "Organizando a academia..." },
+      { progress: 46, label: "Formando seu elenco..." },
+      { progress: 64, label: "Criando as cinco ligas..." },
+      { progress: 80, label: "Montando os calendários..." },
+      { progress: 92, label: "Acertando a nova temporada..." },
+    ];
+    let phaseIndex = 0;
+    setSetupProgress(phases[0].progress);
+    setSetupStep(phases[0].label);
+
+    const timer = window.setInterval(() => {
+      phaseIndex = Math.min(phaseIndex + 1, phases.length - 1);
+      setSetupProgress(phases[phaseIndex].progress);
+      setSetupStep(phases[phaseIndex].label);
+    }, 1100);
+
+    return () => window.clearInterval(timer);
+  }, [submitting]);
 
   async function openTeam(key: string) {
     setOpenKey(key);
@@ -129,7 +156,10 @@ function Onboarding() {
       }
 
       await choose({ data: { key: openKey } });
+      setSetupProgress(100);
+      setSetupStep("Tudo pronto! Entrando no clube...");
       toast.success("Time escolhido! Liga Bronze iniciada.");
+      await new Promise((resolve) => window.setTimeout(resolve, 350));
       nav({ to: "/dashboard", replace: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao iniciar.");
@@ -303,6 +333,19 @@ function Onboarding() {
 
             </div>
           )}
+
+          {submitting ? (
+            <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="font-medium">{setupStep}</span>
+                <span className="tabular-nums text-muted-foreground">{setupProgress}%</span>
+              </div>
+              <Progress value={setupProgress} className="h-2.5" />
+              <p className="text-xs text-muted-foreground">
+                Estamos preparando times, criaturas e partidas. Você pode aguardar nesta tela.
+              </p>
+            </div>
+          ) : null}
 
           <DialogFooter>
             <Button
