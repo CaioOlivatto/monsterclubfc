@@ -1,6 +1,6 @@
-import { generateAmateurAcademies } from "./names";
-import { WORLD_TEAMS, DIVISION_ORDER } from "../world/catalog";
-import { levelFromXp, xpForLevel } from "../trainer-xp.server";
+import { generateAmateurAcademies } from "./names.ts";
+import { WORLD_TEAMS, DIVISION_ORDER } from "../world/catalog.ts";
+import { levelFromXp, xpForLevel } from "../trainer-xp.server.ts";
 
 export type SortKey = "level" | "wins" | "patrimony";
 export type Div = "lendaria" | "diamante" | "ouro" | "prata" | "bronze" | "amador";

@@ -1,8 +1,14 @@
 // Catálogo global dos 70 times (5 divisões × 14 times).
 // Nomes, elemento dominante e cores conforme a especificação do jogo.
 
-import type { Element } from "@/lib/bestiary";
-import type { StarterKey } from "@/lib/starter-teams";
+type Element = "fogo" | "agua" | "terra" | "ar" | "gelo";
+type StarterKey =
+  | "titas_pedra"
+  | "furacoes_vento"
+  | "chamas_rubras"
+  | "mares_profundas"
+  | "laminas_gelo"
+  | "guardioes_mistos";
 
 export type DivisionSlug = "lendaria" | "diamante" | "ouro" | "prata" | "bronze";
 

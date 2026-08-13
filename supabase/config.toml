@@ -1,1 +1,6 @@
-project_id = "jssdbfwmtnurdizwzbpy"
+project_id = "gwqvninbrmrsabuseqbx"
+
+# New publishable keys are opaque rather than JWTs, so authentication is
+# validated inside the function with auth.getUser before admin access is used.
+[functions.world-ranking]
+verify_jwt = false

@@ -159,15 +159,15 @@ export const getDashboard = createServerFn({ method: "GET" })
       playerTeam = fallbackTeam ?? null;
     }
 
-    const { data: activeLeague } = playerTeam?.competition_id
-      ? await supabase
+    const activeLeaguePromise = playerTeam?.competition_id
+      ? supabase
           .from("competitions")
           .select("id")
           .eq("id", playerTeam.competition_id)
           .eq("type", "league")
           .eq("status", "active")
           .maybeSingle()
-      : { data: null };
+      : Promise.resolve({ data: null });
 
 
     let standing = null as null | {
@@ -193,7 +193,10 @@ export const getDashboard = createServerFn({ method: "GET" })
       is_home: boolean;
     };
 
-    const officialMatch = await getNextOfficialMatchForTrainer(supabase, trainer);
+    const [{ data: activeLeague }, officialMatch] = await Promise.all([
+      activeLeaguePromise,
+      getNextOfficialMatchForTrainer(supabase, trainer),
+    ]);
     if (officialMatch) {
       nextMatch = {
         competition: officialMatch.competition,

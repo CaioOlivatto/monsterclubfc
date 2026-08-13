@@ -143,10 +143,19 @@ export const getConfidence = createServerFn({ method: "GET" })
     let position: number | null = null;
     let totalTeams: number | null = null;
     if (trainer.current_team_id) {
-      const { data: standings } = await supabase
-        .from("standings")
-        .select("team_id, points, goals_for, goals_against")
-        .order("points", { ascending: false });
+      const { data: currentTeam } = await supabase
+        .from("teams")
+        .select("competition_id")
+        .eq("id", trainer.current_team_id)
+        .maybeSingle();
+
+      const { data: standings } = currentTeam?.competition_id
+        ? await supabase
+            .from("standings")
+            .select("team_id, points, goals_for, goals_against")
+            .eq("competition_id", currentTeam.competition_id)
+            .order("points", { ascending: false })
+        : { data: [] };
       if (standings && standings.length) {
         totalTeams = standings.length;
         const idx = standings.findIndex((s: any) => s.team_id === trainer.current_team_id);

@@ -45,17 +45,18 @@ export const getMyLineup = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const trainerId = await getTrainerId(supabase, userId);
 
-    const { data: lineup } = await supabase
-      .from("team_lineups")
-      .select("formation, strategy, starters, bench, default_tactics")
-      .eq("trainer_id", trainerId)
-      .maybeSingle();
-
-    const { data: creatures } = await supabase
-      .from("creatures")
-      .select("id, name, element, suggested_position, overall, energy, morale, injury_matches_remaining, injury_severity")
-      .eq("owner_trainer_id", trainerId)
-      .order("overall", { ascending: false });
+    const [{ data: lineup }, { data: creatures }] = await Promise.all([
+      supabase
+        .from("team_lineups")
+        .select("formation, strategy, starters, bench, default_tactics")
+        .eq("trainer_id", trainerId)
+        .maybeSingle(),
+      supabase
+        .from("creatures")
+        .select("id, name, element, suggested_position, overall, energy, morale, injury_matches_remaining, injury_severity")
+        .eq("owner_trainer_id", trainerId)
+        .order("overall", { ascending: false }),
+    ]);
 
     return {
       lineup: lineup ?? {
