@@ -125,6 +125,86 @@ function labelFor(score: number): { label: string; tone: ConfidenceInfo["tone"] 
   return { label: "Ídolo do clube", tone: "great" };
 }
 
+/**
+ * Calcula a confiança usando dados já carregados. Assim, telas que já precisam
+ * de classificação e partidas recentes não repetem as mesmas consultas.
+ */
+export function buildConfidence(
+  trainer: {
+    current_team_id: string | null;
+    seasons_at_current_club?: number | null;
+    consecutive_bad_seasons?: number | null;
+    last_final_position?: number | null;
+  },
+  standings: { team_id: string; points: number; goals_for: number; goals_against: number }[] = [],
+  matches: {
+    home_team_id: string;
+    away_team_id: string;
+    home_score: number | null;
+    away_score: number | null;
+  }[] = [],
+): ConfidenceInfo {
+  const factors: { label: string; delta: number }[] = [{ label: "Base", delta: 50 }];
+  let score = 50;
+  let position: number | null = null;
+  const totalTeams = standings.length || null;
+
+  if (trainer.current_team_id && standings.length) {
+    const idx = standings.findIndex((s) => s.team_id === trainer.current_team_id);
+    if (idx >= 0) {
+      position = idx + 1;
+      const expected = (standings.length + 1) / 2;
+      const delta = Math.round((expected - position) * 5);
+      if (delta !== 0) {
+        factors.push({ label: `Posição ${position}º/${standings.length}`, delta });
+        score += delta;
+      }
+    }
+  }
+
+  const form: ("W" | "D" | "L")[] = [];
+  let formDelta = 0;
+  for (const match of matches) {
+    const isHome = match.home_team_id === trainer.current_team_id;
+    const mine = isHome ? match.home_score : match.away_score;
+    const opponent = isHome ? match.away_score : match.home_score;
+    if (mine == null || opponent == null) continue;
+    if (mine > opponent) { form.push("W"); formDelta += 6; }
+    else if (mine < opponent) { form.push("L"); formDelta -= 6; }
+    else { form.push("D"); }
+  }
+  if (formDelta !== 0) {
+    factors.push({ label: `Últimos ${form.length} jogos`, delta: formDelta });
+    score += formDelta;
+  }
+
+  const bad = trainer.consecutive_bad_seasons ?? 0;
+  if (bad > 0) {
+    const delta = -15 * bad;
+    factors.push({ label: `${bad} temporada(s) ruim(ns) seguidas`, delta });
+    score += delta;
+  }
+
+  const last = trainer.last_final_position;
+  if (last != null && totalTeams) {
+    if (last <= 3) {
+      factors.push({ label: `Temporada passada: ${last}º`, delta: 10 });
+      score += 10;
+    } else if (last >= totalTeams - 2) {
+      factors.push({ label: `Temporada passada: ${last}º`, delta: -10 });
+      score -= 10;
+    }
+  }
+
+  score = Math.max(0, Math.min(100, score));
+  const { label, tone } = labelFor(score);
+  return {
+    score, label, tone, factors, position, totalTeams, form,
+    seasonsAtClub: trainer.seasons_at_current_club ?? 0,
+    consecutiveBadSeasons: bad,
+  };
+}
+
 export const getConfidence = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<ConfidenceInfo> => {
@@ -136,12 +216,7 @@ export const getConfidence = createServerFn({ method: "GET" })
       .maybeSingle();
     if (!trainer) throw new Error("Treinador não encontrado.");
 
-    const factors: { label: string; delta: number }[] = [];
-    let score = 50;
-    factors.push({ label: "Base", delta: 50 });
-
-    let position: number | null = null;
-    let totalTeams: number | null = null;
+    let standings: any[] = [];
     if (trainer.current_team_id) {
       const { data: currentTeam } = await supabase
         .from("teams")
@@ -149,31 +224,19 @@ export const getConfidence = createServerFn({ method: "GET" })
         .eq("id", trainer.current_team_id)
         .maybeSingle();
 
-      const { data: standings } = currentTeam?.competition_id
+      const { data } = currentTeam?.competition_id
         ? await supabase
             .from("standings")
             .select("team_id, points, goals_for, goals_against")
             .eq("competition_id", currentTeam.competition_id)
             .order("points", { ascending: false })
         : { data: [] };
-      if (standings && standings.length) {
-        totalTeams = standings.length;
-        const idx = standings.findIndex((s: any) => s.team_id === trainer.current_team_id);
-        if (idx >= 0) {
-          position = idx + 1;
-          const expected = (totalTeams + 1) / 2;
-          const delta = Math.round((expected - position) * 5);
-          if (delta !== 0) {
-            factors.push({ label: `Posição ${position}º/${totalTeams}`, delta });
-            score += delta;
-          }
-        }
-      }
+      standings = data ?? [];
     }
 
-    const form: ("W" | "D" | "L")[] = [];
+    let matches: any[] = [];
     if (trainer.current_team_id) {
-      const { data: matches } = await supabase
+      const { data } = await supabase
         .from("matches")
         .select("home_team_id, away_team_id, home_score, away_score, status, is_friendly, played_at")
         .or(`home_team_id.eq.${trainer.current_team_id},away_team_id.eq.${trainer.current_team_id}`)
@@ -181,53 +244,10 @@ export const getConfidence = createServerFn({ method: "GET" })
         .eq("is_friendly", false)
         .order("played_at", { ascending: false })
         .limit(5);
-      let formDelta = 0;
-      for (const m of matches ?? []) {
-        const isHome = m.home_team_id === trainer.current_team_id;
-        const my = isHome ? m.home_score : m.away_score;
-        const opp = isHome ? m.away_score : m.home_score;
-        if (my == null || opp == null) continue;
-        if (my > opp) { form.push("W"); formDelta += 6; }
-        else if (my < opp) { form.push("L"); formDelta -= 6; }
-        else { form.push("D"); }
-      }
-      if (formDelta !== 0) {
-        factors.push({ label: `Últimos ${form.length} jogos`, delta: formDelta });
-        score += formDelta;
-      }
+      matches = data ?? [];
     }
 
-    const bad = trainer.consecutive_bad_seasons ?? 0;
-    if (bad > 0) {
-      const delta = -15 * bad;
-      factors.push({ label: `${bad} temporada(s) ruim(ns) seguidas`, delta });
-      score += delta;
-    }
-
-    const last = trainer.last_final_position;
-    if (last != null && totalTeams) {
-      if (last <= 3) {
-        factors.push({ label: `Temporada passada: ${last}º`, delta: 10 });
-        score += 10;
-      } else if (last >= totalTeams - 2) {
-        factors.push({ label: `Temporada passada: ${last}º`, delta: -10 });
-        score -= 10;
-      }
-    }
-
-    score = Math.max(0, Math.min(100, score));
-    const { label, tone } = labelFor(score);
-    return {
-      score,
-      label,
-      tone,
-      factors,
-      position,
-      totalTeams,
-      form,
-      seasonsAtClub: trainer.seasons_at_current_club ?? 0,
-      consecutiveBadSeasons: bad,
-    };
+    return buildConfidence(trainer, standings, matches);
   });
 
 // ---------- Propostas de clubes (Fase 3) ----------

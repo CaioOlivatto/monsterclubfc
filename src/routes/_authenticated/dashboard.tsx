@@ -4,11 +4,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { getDashboard, listMyCreatures } from "@/lib/creatures.functions";
+import { getDashboard } from "@/lib/creatures.functions";
 import { createFriendlyMatch } from "@/lib/match.functions";
 import { claimWeeklyGems } from "@/lib/progression.functions";
-import { getMyLineup } from "@/lib/lineup.functions";
-import { getConfidence, type ConfidenceInfo } from "@/lib/career.functions";
+import { type ConfidenceInfo } from "@/lib/career.functions";
 import { startLeague } from "@/lib/league.functions";
 import { ageStatus } from "@/lib/age";
 import { RetirementDialog } from "@/components/RetirementDialog";
@@ -77,16 +76,13 @@ function Dashboard() {
   const nav = useNavigate();
   const fetchDashboard = useServerFn(getDashboard);
   const startFriendly = useServerFn(createFriendlyMatch);
-  const fetchRoster = useServerFn(listMyCreatures);
-  const fetchLineup = useServerFn(getMyLineup);
-  const fetchConfidence = useServerFn(getConfidence);
   const claimWeekly = useServerFn(claimWeeklyGems);
   const qc = useQueryClient();
 
   const { data, isLoading } = useQuery({ queryKey: ["dashboard"], queryFn: () => fetchDashboard() });
-  const { data: rosterList } = useQuery({ queryKey: ["my-creatures"], queryFn: () => fetchRoster() });
-  const { data: lineupData } = useQuery({ queryKey: ["my-lineup"], queryFn: () => fetchLineup() });
-  const { data: confidence } = useQuery<ConfidenceInfo>({ queryKey: ["confidence"], queryFn: () => fetchConfidence() });
+  const rosterList = data?.rosterList ?? [];
+  const lineupData = data?.lineupData;
+  const confidence = data?.confidence ?? null;
 
   const retiredCount = (rosterList ?? []).filter((c: any) => ageStatus(c.age) === "retired").length;
   const lastSeasonCount = (rosterList ?? []).filter((c: any) => ageStatus(c.age) === "last_season").length;

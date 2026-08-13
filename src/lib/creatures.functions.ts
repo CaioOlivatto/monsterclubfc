@@ -12,6 +12,7 @@ import {
 import { overallToStars } from "./bestiary";
 import { generateSchedule } from "./league.server";
 import { getNextOfficialMatchForTrainer } from "./official-match.server";
+import { buildConfidence } from "./career.functions";
 
 
 // ---------- gerador de criatura inicial ----------
@@ -116,10 +117,27 @@ export const getDashboard = createServerFn({ method: "GET" })
 
     if (!trainer) return null;
 
-    const { data: creatures } = await supabase
+    // O Dashboard também alimenta alertas, aposentadoria e titulares cansados.
+    // Carregamos o elenco completo uma vez e reutilizamos o resultado para todos
+    // esses blocos, em vez de disparar três server functions adicionais.
+    const rosterPromise = supabase
       .from("creatures")
-      .select("id, energy, overall, name, element, suggested_position")
-      .eq("owner_trainer_id", trainer.id);
+      .select(
+        "id, name, species, epithet, element, suggested_position, is_goalkeeper, power_key, overall, energy, morale, xp, half_stars_earned, market_value, age, injury_matches_remaining, injury_severity, is_prodigy, morale_session_completes_at, attr_training_key, attr_training_completes_at",
+      )
+      .eq("owner_trainer_id", trainer.id)
+      .order("overall", { ascending: false });
+    const lineupPromise = supabase
+      .from("team_lineups")
+      .select("formation, strategy, starters, bench, default_tactics")
+      .eq("trainer_id", trainer.id)
+      .maybeSingle();
+
+    const [{ data: creatures, error: creaturesError }, { data: lineup }] = await Promise.all([
+      rosterPromise,
+      lineupPromise,
+    ]);
+    if (creaturesError) throw creaturesError;
 
     const list = creatures ?? [];
     const rosterCount = list.length;
@@ -212,6 +230,7 @@ export const getDashboard = createServerFn({ method: "GET" })
       };
     }
 
+    let confidenceStandings: any[] = [];
     if (playerTeam && playerTeam.competition_id) {
       const { data: standings } = await supabase
         .from("standings")
@@ -219,6 +238,7 @@ export const getDashboard = createServerFn({ method: "GET" })
         .eq("competition_id", playerTeam.competition_id)
         .order("points", { ascending: false });
 
+      confidenceStandings = standings ?? [];
       if (standings && standings.length) {
         const idx = standings.findIndex((s) => s.team_id === playerTeam.id);
         if (idx >= 0) {
@@ -237,6 +257,18 @@ export const getDashboard = createServerFn({ method: "GET" })
       }
 
     }
+
+    const { data: recentMatches } = trainer.current_team_id
+      ? await supabase
+          .from("matches")
+          .select("home_team_id, away_team_id, home_score, away_score")
+          .or(`home_team_id.eq.${trainer.current_team_id},away_team_id.eq.${trainer.current_team_id}`)
+          .eq("status", "finished")
+          .eq("is_friendly", false)
+          .order("played_at", { ascending: false })
+          .limit(5)
+      : { data: [] };
+    const confidence = buildConfidence(trainer, confidenceStandings, recentMatches ?? []);
 
     const { levelProgress } = await import("./trainer-xp.server");
     const prog = levelProgress(trainer.xp ?? 0);
@@ -266,7 +298,9 @@ export const getDashboard = createServerFn({ method: "GET" })
       standing,
       nextMatch,
       hasLeague: !!activeLeague,
-
+      rosterList: list,
+      lineupData: { lineup: lineup ?? { starters: [] }, creatures: list },
+      confidence,
     };
   });
 
