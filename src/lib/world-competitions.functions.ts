@@ -352,18 +352,30 @@ async function pickLeaguePool(
     for (const c of (comps ?? []) as any[]) compIdsByDiv[c.division as Division] = c.id;
   }
 
+  const standingsByDiv = new Map<Division, any[]>();
+  if (lastSeason) {
+    const standingsResults = await Promise.all(
+      DIVS.map(async (div) => {
+        const compId = compIdsByDiv[div];
+        if (!compId) return [div, []] as const;
+        const { data } = await supabase
+          .from("standings")
+          .select("team_id, points, goals_for, goals_against")
+          .eq("competition_id", compId)
+          .order("points", { ascending: false })
+          .limit(50);
+        return [div, data ?? []] as const;
+      }),
+    );
+    for (const [div, standings] of standingsResults) standingsByDiv.set(div, standings);
+  }
+
   const seenTeamIds = new Set<string>();
   for (const div of DIVS) {
     let topTeamIds: string[] = [];
     const compId = lastSeason ? compIdsByDiv[div] : null;
     if (compId) {
-      const { data: st } = await supabase
-        .from("standings")
-        .select("team_id, points, goals_for, goals_against")
-        .eq("competition_id", compId)
-        .order("points", { ascending: false })
-        .limit(50);
-      const rows = (st ?? []).slice();
+      const rows = (standingsByDiv.get(div) ?? []).slice();
       rows.sort((a: any, b: any) => (b.points - a.points) || ((b.goals_for - b.goals_against) - (a.goals_for - a.goals_against)));
       topTeamIds = rows.slice(0, 4).map((r: any) => r.team_id);
     }
@@ -880,13 +892,27 @@ async function pickCupPool(
     const { data: comps } = await supabase
       .from("competitions").select("id, division, champion_team_id")
       .eq("trainer_id", trainerId).eq("type", "league").eq("season_id", lastSeason.id);
+
+    const compsByDiv = new Map<Division, any>(
+      ((comps ?? []) as any[]).map((competition) => [competition.division as Division, competition]),
+    );
+    const fallbackChampions = await Promise.all(
+      DIVS.map(async (div) => {
+        const competition = compsByDiv.get(div);
+        if (!competition?.id || competition.champion_team_id) return null;
+        const { data } = await supabase
+          .from("standings")
+          .select("team_id, points, goals_for, goals_against")
+          .eq("competition_id", competition.id)
+          .order("points", { ascending: false })
+          .limit(1);
+        return data?.[0]?.team_id ?? null;
+      }),
+    );
     for (const d of DIVS) {
-      const c = ((comps ?? []) as any[]).find((x) => x.division === d);
+      const c = compsByDiv.get(d);
       if (c?.champion_team_id) champions.push(c.champion_team_id);
-      else if (c?.id) {
-        const { data: st } = await supabase.from("standings").select("team_id, points, goals_for, goals_against").eq("competition_id", c.id).order("points", { ascending: false }).limit(1);
-        if (st?.[0]) champions.push(st[0].team_id);
-      }
+      else if (fallbackChampions[DIVS.indexOf(d)]) champions.push(fallbackChampions[DIVS.indexOf(d)]!);
     }
   }
   const seen = new Set<string>(champions);
