@@ -64,6 +64,8 @@ export const getCup = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
+    // O bestiário não depende do treinador; começa a carregar logo no início.
+    const bestiaryPromise = loadEngineBestiary(supabase);
     const trainer = await getTrainer(supabase, userId);
     const { data: cup } = await supabase
       .from("competitions")
@@ -360,14 +362,18 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!next) throw new Error("Você não tem mais partidas nesta copa.");
 
-    // RETRY-ON-ENTRY: completa rodadas anteriores presas
-    try { await recoverStaleCupRounds(supabase, cup.id, next.round as number); stamp("recover"); }
-    catch (e) { console.error("[playNextCupMatch] ERRO na recuperação:", e); }
-
-    const { data: teams } = await supabase
-      .from("teams")
-      .select("id, name, is_player, cpu_strength")
-      .in("id", [next.home_team_id, next.away_team_id]);
+    // Recuperação de rodadas antigas pode acontecer enquanto buscamos os dados
+    // desta partida. Ela ainda é aguardada antes do claim idempotente abaixo.
+    const recoverPromise = recoverStaleCupRounds(supabase, cup.id, next.round as number)
+      .then(() => stamp("recover"))
+      .catch((e) => console.error("[playNextCupMatch] ERRO na recuperação:", e));
+    const [{ data: teams }, bestiary] = await Promise.all([
+      supabase
+        .from("teams")
+        .select("id, name, is_player, cpu_strength")
+        .in("id", [next.home_team_id, next.away_team_id]),
+      bestiaryPromise,
+    ]);
     const home = teams!.find((t: any) => t.id === next.home_team_id) as any;
     const away = teams!.find((t: any) => t.id === next.away_team_id) as any;
 
@@ -380,9 +386,10 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
       }
       return generateCpuSideFor(hashSeed(team.id), team.id, team.name, team.cpu_strength ?? 50, bestiary);
     }
-    const bestiary = await loadEngineBestiary(supabase);
     stamp("bestiary");
-    let result = simulate(await side(home), await side(away), hashSeed(next.id));
+    const [homeSide, awaySide] = await Promise.all([side(home), side(away)]);
+    await recoverPromise;
+    let result = simulate(homeSide, awaySide, hashSeed(next.id));
     if (result.home_score === result.away_score) {
       const seed = hashSeed(next.id + "pen");
       const homeWin = (seed >>> 0) % 2 === 0;
