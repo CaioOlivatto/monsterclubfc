@@ -72,13 +72,15 @@ export async function sweepRests(supabase: any, trainerId: string): Promise<numb
     .not("rest_completes_at", "is", null)
     .lte("rest_completes_at", nowIso);
   if (!done || !done.length) return 0;
-  for (const c of done) {
-    const next = Math.min(100, (c.energy ?? 0) + REST_ENERGY_GAIN);
-    await supabase
-      .from("creatures")
-      .update({ energy: next, rest_completes_at: null })
-      .eq("id", c.id);
-  }
+  await Promise.all(
+    done.map((c: { id: string; energy: number | null }) => {
+      const next = Math.min(100, (c.energy ?? 0) + REST_ENERGY_GAIN);
+      return supabase
+        .from("creatures")
+        .update({ energy: next, rest_completes_at: null })
+        .eq("id", c.id);
+    }),
+  );
   return done.length;
 }
 

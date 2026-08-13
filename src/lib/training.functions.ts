@@ -64,8 +64,7 @@ export async function sweepAttributeTrainings(supabase: any, trainerId: string) 
     .lte("attr_training_completes_at", nowIso);
   if (!done || !done.length) return 0;
 
-  let n = 0;
-  for (const c of done) {
+  const updates = done.map((c: any) => {
     const key = c.attr_training_key as keyof typeof attrColumn | null;
     const upd: Record<string, any> = {
       attr_training_key: null,
@@ -80,10 +79,10 @@ export async function sweepAttributeTrainings(supabase: any, trainerId: string) 
       upd.overall = overall;
       upd.market_value = computeMarketValue(overall, c.age ?? 18);
     }
-    await supabase.from("creatures").update(upd).eq("id", c.id);
-    n++;
-  }
-  return n;
+    return supabase.from("creatures").update(upd).eq("id", c.id);
+  });
+  await Promise.all(updates);
+  return done.length;
 }
 
 export const startAttributeTraining = createServerFn({ method: "POST" })

@@ -47,13 +47,15 @@ export async function sweepMoraleSessions(supabase: any, trainerId: string) {
     .not("morale_session_completes_at", "is", null)
     .lte("morale_session_completes_at", nowIso);
   if (!done || !done.length) return 0;
-  for (const c of done) {
-    const next = applyDiminishing(c.morale ?? 50, MORALE_SESSION_INDIVIDUAL_BOOST);
-    await supabase
-      .from("creatures")
-      .update({ morale: next, morale_session_completes_at: null })
-      .eq("id", c.id);
-  }
+  await Promise.all(
+    done.map((c: { id: string; morale: number | null }) => {
+      const next = applyDiminishing(c.morale ?? 50, MORALE_SESSION_INDIVIDUAL_BOOST);
+      return supabase
+        .from("creatures")
+        .update({ morale: next, morale_session_completes_at: null })
+        .eq("id", c.id);
+    }),
+  );
   return done.length;
 }
 
@@ -66,10 +68,12 @@ export async function sweepMoraleMeeting(supabase: any, trainerId: string, acade
     .select("id, morale, retired")
     .eq("owner_trainer_id", trainerId);
   const list = (creatures ?? []).filter((c: any) => !c.retired);
-  for (const c of list) {
-    const next = applyDiminishing(c.morale ?? 50, MORALE_MEETING_COLLECTIVE_BOOST);
-    await supabase.from("creatures").update({ morale: next }).eq("id", c.id);
-  }
+  await Promise.all(
+    list.map((c: any) => {
+      const next = applyDiminishing(c.morale ?? 50, MORALE_MEETING_COLLECTIVE_BOOST);
+      return supabase.from("creatures").update({ morale: next }).eq("id", c.id);
+    }),
+  );
   await supabase.from("academies").update({ morale_meeting_completes_at: null }).eq("id", academyId);
   return list.length;
 }
