@@ -15,9 +15,12 @@ function IndexRedirect() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data } = await supabase.auth.getUser();
+      // A sessão já está disponível no armazenamento local. A chamada seguinte
+      // ao servidor ainda valida o token, sem adicionar uma viagem extra à rede
+      // antes de decidir a primeira tela.
+      const { data } = await supabase.auth.getSession();
       if (cancelled) return;
-      if (!data.user) {
+      if (!data.session) {
         nav({ to: "/auth", replace: true });
         return;
       }

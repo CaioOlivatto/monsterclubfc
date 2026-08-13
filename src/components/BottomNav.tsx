@@ -21,6 +21,7 @@ export function BottomNav() {
             <li key={to}>
               <Link
                 to={to}
+                preload="intent"
                 className={`flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-colors ${
                   active ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
