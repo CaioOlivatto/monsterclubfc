@@ -171,7 +171,15 @@ export async function applyPostMatchXp(
   const outcomeMorale = opts.outcome === "W" ? +3 : opts.outcome === "D" ? 0 : -lossPenalty;
 
   const energyDebug: Array<{ id: string; prev: number; loss: number; rec: number; next: number; played: boolean }> = [];
-  const updatePromises: Promise<any>[] = [];
+  const creatureUpdates: Array<{
+    id: string;
+    xp: number;
+    pending_half_stars: number;
+    energy: number;
+    morale: number;
+    injury_matches_remaining: number;
+    injury_severity: string | null;
+  }> = [];
   for (const c of creatures ?? []) {
     const add = targets.filter((t) => t.id === c.id).reduce((a, t) => a + t.add, 0);
     const newXp = (c.xp ?? 0) + add;
@@ -218,19 +226,15 @@ export async function applyPostMatchXp(
       newMorale = Math.max(0, Math.min(100, Math.round(newMorale + gains * gainMul - losses)));
     }
 
-    updatePromises.push(
-      supabase
-        .from("creatures")
-        .update({
-          xp: newXp,
-          pending_half_stars: pending,
-          energy: newEnergy,
-          morale: newMorale,
-          injury_matches_remaining: injRemaining,
-          injury_severity: injSeverity,
-        })
-        .eq("id", c.id),
-    );
+    creatureUpdates.push({
+      id: c.id,
+      xp: newXp,
+      pending_half_stars: pending,
+      energy: newEnergy,
+      morale: newMorale,
+      injury_matches_remaining: injRemaining,
+      injury_severity: injSeverity,
+    });
   }
 
   if (isOfficial && energyDebug.length) {
@@ -240,10 +244,14 @@ export async function applyPostMatchXp(
     );
   }
 
-  // N+1 fix: dispara todas as escritas em paralelo (creatures + burst + XP treinador).
+  // Um único RPC substitui N atualizações HTTP individuais do elenco.
+  // A função é SECURITY INVOKER e só atualiza criaturas do próprio treinador.
   const src = opts.outcome === "W" ? "match_win" : opts.outcome === "D" ? "match_draw" : "match_loss";
   await Promise.all([
-    ...updatePromises,
+    supabase.rpc("apply_creature_match_updates", {
+      p_trainer_id: trainerId,
+      p_updates: creatureUpdates,
+    }),
     tickBurst(supabase, trainerId, burstLeft),
     awardTrainerXp(supabase, trainerId, src, 1),
     nextStreak !== prevStreak
