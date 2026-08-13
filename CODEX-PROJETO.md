@@ -18,7 +18,7 @@
 ## Execução local
 
 - Endereço: `http://localhost:3000`
-- Iniciador: `npm.cmd run dev`
+- Iniciador: `npm.cmd run dev` (Node usa os certificados confiáveis do Windows via `--use-system-ca`)
 
 ## Validação
 
