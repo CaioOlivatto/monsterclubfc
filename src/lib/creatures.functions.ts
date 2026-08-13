@@ -532,10 +532,14 @@ export const listMyCreatures = createServerFn({ method: "GET" })
       .eq("user_id", userId)
       .maybeSingle();
     if (!trainer) return [];
-    const { sweepMoraleSessions } = await import("./morale-training.functions");
-    await sweepMoraleSessions(supabase, trainer.id);
-    const { sweepAttributeTrainings } = await import("./training.functions");
-    await sweepAttributeTrainings(supabase, trainer.id);
+    const [{ sweepMoraleSessions }, { sweepAttributeTrainings }] = await Promise.all([
+      import("./morale-training.functions"),
+      import("./training.functions"),
+    ]);
+    await Promise.all([
+      sweepMoraleSessions(supabase, trainer.id),
+      sweepAttributeTrainings(supabase, trainer.id),
+    ]);
     const { data, error } = await supabase
       .from("creatures")
       .select(
@@ -558,10 +562,14 @@ export const getCreature = createServerFn({ method: "GET" })
       .eq("user_id", userId)
       .maybeSingle();
     if (!trainer) throw new Error("Treinador não encontrado.");
-    const { sweepMoraleSessions } = await import("./morale-training.functions");
-    await sweepMoraleSessions(supabase, trainer.id);
-    const { sweepAttributeTrainings } = await import("./training.functions");
-    await sweepAttributeTrainings(supabase, trainer.id);
+    const [{ sweepMoraleSessions }, { sweepAttributeTrainings }] = await Promise.all([
+      import("./morale-training.functions"),
+      import("./training.functions"),
+    ]);
+    await Promise.all([
+      sweepMoraleSessions(supabase, trainer.id),
+      sweepAttributeTrainings(supabase, trainer.id),
+    ]);
     const { data: creature, error } = await supabase
       .from("creatures")
       .select("*")
