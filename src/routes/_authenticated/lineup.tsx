@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { getMyLineup, saveLineup } from "@/lib/lineup.functions";
 import { getLineupPrognostic } from "@/lib/odds.functions";
@@ -127,7 +127,7 @@ function LineupPage() {
   // evitando disparar 400 simulações a cada clique/keystroke.
   const [debouncedDraft, setDebouncedDraft] = useState(draft);
   useEffect(() => {
-    const t = window.setTimeout(() => setDebouncedDraft(draft), 180);
+    const t = window.setTimeout(() => setDebouncedDraft(draft), 50);
     return () => window.clearTimeout(t);
   }, [draft]);
 
@@ -138,6 +138,7 @@ function LineupPage() {
     queryKey: ["prognostic", draftKey],
     queryFn: () => fetchProg({ data: { draft: debouncedDraft } }),
     retry: false,
+    placeholderData: keepPreviousData,
     // Desabilita durante a confirmação para não competir com a criação da partida.
     // Gate pelo MESMO draft que a query envia (debounced). Usar `starters`
     // aqui liberava a chamada com o draft antigo ainda incompleto → erro

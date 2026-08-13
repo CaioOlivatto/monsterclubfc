@@ -128,12 +128,17 @@ export async function buildPlayerSideFromDraft(
   if (starterIds.length !== 11) throw new Error("Preencha os 11 titulares antes de calcular o prognóstico.");
 
   const allIds = [...starterIds, ...draft.bench];
-  const { data: creatures, error } = await supabase
-    .from("creatures")
-    .select(
-      "id, name, element, suggested_position, overall, is_goalkeeper, attr_pique, attr_forca, energy, morale, age, aff_fogo, aff_agua, aff_terra, aff_ar, aff_gelo, injury_matches_remaining, owner_trainer_id",
-    )
-    .in("id", allIds);
+  const [creaturesResult, medicalLevel, division] = await Promise.all([
+    supabase
+      .from("creatures")
+      .select(
+        "id, name, element, suggested_position, overall, is_goalkeeper, attr_pique, attr_forca, energy, morale, age, aff_fogo, aff_agua, aff_terra, aff_ar, aff_gelo, injury_matches_remaining, owner_trainer_id",
+      )
+      .in("id", allIds),
+    fetchMedicalLevel(supabase, trainerId),
+    fetchTeamDivision(supabase, teamId),
+  ]);
+  const { data: creatures, error } = creaturesResult;
   if (error) throw error;
   const byId = new Map<string, any>(
     (creatures ?? []).filter((c: any) => c.owner_trainer_id === trainerId).map((c: any) => [c.id, c]),
@@ -182,8 +187,6 @@ export async function buildPlayerSideFromDraft(
     .filter((c: any) => c && (c.injury_matches_remaining ?? 0) === 0)
     .map((c: any) => toEngine(c, posToRole(c.suggested_position)));
 
-  const medicalLevel = await fetchMedicalLevel(supabase, trainerId);
-  const division = await fetchTeamDivision(supabase, teamId);
   return {
     team_id: teamId, team_name: teamName, starters, bench,
     strategy: draft.strategy,
@@ -192,6 +195,5 @@ export async function buildPlayerSideFromDraft(
     division,
   };
 }
-
 
 

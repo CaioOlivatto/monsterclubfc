@@ -49,6 +49,9 @@ export function PrognosticCard({ state }: { state: UseQueryResult<PrognosticResp
         <CardTitle className="text-base flex items-center gap-2">
           <Zap className="h-4 w-4 text-primary" />
           Prognóstico
+          {state.isFetching && (
+            <span className="ml-auto text-[11px] font-normal text-muted-foreground">Atualizando…</span>
+          )}
         </CardTitle>
         <div className="text-xs text-muted-foreground">
           {opponent.is_next_official

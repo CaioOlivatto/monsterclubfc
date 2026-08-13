@@ -144,7 +144,7 @@ export const getLineupPrognostic = createServerFn({ method: "POST" })
     const home = playerIsHome ? playerSide : opponentSide;
     const away = playerIsHome ? opponentSide : playerSide;
     const seed = hashSeed(playerTeamId + opponentInfo.name);
-    const analysis = analyzeMatchup(home, away, seed, 200);
+    const analysis = analyzeMatchup(home, away, seed, 120);
 
     // Preview de público — só faz sentido em jogos EM CASA.
     // Sem ruído aleatório: mostra a ocupação ESPERADA a partir da moral média atual.
