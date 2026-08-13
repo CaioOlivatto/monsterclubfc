@@ -235,7 +235,12 @@ function Dashboard() {
         <NextMatchHero
           nextMatch={nextMatch}
           hasLeague={hasLeague}
-          onPlay={() => nav({ to: "/lineup" })}
+          onPlay={() => nav({
+            to: "/lineup",
+            search: nextMatch?.competition
+              ? { competition: nextMatch.competition }
+              : {},
+          })}
           onStartSeason={() => startSeasonMut.mutate()}
           startSeasonPending={startSeasonMut.isPending}
           onFriendly={() => friendlyMut.mutate()}

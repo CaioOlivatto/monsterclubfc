@@ -241,9 +241,12 @@ export async function getNextOfficialMatchForTrainer(
 
   if (requested) return finders[requested]();
 
-  for (const competition of ["world_cup", "world_league", "league", "cup"] as const) {
-    const match = await finders[competition]();
-    if (match) return match;
-  }
-  return null;
+  const [worldCup, worldLeague, league, cup] = await Promise.all([
+    finders.world_cup(),
+    finders.world_league(),
+    finders.league(),
+    finders.cup(),
+  ]);
+
+  return worldCup ?? worldLeague ?? league ?? cup ?? null;
 }

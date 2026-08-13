@@ -70,8 +70,10 @@ export const getLineupPrognostic = createServerFn({ method: "POST" })
   .inputValidator((raw: unknown) => InputSchema.parse(raw ?? {}))
   .handler(async ({ data, context }): Promise<PrognosticResponse> => {
     const { supabase, userId } = context;
-    const trainer = await getTrainer(supabase, userId);
-    const bestiary = await loadEngineBestiary(supabase);
+    const [trainer, bestiary] = await Promise.all([
+      getTrainer(supabase, userId),
+      loadEngineBestiary(supabase),
+    ]);
     const draft = data?.draft ?? null;
 
     const { data: playerLeagueTeam } = await supabase
@@ -98,6 +100,12 @@ export const getLineupPrognostic = createServerFn({ method: "POST" })
 
     const playerName = trainer.academy_name;
     const playerTeamId = playerLeagueTeam?.id ?? `p-${trainer.id}`;
+
+    // Montar o lado do jogador é uma das etapas mais caras. Começamos agora,
+    // enquanto a partida e o adversário continuam sendo resolvidos.
+    const playerSidePromise = draft
+      ? buildPlayerSideFromDraft(supabase, trainer.id, playerTeamId, playerName, draft)
+      : buildPlayerSideFromDb(supabase, trainer.id, playerTeamId, playerName);
 
     let opponentSide: EngineSide;
     let opponentInfo: PrognosticResponse["opponent"];
@@ -128,9 +136,7 @@ export const getLineupPrognostic = createServerFn({ method: "POST" })
 
     let playerSide: EngineSide;
     try {
-      playerSide = draft
-        ? await buildPlayerSideFromDraft(supabase, trainer.id, playerTeamId, playerName, draft)
-        : await buildPlayerSideFromDb(supabase, trainer.id, playerTeamId, playerName);
+      playerSide = await playerSidePromise;
     } catch (e: any) {
       throw new Error(e?.message ?? "Salve a escalação para ver o prognóstico.");
     }
@@ -138,7 +144,7 @@ export const getLineupPrognostic = createServerFn({ method: "POST" })
     const home = playerIsHome ? playerSide : opponentSide;
     const away = playerIsHome ? opponentSide : playerSide;
     const seed = hashSeed(playerTeamId + opponentInfo.name);
-    const analysis = analyzeMatchup(home, away, seed, 400);
+    const analysis = analyzeMatchup(home, away, seed, 200);
 
     // Preview de público — só faz sentido em jogos EM CASA.
     // Sem ruído aleatório: mostra a ocupação ESPERADA a partir da moral média atual.
@@ -172,4 +178,3 @@ export const getLineupPrognostic = createServerFn({ method: "POST" })
     }
     return { analysis, opponent: opponentInfo, stadium_preview: stadiumPreview };
   });
-

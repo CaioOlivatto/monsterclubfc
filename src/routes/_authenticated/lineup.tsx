@@ -127,7 +127,7 @@ function LineupPage() {
   // evitando disparar 400 simulações a cada clique/keystroke.
   const [debouncedDraft, setDebouncedDraft] = useState(draft);
   useEffect(() => {
-    const t = window.setTimeout(() => setDebouncedDraft(draft), 600);
+    const t = window.setTimeout(() => setDebouncedDraft(draft), 180);
     return () => window.clearTimeout(t);
   }, [draft]);
 
