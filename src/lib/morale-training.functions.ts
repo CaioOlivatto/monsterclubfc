@@ -24,13 +24,14 @@ function applyDiminishing(current: number, nominal: number): number {
 async function loadTrainer(supabase: any, userId: string) {
   const { data, error } = await supabase
     .from("trainers")
-    .select("id, academies(id, gems, morale_meeting_completes_at)")
+    .select("id, current_team_id, academies(id, gems, morale_meeting_completes_at)")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw error;
   if (!data) throw new Error("Treinador não encontrado.");
   return {
     id: data.id as string,
+    currentTeamId: (data.current_team_id ?? null) as string | null,
     academyId: data.academies?.id as string,
     gems: (data.academies?.gems ?? 0) as number,
     meetingAt: (data.academies?.morale_meeting_completes_at ?? null) as string | null,
@@ -216,36 +217,38 @@ export const getMoraleSessionsState = createServerFn({ method: "GET" })
     const trainer = await loadTrainer(supabase, userId);
     await sweepMoraleSessions(supabase, trainer.id);
     await sweepMoraleMeeting(supabase, trainer.id, trainer.academyId, trainer.meetingAt);
-    const { data: a } = await supabase
-      .from("academies")
-      .select("morale_meeting_completes_at, gems")
-      .eq("id", trainer.academyId)
-      .maybeSingle();
     // Preço do Incentivo Geral (pago): preço por criatura × elenco não aposentado, escalado pela divisão atual.
-    const { resolvePlayerDivision } = await import("./division.server");
-    const division = await resolvePlayerDivision(supabase, trainer.id);
-
-    const { INCENTIVO_GERAL_PRICE_BY_DIVISION } = await import("./shop.server");
-    const pricePer = INCENTIVO_GERAL_PRICE_BY_DIVISION[division];
-    const { data: allCrs } = await supabase
-      .from("creatures")
-      .select("id, retired, morale_session_completes_at")
-      .eq("owner_trainer_id", trainer.id);
+    const [academyResult, creaturesResult, divisionModule, shopModule] = await Promise.all([
+      supabase
+        .from("academies")
+        .select("morale_meeting_completes_at, gems, money")
+        .eq("id", trainer.academyId)
+        .maybeSingle(),
+      supabase
+        .from("creatures")
+        .select("id, retired, morale_session_completes_at")
+        .eq("owner_trainer_id", trainer.id),
+      import("./division.server"),
+      import("./shop.server"),
+    ]);
+    const { data: a } = academyResult;
+    const { data: allCrs } = creaturesResult;
+    const division = await divisionModule.resolvePlayerDivision(
+      supabase,
+      trainer.id,
+      trainer.currentTeamId,
+    );
+    const pricePer = shopModule.INCENTIVO_GERAL_PRICE_BY_DIVISION[division];
     const eligible = (allCrs ?? []).filter((c: any) => !c.retired);
     const freeOfSession = eligible.filter(
       (c: any) =>
         !c.morale_session_completes_at ||
         new Date(c.morale_session_completes_at).getTime() <= Date.now(),
     );
-    const { data: acadMoney } = await supabase
-      .from("academies")
-      .select("money")
-      .eq("id", trainer.academyId)
-      .maybeSingle();
     return {
       meeting_completes_at: (a?.morale_meeting_completes_at ?? null) as string | null,
       gems: (a?.gems ?? 0) as number,
-      money: Number(acadMoney?.money ?? 0),
+      money: Number(a?.money ?? 0),
       individual_ms: MORALE_SESSION_INDIVIDUAL_MS,
       collective_ms: MORALE_MEETING_COLLECTIVE_MS,
       general_ms: MORALE_GENERAL_MS,

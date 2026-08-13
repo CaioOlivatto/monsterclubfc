@@ -88,9 +88,11 @@ export const getRestState = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    let t = await loadTrainer(supabase, userId);
-    t = await maybeResetPool(supabase, t);
-    await sweepRests(supabase, t.id);
+    const loadedTrainer = await loadTrainer(supabase, userId);
+    const [t] = await Promise.all([
+      maybeResetPool(supabase, loadedTrainer),
+      sweepRests(supabase, loadedTrainer.id),
+    ]);
     const nextFreeAt =
       t.rest_free_charges <= 0 && t.rest_pool_zeroed_at
         ? new Date(new Date(t.rest_pool_zeroed_at).getTime() + REST_POOL_RESET_MS).toISOString()
@@ -112,9 +114,11 @@ export const startRest = createServerFn({ method: "POST" })
   .inputValidator((raw: unknown) => z.object({ creatureId: z.string().uuid() }).parse(raw))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    let t = await loadTrainer(supabase, userId);
-    t = await maybeResetPool(supabase, t);
-    await sweepRests(supabase, t.id);
+    const loadedTrainer = await loadTrainer(supabase, userId);
+    const [t] = await Promise.all([
+      maybeResetPool(supabase, loadedTrainer),
+      sweepRests(supabase, loadedTrainer.id),
+    ]);
 
     const { data: c } = await supabase
       .from("creatures")
