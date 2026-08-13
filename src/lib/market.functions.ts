@@ -13,9 +13,9 @@ import {
 } from "./economy";
 
 /** Divisão ATUAL do jogador — fonte única (time atual), nunca `competitions`. */
-async function currentDivision(supabase: any, trainerId: string): Promise<Division> {
+async function currentDivision(supabase: any, trainerId: string, currentTeamId?: string | null): Promise<Division> {
   const { resolvePlayerDivision } = await import("./division.server");
-  return (await resolvePlayerDivision(supabase, trainerId)) as Division;
+  return (await resolvePlayerDivision(supabase, trainerId, currentTeamId)) as Division;
 }
 
 
@@ -75,24 +75,24 @@ export const getMarket = createServerFn({ method: "GET" })
 
     const { data: trainer } = await supabase
       .from("trainers")
-      .select("id, academies(money, gems, roster_slots)")
+      .select("id, current_team_id, academies(money, gems, roster_slots)")
       .eq("user_id", userId)
       .maybeSingle();
     if (!trainer) throw new Error("Treinador não encontrado.");
     const academy = Array.isArray(trainer.academies) ? trainer.academies[0] : trainer.academies;
-    const [seasonNumber, division] = await Promise.all([
-      currentSeasonNumber(supabase, trainer.id),
-      currentDivision(supabase, trainer.id),
-    ]);
-
-    const { data: creatures } = await supabase
-      .from("creatures")
-      .select("id, name, element, suggested_position, overall, energy, market_value, is_prodigy")
-      .eq("owner_trainer_id", trainer.id)
-      .order("overall", { ascending: false });
-
     const { loadBestiary } = await import("./bestiary.server");
-    const bestiary = await loadBestiary(supabase);
+    const [seasonNumber, division, creaturesResult, bestiary] = await Promise.all([
+      currentSeasonNumber(supabase, trainer.id),
+      currentDivision(supabase, trainer.id, trainer.current_team_id),
+      supabase
+        .from("creatures")
+        .select("id, name, element, suggested_position, overall, energy, market_value, is_prodigy, salary_mult")
+        .eq("owner_trainer_id", trainer.id)
+        .order("overall", { ascending: false }),
+      loadBestiary(supabase),
+    ]);
+    if (creaturesResult.error) throw creaturesResult.error;
+    const creatures = creaturesResult.data ?? [];
     const allListings = generateMarketListings(bestiary, trainer.id, seasonNumber, division);
 
     // Remove ofertas já compradas nesta temporada/divisão
@@ -111,15 +111,20 @@ export const getMarket = createServerFn({ method: "GET" })
         salary_per_match: matchSalary(l.overall),
       }));
 
-    const rosterCount = creatures?.length ?? 0;
-    const payroll = await currentPayroll(supabase, trainer.id);
+    const rosterCount = creatures.length;
+    // O elenco já foi carregado para a aba "Vender"; reutilizamos esses dados
+    // para a folha, evitando uma segunda consulta completa à mesma tabela.
+    const payroll = creatures.reduce(
+      (acc: number, creature: any) => acc + Math.round(seasonSalary(creature.overall ?? 40) * (creature.salary_mult ?? 1)),
+      0,
+    );
 
     return {
       money: academy?.money ?? 0,
       gems: academy?.gems ?? 0,
       roster_slots: academy?.roster_slots ?? 0,
       roster_count: rosterCount,
-      my_creatures: creatures ?? [],
+      my_creatures: creatures.map(({ salary_mult: _salaryMult, ...creature }: any) => creature),
       listings,
       season_number: seasonNumber,
       division,
