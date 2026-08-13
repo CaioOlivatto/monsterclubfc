@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import {
   devFastForwardCurrentSeason,
   devDeriveWorldQualifiers,
   devReadMyQualifications,
+  devResetMyGame,
 } from "@/lib/dev-tools.functions";
 import { finishSeasonAndAdvance } from "@/lib/league.functions";
 
@@ -22,10 +23,12 @@ export const Route = createFileRoute("/_authenticated/dev")({
 });
 
 function DevPage() {
+  const navigate = useNavigate();
   const fastForward = useServerFn(devFastForwardCurrentSeason);
   const finish = useServerFn(finishSeasonAndAdvance);
   const derive = useServerFn(devDeriveWorldQualifiers);
   const readQuals = useServerFn(devReadMyQualifications);
+  const resetMyGame = useServerFn(devResetMyGame);
 
   const [busy, setBusy] = useState<string | null>(null);
   const [log, setLog] = useState<any[]>([]);
@@ -61,6 +64,16 @@ function DevPage() {
     await run("3. read qualifications", () => readQuals({}));
     // deriva da temporada recém-encerrada (última finished)
     await run("4. derive world qualifiers", () => derive({ data: {} }));
+  };
+
+  const resetAndRestart = async () => {
+    setBusy("reiniciar jogo");
+    try {
+      await resetMyGame();
+      navigate({ to: "/onboarding", replace: true });
+    } finally {
+      setBusy(null);
+    }
   };
 
   return (
@@ -111,6 +124,14 @@ function DevPage() {
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setLog([])}>
             Limpar
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={!!busy}
+            onClick={resetAndRestart}
+          >
+            Reiniciar meu jogo
           </Button>
         </div>
         {busy && <div className="text-xs text-muted-foreground">Executando: {busy}…</div>}

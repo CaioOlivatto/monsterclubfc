@@ -3,6 +3,43 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+/**
+ * DEV: apaga somente o progresso do usuario autenticado, preservando sua
+ * conta em auth.users para repetir o onboarding e medir a criacao do mundo.
+ */
+export const devResetMyGame = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    if (!import.meta.env.DEV) {
+      throw new Error("Dispon\u00edvel apenas em desenvolvimento.");
+    }
+
+    const { supabase, userId } = context;
+    const { data: trainer, error: trainerError } = await supabase
+      .from("trainers")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (trainerError) throw trainerError;
+    if (!trainer) return { reset: false };
+
+    // Rompe a referencia circular trainers.current_team_id -> teams antes da
+    // exclusao. Os demais dados do jogo usam ON DELETE CASCADE pelo treinador.
+    const { error: unlinkError } = await supabase
+      .from("trainers")
+      .update({ current_team_id: null })
+      .eq("id", trainer.id);
+    if (unlinkError) throw unlinkError;
+
+    const { error: deleteError } = await supabase
+      .from("trainers")
+      .delete()
+      .eq("id", trainer.id);
+    if (deleteError) throw deleteError;
+
+    return { reset: true };
+  });
+
 const DIVISION_ORDER = ["bronze", "prata", "ouro", "diamante", "lendaria"] as const;
 type Division = typeof DIVISION_ORDER[number];
 

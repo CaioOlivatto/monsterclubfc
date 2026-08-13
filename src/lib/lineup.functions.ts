@@ -4,7 +4,10 @@ import { z } from "zod";
 import { FORMATIONS, MAX_BENCH } from "./lineup.server";
 import { NEUTRAL_TACTICS, type Tactics } from "./match-engine.server";
 
-const TacticAxis = z.number().int().min(-2).max(2);
+// Controles HTML/Radix podem serializar valores movidos como texto. Coagir aqui
+// mantem a fronteira do servidor estrita depois da conversao e evita rejeitar
+// uma tatica valida por diferenca de transporte.
+const TacticAxis = z.coerce.number().int().min(-2).max(2);
 const TacticsSchema = z.object({
   mentalidade: TacticAxis,
   verticalidade: TacticAxis,

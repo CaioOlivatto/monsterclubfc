@@ -88,13 +88,22 @@ export function TacticsSheet() {
   }, [data?.tactics]);
 
   const mut = useMutation({
-    mutationFn: (t: Tactics) => saveFn({ data: t }),
+    mutationFn: (t: Tactics) =>
+      saveFn({
+        data: {
+          mentalidade: Number(t.mentalidade),
+          verticalidade: Number(t.verticalidade),
+          pressao: Number(t.pressao),
+          cortes: Number(t.cortes),
+        },
+      }),
     onSuccess: () => {
       toast.success("Táticas salvas — valem a partir da próxima partida.");
       qc.invalidateQueries({ queryKey: ["my-tactics"] });
       setOpen(false);
     },
-    onError: (e: any) => toast.error(e?.message ?? "Falha ao salvar"),
+    onError: () =>
+      toast.error("N\u00e3o foi poss\u00edvel salvar as t\u00e1ticas. Tente novamente."),
   });
 
   return (
@@ -130,7 +139,7 @@ export function TacticsSheet() {
                   step={1}
                   value={[v]}
                   onValueChange={(val) =>
-                    setDraft((d) => ({ ...d, [a.key]: val[0] as number }))
+                    setDraft((d) => ({ ...d, [a.key]: Number(val[0]) }))
                   }
                 />
                 <div className="flex justify-between text-[10px] text-muted-foreground">
