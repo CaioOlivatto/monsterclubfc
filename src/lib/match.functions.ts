@@ -12,11 +12,11 @@ import { WORLD_TEAMS, type DivisionSlug } from "./world/catalog";
 async function getTrainerCtx(supabase: any, userId: string) {
   const { data: trainer } = await supabase
     .from("trainers")
-    .select("id, academy_name")
+    .select("id, academy_name, current_team_id")
     .eq("user_id", userId)
     .maybeSingle();
   if (!trainer) throw new Error("Treinador não encontrado.");
-  return trainer as { id: string; academy_name: string };
+  return trainer as { id: string; academy_name: string; current_team_id: string | null };
 }
 
 async function ensurePlayerTeam(supabase: any, trainerId: string, teamName: string): Promise<string> {
@@ -89,14 +89,30 @@ export const createFriendlyMatch = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const trainer = await getTrainerCtx(supabase, userId);
 
+    const bestiaryPromise = loadBestiary(supabase);
+    const playerLeagueTeamPromise = supabase
+      .from("teams")
+      .select("division, name")
+      .eq("trainer_id", trainer.id)
+      .eq("is_player", true)
+      .not("competition_id", "is", null)
+      .maybeSingle();
+    const divisionModulePromise = import("./division.server");
+    const divisionPromise = divisionModulePromise.then(({ resolvePlayerDivision }) =>
+      resolvePlayerDivision(supabase, trainer.id, trainer.current_team_id),
+    );
     const homeTeamId = await ensurePlayerTeam(supabase, trainer.id, trainer.academy_name);
-    const homeSide = await buildPlayerSideFromDb(supabase, trainer.id, homeTeamId, trainer.academy_name);
+    const [homeSide, bestiaryRaw, playerLeagueTeamResult, division] = await Promise.all([
+      buildPlayerSideFromDb(supabase, trainer.id, homeTeamId, trainer.academy_name),
+      bestiaryPromise,
+      playerLeagueTeamPromise,
+      divisionPromise,
+    ]);
     const playerOverall = Math.round(
       homeSide.starters.reduce((a, s) => a + s.creature.overall, 0) / homeSide.starters.length,
     );
 
     const seed = Math.floor(Math.random() * 2 ** 31);
-    const bestiaryRaw = await loadBestiary(supabase);
     const bestiary: EngineBestiary = {
       species: bestiaryRaw.species.map((s) => ({
         species: s.species,
@@ -108,17 +124,10 @@ export const createFriendlyMatch = createServerFn({ method: "POST" })
 
     // Adversário: sorteado entre os times reais da MESMA DIVISÃO do jogador.
     // Nunca inventar nome de time em runtime — usar apenas WORLD_TEAMS.
-    const { data: playerLeagueTeam } = await supabase
-      .from("teams")
-      .select("division, name")
-      .eq("trainer_id", trainer.id)
-      .eq("is_player", true)
-      .not("competition_id", "is", null)
-      .maybeSingle();
-    const { resolvePlayerDivision } = await import("./division.server");
-    const division = (await resolvePlayerDivision(supabase, trainer.id)) as DivisionSlug;
+    const { data: playerLeagueTeam } = playerLeagueTeamResult;
+    const playerDivision = division as DivisionSlug;
 
-    const pool = (WORLD_TEAMS[division] ?? WORLD_TEAMS.bronze).filter(
+    const pool = (WORLD_TEAMS[playerDivision] ?? WORLD_TEAMS.bronze).filter(
       (t) => t.name !== playerLeagueTeam?.name && t.name !== trainer.academy_name,
     );
     const opponentName = pool[Math.floor(Math.random() * pool.length)]?.name ?? "Adversário";
