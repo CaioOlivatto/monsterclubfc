@@ -69,20 +69,24 @@ export async function applySeasonOutcome(input: SeasonOutcomeInput): Promise<Sea
   const logPrefix = "[END_OF_SEASON]";
 
   // ---- Leituras (fora da transação; apenas coletam dados) ----
-  const { data: trainer } = await supabase
+  const trainerPromise = supabase
     .from("trainers")
     .select("id, trainer_name, seasons_at_current_club, consecutive_bad_seasons, status")
     .eq("id", trainerId)
     .maybeSingle();
+  const teamNamePromise = trainerCurrentTeamId
+    ? supabase.from("teams").select("name").eq("id", trainerCurrentTeamId).maybeSingle()
+    : Promise.resolve({ data: null });
+  const [{ data: trainer }, { data: teamNameRow }] = await Promise.all([
+    trainerPromise,
+    teamNamePromise,
+  ]);
   if (!trainer) return { fired: false, reasonFired: null, offersGenerated: 0, isBadSeason: false };
 
   const half = Math.ceil(totalTeams / 2);
   const isBadSeason = playerPosition > half;
   const newBadStreak = isBadSeason ? (trainer.consecutive_bad_seasons ?? 0) + 1 : 0;
 
-  const teamNameRow = trainerCurrentTeamId
-    ? (await supabase.from("teams").select("name").eq("id", trainerCurrentTeamId).maybeSingle()).data
-    : null;
   const currentTeamName = teamNameRow?.name ?? "—";
 
   // ---- Buffer: eventos de carreira ----
@@ -253,12 +257,14 @@ async function buildOffers(input: BuildOffersInput): Promise<any[]> {
     playerDivision, fired, generateInterest, streakTriggered, bestStreak,
   } = input;
 
-  const { data: teams } = await supabase
-    .from("teams")
-    .select("id, name, division, is_player");
-  const { data: standings } = await supabase
-    .from("standings")
-    .select("team_id, points, goals_for, goals_against");
+  const [{ data: teams }, { data: standings }] = await Promise.all([
+    supabase
+      .from("teams")
+      .select("id, name, division, is_player"),
+    supabase
+      .from("standings")
+      .select("team_id, points, goals_for, goals_against"),
+  ]);
   if (!teams || !standings) return [];
 
   const teamById = new Map<string, any>(teams.map((t: any) => [t.id, t]));
