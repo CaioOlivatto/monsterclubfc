@@ -244,29 +244,29 @@ export async function seedWorldForTrainer({
   const bestiary = await loadBestiary(supabase);
   // 1) Cria 5 competições (uma por divisão)
   const competitionsByDiv = {} as Record<DivisionSlug, string>;
-  for (const div of DIVISION_ORDER) {
-    const { data, error } = await supabase
-      .from("competitions")
-      .insert({
+  const { data: insertedCompetitions, error: competitionsError } = await supabase
+    .from("competitions")
+    .insert(
+      DIVISION_ORDER.map((div) => ({
         trainer_id: trainerId,
         season_id: seasonId,
         division: div,
         type: "league",
         status: "active",
-      })
-      .select("id")
-      .single();
-    if (error) throw error;
-    competitionsByDiv[div] = data.id;
+      })),
+    )
+    .select("id, division");
+  if (competitionsError) throw competitionsError;
+  for (const competition of insertedCompetitions ?? []) {
+    competitionsByDiv[competition.division as DivisionSlug] = competition.id;
   }
 
   // 2) Cria os 70 times (14 por divisão). O time do jogador substitui o slot com starterKey do BRONZE.
   const teamIdByKey = new Map<string, string>(); // "div:index" -> teamId
   let playerTeamId = "";
 
-  for (const div of DIVISION_ORDER) {
-    const teams = WORLD_TEAMS[div];
-    const rows = teams.map((t, i) => {
+  const teamRows = DIVISION_ORDER.flatMap((div) =>
+    WORLD_TEAMS[div].map((t) => {
       const isPlayerSlot = div === "bronze" && t.starterKey === playerStarterKey;
       return {
         competition_id: competitionsByDiv[div],
@@ -282,18 +282,24 @@ export async function seedWorldForTrainer({
         colors: { primary: t.primary, secondary: t.secondary },
         cpu_strength: null,
       };
-    });
-    const { data: inserted, error } = await supabase
-      .from("teams")
-      .insert(rows)
-      .select("id, name, is_player, division");
-    if (error) throw error;
+    }),
+  );
+  const { data: insertedTeams, error: teamsError } = await supabase
+    .from("teams")
+    .insert(teamRows)
+    .select("id, name, is_player, division");
+  if (teamsError) throw teamsError;
 
-    for (let i = 0; i < inserted.length; i++) {
-      const row = inserted[i];
-      teamIdByKey.set(`${div}:${i}`, row.id);
-      if (row.is_player) playerTeamId = row.id;
-    }
+  const insertedTeamByName = new Map(
+    (insertedTeams ?? []).map((team: any) => [`${team.division}:${team.name}`, team]),
+  );
+  for (const div of DIVISION_ORDER) {
+    WORLD_TEAMS[div].forEach((team, index) => {
+      const inserted = insertedTeamByName.get(`${div}:${team.name}`);
+      if (!inserted) throw new Error(`Time não criado: ${div}/${team.name}`);
+      teamIdByKey.set(`${div}:${index}`, inserted.id);
+      if (inserted.is_player) playerTeamId = inserted.id;
+    });
   }
 
   if (!playerTeamId) {
@@ -319,28 +325,32 @@ export async function seedWorldForTrainer({
 
   // Insere em lotes de 200 (para não estourar payload)
   const CHUNK = 200;
-  for (let i = 0; i < creatureRows.length; i += CHUNK) {
-    const chunk = creatureRows.slice(i, i + CHUNK);
-    const { error } = await supabase.from("creatures").insert(chunk as any);
-    if (error) throw error;
-  }
+  await Promise.all(
+    Array.from({ length: Math.ceil(creatureRows.length / CHUNK) }, (_, chunkIndex) =>
+      supabase
+        .from("creatures")
+        .insert(creatureRows.slice(chunkIndex * CHUNK, (chunkIndex + 1) * CHUNK) as any)
+        .then(({ error }: any) => {
+          if (error) throw error;
+        }),
+    ),
+  );
 
   // 4) Standings + calendário para cada divisão
+  const standingsRows: any[] = [];
+  const matchesRows: any[] = [];
   for (const div of DIVISION_ORDER) {
     const compId = competitionsByDiv[div];
     const teamIds = WORLD_TEAMS[div].map((_, i) => teamIdByKey.get(`${div}:${i}`)!);
 
-    const standingsRows = teamIds.map((tid) => ({
+    standingsRows.push(...teamIds.map((tid) => ({
       competition_id: compId,
       team_id: tid,
       division: div,
       points: 0, wins: 0, draws: 0, losses: 0, goals_for: 0, goals_against: 0,
-    }));
-    const { error: sErr } = await supabase.from("standings").insert(standingsRows);
-    if (sErr) throw sErr;
+    })));
 
     const schedule = generateSchedule(14, true); // 26 rodadas
-    const matchesRows: any[] = [];
     schedule.forEach((round, rIdx) => {
       round.forEach(([h, a]) => {
         matchesRows.push({
@@ -354,18 +364,28 @@ export async function seedWorldForTrainer({
         });
       });
     });
-    // Insere calendário em lotes
-    for (let i = 0; i < matchesRows.length; i += CHUNK) {
-      const chunk = matchesRows.slice(i, i + CHUNK);
-      const { error } = await supabase.from("matches").insert(chunk);
-      if (error) throw error;
-    }
   }
 
-  // 5) world_state
-  await supabase
-    .from("world_state")
-    .upsert({ trainer_id: trainerId, season_id: seasonId, current_round: 1, seeded: true });
+  // 5) Persiste tabela, calendário e estado do mundo em paralelo.
+  await Promise.all([
+    supabase.from("standings").insert(standingsRows).then(({ error }: any) => {
+      if (error) throw error;
+    }),
+    ...Array.from({ length: Math.ceil(matchesRows.length / CHUNK) }, (_, chunkIndex) =>
+      supabase
+        .from("matches")
+        .insert(matchesRows.slice(chunkIndex * CHUNK, (chunkIndex + 1) * CHUNK))
+        .then(({ error }: any) => {
+          if (error) throw error;
+        }),
+    ),
+    supabase
+      .from("world_state")
+      .upsert({ trainer_id: trainerId, season_id: seasonId, current_round: 1, seeded: true })
+      .then(({ error }: any) => {
+        if (error) throw error;
+      }),
+  ]);
 
   return { competitionsByDiv, playerTeamId };
 }

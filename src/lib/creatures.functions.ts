@@ -281,15 +281,14 @@ export const createInitialTrainer = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
-    // Garante que existe perfil
-    await supabase.from("profiles").upsert({ id: userId });
-
-    // Bloqueia duplicidade
-    const { data: existing } = await supabase
-      .from("trainers")
-      .select("id")
-      .eq("user_id", userId)
-      .maybeSingle();
+    const [, { data: existing }] = await Promise.all([
+      supabase.from("profiles").upsert({ id: userId }),
+      supabase
+        .from("trainers")
+        .select("id")
+        .eq("user_id", userId)
+        .maybeSingle(),
+    ]);
     if (existing) {
       throw new Error("Você já tem um treinador criado.");
     }
@@ -306,28 +305,26 @@ export const createInitialTrainer = createServerFn({ method: "POST" })
       .single();
     if (tErr) throw tErr;
 
-    // 2. Academy — $400k iniciais (será complementado ao escolher o time)
-    const { error: aErr } = await supabase.from("academies").insert({
-      trainer_id: trainer.id,
-      money: 400000,
-      gems: 50,
-      builders: 1,
-      roster_slots: 26,
-    });
-    if (aErr) throw aErr;
-
-    // 3. Prédios iniciais (Estádio nv1, CT Treinamento nv1, Centro Médico nv1)
-    await supabase.from("buildings").insert([
-      { trainer_id: trainer.id, building_type: "estadio",        level: 1 },
-      { trainer_id: trainer.id, building_type: "ct_treino",      level: 1 },
-      { trainer_id: trainer.id, building_type: "centro_medico",  level: 1 },
+    const setupResults = await Promise.all([
+      supabase.from("academies").insert({
+        trainer_id: trainer.id,
+        money: 400000,
+        gems: 50,
+        builders: 1,
+        roster_slots: 26,
+      }),
+      supabase.from("buildings").insert([
+        { trainer_id: trainer.id, building_type: "estadio", level: 1 },
+        { trainer_id: trainer.id, building_type: "ct_treino", level: 1 },
+        { trainer_id: trainer.id, building_type: "centro_medico", level: 1 },
+      ]),
+      supabase.from("items").insert([
+        { trainer_id: trainer.id, item_key: "potion_individual", quantity: 3 },
+        { trainer_id: trainer.id, item_key: "potion_collective", quantity: 1 },
+      ]),
     ]);
-
-    // 4. Itens iniciais (§7): 3 Poção Individual + 1 Poção Coletiva
-    await supabase.from("items").insert([
-      { trainer_id: trainer.id, item_key: "potion_individual", quantity: 3 },
-      { trainer_id: trainer.id, item_key: "potion_collective", quantity: 1 },
-    ]);
+    const setupError = setupResults.find((result) => result.error)?.error;
+    if (setupError) throw setupError;
 
     // Elenco será criado quando o treinador escolher um dos 6 times iniciais.
     return { trainerId: trainer.id };
