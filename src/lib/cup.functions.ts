@@ -93,30 +93,36 @@ export const startCup = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const trainer = await getTrainer(supabase, userId);
 
-    const { data: existing } = await supabase
-      .from("competitions")
-      .select("id")
-      .eq("trainer_id", trainer.id)
-      .eq("type", "cup")
-      .eq("status", "active")
-      .maybeSingle();
+    const [existingResult, seasonResult, playerTeamResult, average] = await Promise.all([
+      supabase
+        .from("competitions")
+        .select("id")
+        .eq("trainer_id", trainer.id)
+        .eq("type", "cup")
+        .eq("status", "active")
+        .maybeSingle(),
+      supabase
+        .from("game_seasons")
+        .select("id")
+        .eq("trainer_id", trainer.id)
+        .eq("is_current", true)
+        .maybeSingle(),
+      supabase
+        .from("teams")
+        .select("id, name, division, color, colors, dominant_element")
+        .eq("trainer_id", trainer.id)
+        .eq("is_player", true)
+        .maybeSingle(),
+      playerAverage(supabase, trainer.id),
+    ]);
+    const { data: existing } = existingResult;
     if (existing) throw new Error("Já existe uma copa em andamento.");
 
-    const { data: season } = await supabase
-      .from("game_seasons")
-      .select("id")
-      .eq("trainer_id", trainer.id)
-      .eq("is_current", true)
-      .maybeSingle();
+    const { data: season } = seasonResult;
     if (!season) throw new Error("Sem temporada ativa. Inicie a liga primeiro.");
 
     // Time do jogador (da liga vigente) + divisão
-    const { data: playerLeagueTeam } = await supabase
-      .from("teams")
-      .select("id, name, division, color, colors, dominant_element")
-      .eq("trainer_id", trainer.id)
-      .eq("is_player", true)
-      .maybeSingle();
+    const { data: playerLeagueTeam } = playerTeamResult;
     if (!playerLeagueTeam) throw new Error("Você precisa ter uma liga ativa antes de disputar a copa.");
     const division = ((playerLeagueTeam.division as string) ?? "bronze") as
       "bronze" | "prata" | "ouro" | "diamante" | "lendaria";
@@ -149,7 +155,7 @@ export const startCup = createServerFn({ method: "POST" })
       .single();
     if (cErr) throw cErr;
 
-    const avg = await playerAverage(supabase, trainer.id);
+    const avg = average;
     // Cria as "cópias" dos times na competição da copa (mantém os nomes reais)
     const teamRows = [
       {

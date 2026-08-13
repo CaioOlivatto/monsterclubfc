@@ -179,25 +179,28 @@ export const getLeague = createServerFn({ method: "GET" })
     const trainer = await getTrainer(supabase, userId);
 
     // Todas as competições ativas da temporada corrente do treinador (5 divisões)
-    const { data: allComps } = await supabase
+    const allCompsPromise = supabase
       .from("competitions")
       .select("id, division, season_id, status, champion_team_id")
       .eq("trainer_id", trainer.id)
       .eq("type", "league")
       .eq("status", "active");
+    const currentTeamPromise = trainer.current_team_id
+      ? supabase
+          .from("teams")
+          .select("id, competition_id, division")
+          .eq("id", trainer.current_team_id)
+          .eq("trainer_id", trainer.id)
+          .maybeSingle()
+      : Promise.resolve({ data: null });
+    const [{ data: allComps }, { data: currentTeam }] = await Promise.all([
+      allCompsPromise,
+      currentTeamPromise,
+    ]);
     if (!allComps || !allComps.length) return { competition: null };
 
     // Divisão do jogador = a que tem o time do jogador
-    let playerTeamRow: PlayerLeagueTeam | null = null;
-    if (trainer.current_team_id) {
-      const { data: currentTeam } = await supabase
-        .from("teams")
-        .select("id, competition_id, division")
-        .eq("id", trainer.current_team_id)
-        .eq("trainer_id", trainer.id)
-        .maybeSingle();
-      playerTeamRow = currentTeam as PlayerLeagueTeam | null;
-    }
+    let playerTeamRow = currentTeam as PlayerLeagueTeam | null;
     if (!playerTeamRow?.competition_id) {
       const { data: fallbackTeam } = await supabase
         .from("teams")
