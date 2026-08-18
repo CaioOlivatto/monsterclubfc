@@ -184,7 +184,6 @@ export type Database = {
           injury_severity: string | null
           is_goalkeeper: boolean
           is_prodigy: boolean
-          last_aged_season: number
           market_value: number
           morale: number
           morale_session_completes_at: string | null
@@ -235,7 +234,6 @@ export type Database = {
           injury_severity?: string | null
           is_goalkeeper?: boolean
           is_prodigy?: boolean
-          last_aged_season?: number
           market_value?: number
           morale?: number
           morale_session_completes_at?: string | null
@@ -286,7 +284,6 @@ export type Database = {
           injury_severity?: string | null
           is_goalkeeper?: boolean
           is_prodigy?: boolean
-          last_aged_season?: number
           market_value?: number
           morale?: number
           morale_session_completes_at?: string | null
@@ -388,7 +385,6 @@ export type Database = {
       }
       game_seasons: {
         Row: {
-          balance_version: string
           ended_at: string | null
           id: string
           is_current: boolean
@@ -397,7 +393,6 @@ export type Database = {
           trainer_id: string
         }
         Insert: {
-          balance_version?: string
           ended_at?: string | null
           id?: string
           is_current?: boolean
@@ -406,7 +401,6 @@ export type Database = {
           trainer_id: string
         }
         Update: {
-          balance_version?: string
           ended_at?: string | null
           id?: string
           is_current?: boolean
@@ -645,60 +639,6 @@ export type Database = {
             foreignKeyName: "market_purchases_trainer_id_fkey"
             columns: ["trainer_id"]
             isOneToOne: false
-            referencedRelation: "trainers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      premium_signings: {
-        Row: {
-          amount_cents: number
-          created_at: string
-          creature_id: string | null
-          division: Database["public"]["Enums"]["division_type"]
-          id: string
-          offer_id: string
-          payment_provider: string
-          provider_payment_id: string
-          season_number: number
-          trainer_id: string
-        }
-        Insert: {
-          amount_cents: number
-          created_at?: string
-          creature_id?: string | null
-          division: Database["public"]["Enums"]["division_type"]
-          id?: string
-          offer_id: string
-          payment_provider: string
-          provider_payment_id: string
-          season_number: number
-          trainer_id: string
-        }
-        Update: {
-          amount_cents?: number
-          created_at?: string
-          creature_id?: string | null
-          division?: Database["public"]["Enums"]["division_type"]
-          id?: string
-          offer_id?: string
-          payment_provider?: string
-          provider_payment_id?: string
-          season_number?: number
-          trainer_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "premium_signings_creature_id_fkey"
-            columns: ["creature_id"]
-            isOneToOne: false
-            referencedRelation: "creatures"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "premium_signings_trainer_id_fkey"
-            columns: ["trainer_id"]
-            isOneToOne: true
             referencedRelation: "trainers"
             referencedColumns: ["id"]
           },
@@ -1502,26 +1442,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      adjust_academy_money: {
-        Args: { p_delta: number; p_trainer_id: string }
-        Returns: number
-      }
-      buy_shop_item_atomic: {
-        Args: { p_currency: string; p_item_key: string; p_quantity: number; p_trainer_id: string }
-        Returns: Json
-      }
-      exchange_gems_for_money_atomic: {
-        Args: { p_gems: number; p_trainer_id: string }
-        Returns: Json
-      }
-      retire_creature_atomic: {
-        Args: { p_creature_id: string; p_trainer_id: string }
-        Returns: Json
-      }
-      sell_creature_atomic: {
-        Args: { p_creature_id: string; p_trainer_id: string }
-        Returns: Json
-      }
       apply_end_of_season_block: { Args: { payload: Json }; Returns: Json }
     }
     Enums: {
