@@ -1,4 +1,4 @@
-// Geradores de nome para academias amadoras (~1.130) e treinadores.
+// Geradores de nome para academias simuladas e treinadores.
 // Estilo mitológico/elemental, coerente com o catálogo dos 70 times profissionais.
 
 const ACADEMY_PREFIX = [

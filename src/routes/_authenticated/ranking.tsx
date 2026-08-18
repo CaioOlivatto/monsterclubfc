@@ -31,9 +31,9 @@ export const Route = createFileRoute("/_authenticated/ranking")({
   head: () => ({
     meta: [
       { title: "Ranking Mundial — Monster Club Manager" },
-      { name: "description", content: "Ranking mundial das 1.200 academias do jogo. Suba de posição vencendo partidas e evoluindo sua academia." },
+      { name: "description", content: "Ranking mundial das 300 academias do jogo. Suba de posição vencendo partidas e evoluindo sua academia." },
       { property: "og:title", content: "Ranking Mundial — Monster Club Manager" },
-      { property: "og:description", content: "1.200 academias disputam pela glória. Onde a sua está?" },
+      { property: "og:description", content: "300 academias disputam pela glória. Onde a sua está?" },
     ],
   }),
   component: RankingPage,
@@ -66,7 +66,7 @@ function RankingPage() {
             <p className="text-xs uppercase tracking-wider text-muted-foreground">Mundo</p>
             <h1 className="text-lg font-bold sm:text-2xl">Ranking Mundial de Treinadores</h1>
             <p className="text-xs text-muted-foreground">
-              1.200 academias — 70 nas divisões oficiais e ~1.130 no circuito amador
+              300 academias — jogadores reais substituem gradualmente as academias simuladas
             </p>
           </div>
         </div>
@@ -171,6 +171,9 @@ function RankRow({ row, sort, highlight }: { row: any; sort: SortKey; highlight?
       <Badge variant="outline" className={`shrink-0 ${DIV_TONE[row.division] ?? ""}`}>
         {DIV_LABEL[row.division] ?? row.division}
       </Badge>
+      {sort !== "level" && (
+        <Badge variant="secondary" className="shrink-0">Nv. {row.level}</Badge>
+      )}
       <span className="w-24 shrink-0 text-right text-sm font-semibold tabular-nums">{value}</span>
     </li>
   );

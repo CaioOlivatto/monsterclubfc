@@ -326,19 +326,23 @@ async function buildOffers(input: BuildOffersInput): Promise<any[]> {
   // ---- Caminho INTERESSE (top-6/champion ou sequência de vitórias) ----
   if (!generateInterest) return [];
 
-  // Origem SEMPRE: uma divisão acima, clube da metade de baixo.
+  // Origem: divisão imediatamente acima, clube da metade de baixo.
+  // Evita saltos artificiais da Bronze direto para a elite e cria uma carreira
+  // legível: Bronze → Prata → Ouro → Diamante → Lendária.
   const candidates: { teamId: string; division: Division; reason: OfferReason }[] = [];
-  for (let i = playerDivIdx + 1; i < DIVISION_ORDER.length; i++) {
-    const div = DIVISION_ORDER[i];
+  const nextDivision = DIVISION_ORDER[playerDivIdx + 1];
+  if (nextDivision) {
+    const div = nextDivision;
     const ranked = rankedByDiv.get(div) ?? [];
-    if (!ranked.length) continue;
-    const half = Math.ceil(ranked.length / 2);
-    for (let pos = half; pos < ranked.length; pos++) {
-      candidates.push({
-        teamId: ranked[pos],
-        division: div,
-        reason: streakTriggered ? "higher_division" : "top_finish",
-      });
+    if (ranked.length) {
+      const half = Math.ceil(ranked.length / 2);
+      for (let pos = half; pos < ranked.length; pos++) {
+        candidates.push({
+          teamId: ranked[pos],
+          division: div,
+          reason: streakTriggered ? "higher_division" : "top_finish",
+        });
+      }
     }
   }
   if (!candidates.length) return [];

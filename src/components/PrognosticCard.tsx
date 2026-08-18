@@ -22,7 +22,7 @@ function pct(n: number): string {
 export function PrognosticCard({ state }: { state: UseQueryResult<PrognosticResponse, unknown> }) {
   if (state.isLoading) {
     return (
-      <Card>
+      <Card className="border-violet-500/40 bg-slate-950/90 text-slate-100 shadow-[0_12px_30px_rgba(0,0,0,.3)] [&_.text-muted-foreground]:text-slate-400">
         <CardHeader className="pb-3"><CardTitle className="text-base">Prognóstico</CardTitle></CardHeader>
         <CardContent className="text-xs text-muted-foreground">Calculando odds…</CardContent>
       </Card>
@@ -31,7 +31,7 @@ export function PrognosticCard({ state }: { state: UseQueryResult<PrognosticResp
   if (state.error || !state.data) {
     const msg = (state.error as any)?.message ?? "Salve a escalação para ver o prognóstico.";
     return (
-      <Card>
+      <Card className="border-violet-500/40 bg-slate-950/90 text-slate-100 shadow-[0_12px_30px_rgba(0,0,0,.3)] [&_.text-muted-foreground]:text-slate-400">
         <CardHeader className="pb-3"><CardTitle className="text-base">Prognóstico</CardTitle></CardHeader>
         <CardContent className="text-xs text-muted-foreground">{msg}</CardContent>
       </Card>
@@ -44,10 +44,11 @@ export function PrognosticCard({ state }: { state: UseQueryResult<PrognosticResp
   const gapMsg = home >= 0.6 ? "Favoritismo claro seu" : away >= 0.6 ? "Adversário é favorito claro" : home >= 0.45 ? "Leve favoritismo seu" : away >= 0.45 ? "Leve favoritismo do adversário" : "Partida equilibrada";
 
   return (
-    <Card>
+    <Card className="border-violet-500/40 bg-slate-950/90 text-slate-100 shadow-[0_12px_30px_rgba(0,0,0,.3)] [&_.text-muted-foreground]:text-slate-400">
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
-          <Zap className="h-4 w-4 text-primary" />
+          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-violet-600 text-xs text-white">3</span>
+          <Zap className="h-4 w-4 text-violet-300" />
           Prognóstico
           {state.isFetching && (
             <span className="ml-auto text-[11px] font-normal text-muted-foreground">Atualizando…</span>

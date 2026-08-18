@@ -48,7 +48,7 @@ export const getMyLineup = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const trainerId = await getTrainerId(supabase, userId);
 
-    const [{ data: lineup }, { data: creatures }] = await Promise.all([
+    const [{ data: lineup }, { data: creatures }, { data: membership }, { data: clubPreset }] = await Promise.all([
       supabase
         .from("team_lineups")
         .select("formation, strategy, starters, bench, default_tactics")
@@ -59,6 +59,8 @@ export const getMyLineup = createServerFn({ method: "GET" })
         .select("id, name, element, suggested_position, overall, energy, morale, injury_matches_remaining, injury_severity")
         .eq("owner_trainer_id", trainerId)
         .order("overall", { ascending: false }),
+      (supabase as any).from("club_memberships").select("active_until").eq("trainer_id", trainerId).maybeSingle(),
+      (supabase as any).from("club_lineup_presets").select("formation,strategy,starters,bench").eq("trainer_id", trainerId).maybeSingle(),
     ]);
 
     return {
@@ -70,7 +72,21 @@ export const getMyLineup = createServerFn({ method: "GET" })
         default_tactics: NEUTRAL_TACTICS,
       },
       creatures: creatures ?? [],
+      club_active: !!membership && new Date(membership.active_until).getTime() > Date.now(),
+      club_preset: clubPreset ?? null,
     };
+  });
+
+export const saveClubLineupPreset = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((raw: unknown) => SaveInput.parse(raw))
+  .handler(async ({ data, context }) => {
+    const trainerId = await getTrainerId(context.supabase, context.userId);
+    const { data: membership } = await (context.supabase as any).from("club_memberships").select("active_until").eq("trainer_id", trainerId).maybeSingle();
+    if (!membership || new Date(membership.active_until).getTime() <= Date.now()) throw new Error("O segundo plano é exclusivo do Clube Mensal.");
+    const { error } = await (context.supabase as any).from("club_lineup_presets").upsert({ trainer_id: trainerId, ...data, updated_at: new Date().toISOString() }, { onConflict: "trainer_id" });
+    if (error) throw error;
+    return { ok: true, preset: data };
   });
 
 export const getMyTactics = createServerFn({ method: "GET" })

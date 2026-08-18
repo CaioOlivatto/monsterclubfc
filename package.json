@@ -7,6 +7,12 @@
     "dev": "node --use-system-ca ./node_modules/vite/bin/vite.js dev",
     "build": "vite build",
     "build:dev": "vite build --mode development",
+    "balance:check": "node --experimental-strip-types scripts/balance-check.ts",
+    "balance:sim": "node --experimental-strip-types scripts/balance-sim.ts",
+    "career:sim": "node --experimental-strip-types scripts/career-sim.ts",
+    "monetization:check": "node --experimental-strip-types scripts/monetization-check.ts",
+    "arena:check": "node --experimental-strip-types scripts/arena-check.ts",
+    "quality:check": "npm.cmd run balance:check && npm.cmd run monetization:check && npm.cmd run arena:check && npm.cmd run build",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write ."

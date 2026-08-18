@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Shield, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { TeamCrest } from "@/components/TeamCrest";
 
 const MESSAGES = [
   "Times entrando no túnel…",
@@ -12,10 +13,14 @@ const MESSAGES = [
 type Props = {
   homeName?: string | null;
   awayName?: string | null;
+  homeTeamKey?: string | null;
+  awayTeamKey?: string | null;
+  homeElement?: string | null;
+  awayElement?: string | null;
   competitionLabel?: string | null;
 };
 
-export function MatchLoadingOverlay({ homeName, awayName, competitionLabel }: Props) {
+export function MatchLoadingOverlay({ homeName, awayName, homeTeamKey, awayTeamKey, homeElement, awayElement, competitionLabel }: Props) {
   const [msgIdx, setMsgIdx] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setMsgIdx((i) => (i + 1) % MESSAGES.length), 900);
@@ -31,12 +36,12 @@ export function MatchLoadingOverlay({ homeName, awayName, competitionLabel }: Pr
       ) : null}
 
       <div className="flex w-full max-w-md items-center justify-between gap-4">
-        <TeamCrest name={homeName ?? "Casa"} side="left" />
+        <LoadingTeamCrest name={homeName ?? "Casa"} teamKey={homeTeamKey} element={homeElement} side="left" />
         <div className="flex flex-col items-center gap-1">
           <span className="text-xl font-black tracking-wider text-muted-foreground">VS</span>
           <div className="h-1 w-8 rounded-full bg-primary/40" />
         </div>
-        <TeamCrest name={awayName ?? "Visitante"} side="right" />
+        <LoadingTeamCrest name={awayName ?? "Visitante"} teamKey={awayTeamKey} element={awayElement} side="right" />
       </div>
 
       <div className="flex flex-col items-center gap-3">
@@ -62,11 +67,11 @@ export function MatchLoadingOverlay({ homeName, awayName, competitionLabel }: Pr
   );
 }
 
-function TeamCrest({ name, side }: { name: string; side: "left" | "right" }) {
+function LoadingTeamCrest({ name, teamKey, element, side }: { name: string; teamKey?: string | null; element?: string | null; side: "left" | "right" }) {
   return (
     <div className={`flex flex-1 flex-col items-center gap-2 ${side === "left" ? "animate-in slide-in-from-left-8" : "animate-in slide-in-from-right-8"}`}>
-      <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/30 to-primary/5 shadow-lg ring-1 ring-primary/20">
-        <Shield className="h-10 w-10 text-primary" strokeWidth={1.5} />
+      <div className="relative flex h-24 w-24 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500/20 to-slate-950/35 shadow-[0_0_28px_rgba(124,58,237,.22)] ring-1 ring-violet-400/30">
+        <TeamCrest teamName={name} teamKey={teamKey} teamElement={element} size="lg" />
       </div>
       <span className="max-w-[8rem] truncate text-center text-sm font-semibold">{name}</span>
     </div>

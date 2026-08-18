@@ -15,18 +15,17 @@ import { rollBandForDivision, DIVISION_STAR_PROFILE, type Division } from "./eco
 
 export const STAR_VALUE = [
   15_000, 35_000, 70_000, 130_000, 240_000,
-  430_000, 780_000, 1_400_000, 2_500_000, 4_500_000,
+  430_000, 780_000, 2_400_000, 5_500_000, 12_000_000,
 ];
 
 /** Valor de mercado canônico por overall (Tabela de Balanceamento §9.1). */
-export function marketValueForOverall(overall: number): number {
-  const band = Math.max(1, Math.min(10, Math.round((overall ?? 0) / 10)));
-  return STAR_VALUE[band - 1];
+export function marketValueForOverall(overall: number, age = 24): number {
+  return computeMarketValue(overall, age);
 }
 
 /** Preço de venda canônico: valor por estrela × 90%, arredondado a 100. */
-export function sellPriceForOverall(overall: number): number {
-  return Math.round((marketValueForOverall(overall) * 0.9) / 100) * 100;
+export function sellPriceForOverall(overall: number, age = 24): number {
+  return Math.round((marketValueForOverall(overall, age) * 0.9) / 100) * 100;
 }
 
 function mulberry32(seed: number) {
@@ -129,6 +128,14 @@ export interface MarketListing {
   is_prodigy: boolean;
 }
 
+export interface PremiumMarketOffer extends MarketListing {
+  real_price_cents: number;
+  real_price_label: string;
+  premium_band: number;
+  premium_tier_label: string;
+  lifetime_limit: 1;
+}
+
 function pickSpeciesForBand(bestiary: LoadedBestiary, band: number, rng: () => number): SpeciesBase {
   const scored = bestiary.species.map((s) => ({ s, o: speciesBaseOverall(s) }));
   let pool: SpeciesBase[];
@@ -140,9 +147,15 @@ function pickSpeciesForBand(bestiary: LoadedBestiary, band: number, rng: () => n
   return pick(rng, pool);
 }
 
-function generateOne(bestiary: LoadedBestiary, rng: () => number, division: Division, forcedBand?: number): MarketListing {
+function generateOne(
+  bestiary: LoadedBestiary,
+  rng: () => number,
+  division: Division,
+  forcedBand?: number,
+  forcedOverall?: number,
+): MarketListing {
   const band = forcedBand ?? rollHalfStarBand(rng, division);
-  const targetOverall = band * 10; // 10..100
+  const targetOverall = forcedOverall ?? band * 10; // 10..100
   const spBase = pickSpeciesForBand(bestiary, band, rng);
   const c = rollCreature(spBase, bestiary.epithets[spBase.element] ?? [], rng, { variation: 6, prodigy: rng() < 0.005 });
   const currOverall = c.overall || 40;
@@ -162,13 +175,13 @@ function generateOne(bestiary: LoadedBestiary, rng: () => number, division: Divi
     overall: targetOverall,
   };
 
-  const market_value = STAR_VALUE[band - 1];
-  const priceMultiplier = 0.9 + rng() * 0.4;
-  const price = Math.max(1000, Math.round((market_value * priceMultiplier) / 1000) * 1000);
-  const idSeed = Math.floor(rng() * 1e9).toString(16);
   // Idade em múltiplos de 3, entre 18 e 30, com peso maior para jovens/meia-idade
   const AGE_POOL = [18, 18, 21, 21, 21, 24, 24, 27, 27, 30];
   const age = AGE_POOL[Math.floor(rng() * AGE_POOL.length)];
+  const market_value = computeMarketValue(targetOverall, age);
+  const priceMultiplier = 0.9 + rng() * 0.4;
+  const price = Math.max(1000, Math.round((market_value * priceMultiplier) / 1000) * 1000);
+  const idSeed = Math.floor(rng() * 1e9).toString(16);
 
   return {
     id: `market_${idSeed}`,
@@ -214,6 +227,67 @@ export function generateMarketListings(
   const listings: MarketListing[] = [];
   for (let i = 0; i < count; i++) listings.push(generateOne(bestiary, rng, division, deck[i]));
   return listings;
+}
+
+/** Oferta premium determinística, adequada à divisão e limitada a uma compra por carreira. */
+export function generatePremiumMarketOffer(
+  bestiary: LoadedBestiary,
+  trainerId: string,
+  seasonNumber: number,
+  division: Division,
+): PremiumMarketOffer {
+  const bandByDivision: Record<Division, number> = {
+    bronze: 6,
+    prata: 8,
+    ouro: 10,
+    diamante: 10,
+    lendaria: 10,
+  };
+  const overallByDivision: Record<Division, number> = {
+    bronze: 60,
+    prata: 80,
+    ouro: 95,
+    diamante: 98,
+    lendaria: 100,
+  };
+  const tierLabelByDivision: Record<Division, string> = {
+    bronze: "3 estrelas — topo da categoria",
+    prata: "4 estrelas — topo da categoria",
+    ouro: "5 estrelas — jogador top",
+    diamante: "5 estrelas — jogador de elite",
+    lendaria: "5 estrelas — nível máximo",
+  };
+  const priceByDivision: Record<Division, number> = {
+    bronze: 2990,
+    prata: 4990,
+    ouro: 7990,
+    diamante: 9990,
+    lendaria: 11990,
+  };
+  const rng = mulberry32(hashString(`${trainerId}:premium:${seasonNumber}:${division}`));
+  const premiumBand = bandByDivision[division];
+  const listing = generateOne(
+    bestiary,
+    rng,
+    division,
+    premiumBand,
+    overallByDivision[division],
+  );
+  const marketValue = computeMarketValue(listing.overall, 18);
+  const cents = priceByDivision[division];
+  return {
+    ...listing,
+    id: `premium_${division}_${seasonNumber}_${listing.id}`,
+    age: 18,
+    is_prodigy: true,
+    market_value: marketValue,
+    price: marketValue,
+    real_price_cents: cents,
+    real_price_label: `R$ ${(cents / 100).toFixed(2).replace(".", ",")}`,
+    premium_band: premiumBand,
+    premium_tier_label: tierLabelByDivision[division],
+    lifetime_limit: 1,
+  };
 }
 
 export function findListing(

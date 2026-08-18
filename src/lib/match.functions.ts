@@ -5,7 +5,7 @@ import { simulate, persistableSimulationEvents, generateCpuSide, type EngineSide
 import { loadBestiary } from "./bestiary.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
-import { SPEED_UNLOCK_COSTS } from "./shop.server";
+import { SPEED_REAL_MONEY_PRODUCTS } from "./shop.server";
 import { WORLD_TEAMS, type DivisionSlug } from "./world/catalog";
 
 
@@ -59,25 +59,9 @@ export const buySpeedUnlock = createServerFn({ method: "POST" })
     z.object({ mode: z.enum(["4x", "instant"]) }).parse(raw),
   )
   .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
-    const trainer = await getTrainerCtx(supabase, userId);
-    const { data: academy } = await supabase
-      .from("academies")
-      .select("id, gems, paid_4x, paid_instant")
-      .eq("trainer_id", trainer.id)
-      .maybeSingle();
-    if (!academy) throw new Error("Academia não encontrada.");
-    const isFourX = data.mode === "4x";
-    if (isFourX ? academy.paid_4x : academy.paid_instant) {
-      return { ok: true, alreadyUnlocked: true };
-    }
-    const cost = SPEED_UNLOCK_COSTS[data.mode];
-    if (academy.gems < cost) throw new Error("Gemas insuficientes.");
-    const patch = isFourX
-      ? { gems: academy.gems - cost, paid_4x: true }
-      : { gems: academy.gems - cost, paid_instant: true };
-    await supabase.from("academies").update(patch).eq("id", academy.id);
-    return { ok: true, alreadyUnlocked: false };
+    void data;
+    void context;
+    throw new Error("Este recurso exige pagamento em dinheiro real. Pagamentos em breve.");
   });
 
 // Compat legado: mantém o nome antigo, mas agora sempre desbloqueia permanentemente.
@@ -219,7 +203,7 @@ export const getMatch = createServerFn({ method: "GET" })
     const [{ data: teams }, { data: events }, { data: academy }] = await Promise.all([
       supabase
         .from("teams")
-        .select("id, name, is_player, trainer_id")
+        .select("id, name, is_player, trainer_id, starter_key, dominant_element")
         .in("id", [match.home_team_id, match.away_team_id]),
       supabase
         .from("match_events")
@@ -243,15 +227,15 @@ export const getMatch = createServerFn({ method: "GET" })
 
     return {
       match,
-      home: home ? { id: home.id, name: home.name } : null,
-      away: away ? { id: away.id, name: away.name } : null,
+      home: home ? { id: home.id, name: home.name, starter_key: home.starter_key, dominant_element: home.dominant_element } : null,
+      away: away ? { id: away.id, name: away.name, starter_key: away.starter_key, dominant_element: away.dominant_element } : null,
       player_team_id: playerTeamId,
       events: events ?? [],
       speed: {
         paid_4x: academy?.paid_4x ?? false,
         paid_instant: academy?.paid_instant ?? false,
-        cost_4x: SPEED_UNLOCK_COSTS["4x"],
-        cost_instant: SPEED_UNLOCK_COSTS.instant,
+        price_4x: SPEED_REAL_MONEY_PRODUCTS["4x"].priceLabel,
+        price_instant: SPEED_REAL_MONEY_PRODUCTS.instant.priceLabel,
         gems: academy?.gems ?? 0,
       },
     };

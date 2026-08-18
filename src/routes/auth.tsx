@@ -12,6 +12,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { GameLogo } from "@/components/GameLogo";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/auth")({
@@ -130,10 +131,15 @@ function AuthPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+    <div
+      className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 bg-cover bg-[position:center_62%] p-4 sm:bg-center"
+      style={{ backgroundImage: "url('/assets/monster-stadium.webp')" }}
+    >
+      <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-b from-slate-950/50 via-slate-950/35 to-slate-950/70" />
+      <Card className="relative z-10 w-full max-w-md border-white/15 bg-card/92 shadow-2xl backdrop-blur-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Monster Club Manager</CardTitle>
+          <GameLogo size="md" className="mx-auto mb-2" />
+          <CardTitle className="sr-only">Monster Club FC</CardTitle>
           <CardDescription>
             Entre na sua academia ou comece uma nova jornada.
           </CardDescription>

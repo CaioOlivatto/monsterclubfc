@@ -1,16 +1,18 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { generateMarketListings, findListing, sellPriceForOverall } from "./market.server";
+import { generateMarketListings, generatePremiumMarketOffer, findListing, sellPriceForOverall } from "./market.server";
 import { xpForHalfStars } from "./xp.server";
 import {
   DIVISION_MAX_BAND,
   DIVISION_SALARY_CAP,
   refusalChance,
-  seasonSalary,
-  matchSalary,
+  divisionalMatchSalary,
+  MATCHES_PER_SEASON,
+  totalMaintenancePerMatch,
   type Division,
 } from "./economy";
+import { adjustAcademyMoney } from "./academy-money.server";
 
 /** Divisão ATUAL do jogador — fonte única (time atual), nunca `competitions`. */
 async function currentDivision(supabase: any, trainerId: string, currentTeamId?: string | null): Promise<Division> {
@@ -56,13 +58,13 @@ async function getTrainerWithAcademy(
   };
 }
 
-async function currentPayroll(supabase: any, trainerId: string): Promise<number> {
+async function currentPayroll(supabase: any, trainerId: string, division: Division): Promise<number> {
   const { data } = await supabase
     .from("creatures")
     .select("overall, salary_mult")
     .eq("owner_trainer_id", trainerId);
   return (data ?? []).reduce(
-    (acc: number, c: any) => acc + Math.round(seasonSalary(c.overall ?? 40) * (c.salary_mult ?? 1)),
+    (acc: number, c: any) => acc + Math.round(divisionalMatchSalary(c.overall ?? 40, division) * MATCHES_PER_SEASON * (c.salary_mult ?? 1)),
     0,
   );
 }
@@ -86,7 +88,7 @@ export const getMarket = createServerFn({ method: "GET" })
       currentDivision(supabase, trainer.id, trainer.current_team_id),
       supabase
         .from("creatures")
-        .select("id, name, element, suggested_position, overall, energy, market_value, is_prodigy, salary_mult")
+        .select("id, name, element, suggested_position, overall, energy, market_value, age, is_prodigy, salary_mult")
         .eq("owner_trainer_id", trainer.id)
         .order("overall", { ascending: false }),
       loadBestiary(supabase),
@@ -96,27 +98,44 @@ export const getMarket = createServerFn({ method: "GET" })
     const allListings = generateMarketListings(bestiary, trainer.id, seasonNumber, division);
 
     // Remove ofertas já compradas nesta temporada/divisão
-    const { data: bought } = await supabase
-      .from("market_purchases")
-      .select("listing_id")
-      .eq("trainer_id", trainer.id)
-      .eq("season_number", seasonNumber)
-      .eq("division", division);
+    const [{ data: bought }, { data: premiumSigning }] = await Promise.all([
+      supabase
+        .from("market_purchases")
+        .select("listing_id")
+        .eq("trainer_id", trainer.id)
+        .eq("season_number", seasonNumber)
+        .eq("division", division),
+      supabase
+        .from("premium_signings")
+        .select("id")
+        .eq("trainer_id", trainer.id)
+        .maybeSingle(),
+    ]);
     const boughtSet = new Set((bought ?? []).map((r: any) => r.listing_id));
     const listings = allListings
       .filter((l) => !boughtSet.has(l.id))
       .map((l) => ({
         ...l,
-        salary: seasonSalary(l.overall),
-        salary_per_match: matchSalary(l.overall),
+        salary: divisionalMatchSalary(l.overall, division) * MATCHES_PER_SEASON,
+        salary_per_match: divisionalMatchSalary(l.overall, division),
       }));
 
     const rosterCount = creatures.length;
     // O elenco já foi carregado para a aba "Vender"; reutilizamos esses dados
     // para a folha, evitando uma segunda consulta completa à mesma tabela.
     const payroll = creatures.reduce(
-      (acc: number, creature: any) => acc + Math.round(seasonSalary(creature.overall ?? 40) * (creature.salary_mult ?? 1)),
+      (acc: number, creature: any) => acc + Math.round(divisionalMatchSalary(creature.overall ?? 40, division) * MATCHES_PER_SEASON * (creature.salary_mult ?? 1)),
       0,
+    );
+    const minimumOperatingReserve = Math.round(
+      5 * (
+        payroll / 26 +
+        totalMaintenancePerMatch(division, [
+          { building_type: "estadio", level: 1 },
+          { building_type: "ct_treino", level: 1 },
+          { building_type: "centro_medico", level: 1 },
+        ])
+      ),
     );
 
     return {
@@ -124,13 +143,21 @@ export const getMarket = createServerFn({ method: "GET" })
       gems: academy?.gems ?? 0,
       roster_slots: academy?.roster_slots ?? 0,
       roster_count: rosterCount,
-      my_creatures: creatures.map(({ salary_mult: _salaryMult, ...creature }: any) => creature),
+      my_creatures: creatures.map(({ salary_mult: _salaryMult, ...creature }: any) => ({
+        ...creature,
+        sell_price: sellPriceForOverall(creature.overall ?? 0, creature.age ?? 24),
+      })),
       listings,
+      premium_offer: premiumSigning
+        ? null
+        : generatePremiumMarketOffer(bestiary, trainer.id, seasonNumber, division),
+      premium_offer_used: !!premiumSigning,
       season_number: seasonNumber,
       division,
       max_band: DIVISION_MAX_BAND[division],
       salary_cap: DIVISION_SALARY_CAP[division],
       payroll,
+      minimum_operating_reserve: minimumOperatingReserve,
       rotation_label: "Próxima renovação: início da próxima temporada",
     };
   });
@@ -185,7 +212,7 @@ export const buyCreature = createServerFn({ method: "POST" })
     // Aceitar a contraproposta só é válido dentro da zona de recusa e para veteranos.
     const premium = inRefusalZone && isVeteran && !!data.accept_counter;
 
-    const baseSalary = seasonSalary(listing.overall);
+    const baseSalary = divisionalMatchSalary(listing.overall, trainer.division) * MATCHES_PER_SEASON;
 
     if (inRefusalZone && !premium && Math.random() < refuse) {
       // §8.1b — Negociação por idade
@@ -208,7 +235,7 @@ export const buyCreature = createServerFn({ method: "POST" })
           base_price: listing.price,
           salary: Math.round(baseSalary * VETERAN_COUNTER_MULT),
           base_salary: baseSalary,
-          salary_per_match: Math.round(matchSalary(listing.overall) * VETERAN_COUNTER_MULT),
+          salary_per_match: Math.round(divisionalMatchSalary(listing.overall, trainer.division) * VETERAN_COUNTER_MULT),
           multiplier: VETERAN_COUNTER_MULT,
         },
       };
@@ -218,7 +245,7 @@ export const buyCreature = createServerFn({ method: "POST" })
     const price = premium ? Math.round(listing.price * VETERAN_COUNTER_MULT) : listing.price;
 
     // §8.2 — Teto de folha salarial
-    const payroll = await currentPayroll(supabase, trainer.id);
+    const payroll = await currentPayroll(supabase, trainer.id, trainer.division);
     const addSalary = Math.round(baseSalary * salaryMult);
     const cap = DIVISION_SALARY_CAP[trainer.division];
     if (payroll + addSalary > cap) {
@@ -232,6 +259,9 @@ export const buyCreature = createServerFn({ method: "POST" })
     }
 
 
+    // Reserva o valor atomicamente antes de criar o atleta. Se a criação
+    // falhar, o bloco de compensação devolve integralmente o dinheiro.
+    await adjustAcademyMoney(supabase, trainer.id, -price);
     const { data: created, error: cErr } = await supabase
       .from("creatures")
       .insert({
@@ -267,13 +297,10 @@ export const buyCreature = createServerFn({ method: "POST" })
       } as any)
       .select("id")
       .single();
-    if (cErr) throw cErr;
-
-    const { error: aErr } = await supabase
-      .from("academies")
-      .update({ money: trainer.money - price })
-      .eq("trainer_id", trainer.id);
-    if (aErr) throw aErr;
+    if (cErr) {
+      await adjustAcademyMoney(supabase, trainer.id, price).catch(() => undefined);
+      throw cErr;
+    }
 
     await supabase.from("financial_transactions").insert({
       trainer_id: trainer.id,
@@ -303,7 +330,7 @@ export const buyCreature = createServerFn({ method: "POST" })
       name: listing.name,
       price,
       salary: addSalary,
-      salary_per_match: Math.round(matchSalary(listing.overall) * salaryMult),
+      salary_per_match: Math.round(divisionalMatchSalary(listing.overall, trainer.division) * salaryMult),
       element: listing.element,
       position: listing.suggested_position,
       overall: listing.overall,
@@ -323,51 +350,11 @@ export const sellCreature = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const trainer = await getTrainerWithAcademy(supabase, userId);
 
-    const { count } = await supabase
-      .from("creatures")
-      .select("id", { count: "exact", head: true })
-      .eq("owner_trainer_id", trainer.id);
-    if ((count ?? 0) <= 11) {
-      throw new Error("Você precisa manter no mínimo 11 criaturas no elenco.");
-    }
-
-    const { data: creature, error: fErr } = await supabase
-      .from("creatures")
-      .select("id, name, overall, market_value")
-      .eq("id", data.creature_id)
-      .eq("owner_trainer_id", trainer.id)
-      .maybeSingle();
-    if (fErr) throw fErr;
-    if (!creature) throw new Error("Criatura não encontrada.");
-
-    // §9.1 — Preço de venda canônico: valor por estrela × 90% (independente do market_value armazenado).
-    const salePrice = sellPriceForOverall(creature.overall ?? 0);
-
-    const { error: dErr } = await supabase
-      .from("creatures")
-      .delete()
-      .eq("id", creature.id)
-      .eq("owner_trainer_id", trainer.id);
-    if (dErr) throw dErr;
-
-    const { error: aErr } = await supabase
-      .from("academies")
-      .update({ money: trainer.money + salePrice })
-      .eq("trainer_id", trainer.id);
-    if (aErr) throw aErr;
-
-    await supabase.from("financial_transactions").insert({
-      trainer_id: trainer.id,
-      transaction_type: "income",
-      amount: salePrice,
-      description: `Venda: ${creature.name}`,
+    const { data: result, error } = await supabase.rpc("sell_creature_atomic", {
+      p_trainer_id: trainer.id,
+      p_creature_id: data.creature_id,
     });
-    await supabase.from("transfers").insert({
-      trainer_id: trainer.id,
-      creature_id: null,
-      transfer_type: "sell",
-      amount: salePrice,
-    });
-
-    return { sold: creature.name, amount: salePrice };
+    if (error) throw error;
+    const sale = result as { name: string; amount: number };
+    return { sold: sale.name, amount: sale.amount };
   });

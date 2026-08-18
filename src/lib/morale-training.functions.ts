@@ -7,10 +7,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { adjustAcademyMoney } from "./academy-money.server";
 
 export const MORALE_SESSION_INDIVIDUAL_MS = 4 * 60 * 60 * 1000;
 export const MORALE_MEETING_COLLECTIVE_MS = 4 * 60 * 60 * 1000;
-export const MORALE_GENERAL_MS = 4 * 60 * 60 * 1000;
 export const MORALE_SESSION_INDIVIDUAL_BOOST = 25;
 export const MORALE_MEETING_COLLECTIVE_BOOST = 15;
 export const MORALE_GENERAL_BOOST = 25;
@@ -77,6 +77,33 @@ export async function sweepMoraleMeeting(supabase: any, trainerId: string, acade
   );
   await supabase.from("academies").update({ morale_meeting_completes_at: null }).eq("id", academyId);
   return list.length;
+}
+
+/** Conclui imediatamente incentivos gerais criados pela versão antiga (um timer idêntico no elenco todo). */
+async function settleLegacyGeneralMorale(supabase: any, trainerId: string) {
+  const { data: creatures } = await supabase
+    .from("creatures")
+    .select("id, morale, retired, morale_session_completes_at")
+    .eq("owner_trainer_id", trainerId);
+  const eligible = (creatures ?? []).filter((c: any) => !c.retired);
+  const active = eligible.filter(
+    (c: any) => c.morale_session_completes_at && new Date(c.morale_session_completes_at).getTime() > Date.now(),
+  );
+  if (!eligible.length || active.length !== eligible.length) return false;
+  const timestamps = new Set(active.map((c: any) => c.morale_session_completes_at));
+  if (timestamps.size !== 1) return false;
+  await Promise.all(
+    active.map((c: any) =>
+      supabase
+        .from("creatures")
+        .update({
+          morale: applyDiminishing(c.morale ?? 50, MORALE_GENERAL_BOOST),
+          morale_session_completes_at: null,
+        })
+        .eq("id", c.id),
+    ),
+  );
+  return true;
 }
 
 export const startMoraleSession = createServerFn({ method: "POST" })
@@ -217,6 +244,7 @@ export const getMoraleSessionsState = createServerFn({ method: "GET" })
     const trainer = await loadTrainer(supabase, userId);
     await sweepMoraleSessions(supabase, trainer.id);
     await sweepMoraleMeeting(supabase, trainer.id, trainer.academyId, trainer.meetingAt);
+    await settleLegacyGeneralMorale(supabase, trainer.id);
     // Preço do Incentivo Geral (pago): preço por criatura × elenco não aposentado, escalado pela divisão atual.
     const [academyResult, creaturesResult, divisionModule, shopModule] = await Promise.all([
       supabase
@@ -245,19 +273,28 @@ export const getMoraleSessionsState = createServerFn({ method: "GET" })
         !c.morale_session_completes_at ||
         new Date(c.morale_session_completes_at).getTime() <= Date.now(),
     );
+    const activeSessions = eligible.filter(
+      (c: any) =>
+        c.morale_session_completes_at &&
+        new Date(c.morale_session_completes_at).getTime() > Date.now(),
+    );
+    const activeCompletesAt = activeSessions
+      .map((c: any) => c.morale_session_completes_at as string)
+      .sort()[0] ?? null;
     return {
       meeting_completes_at: (a?.morale_meeting_completes_at ?? null) as string | null,
       gems: (a?.gems ?? 0) as number,
       money: Number(a?.money ?? 0),
       individual_ms: MORALE_SESSION_INDIVIDUAL_MS,
       collective_ms: MORALE_MEETING_COLLECTIVE_MS,
-      general_ms: MORALE_GENERAL_MS,
       general: {
         division,
         price_per_creature: pricePer,
         eligible_count: eligible.length,
         appliable_count: freeOfSession.length,
         total_price: pricePer * freeOfSession.length,
+        active_count: activeSessions.length,
+        completes_at: activeCompletesAt,
       },
     };
   });
@@ -269,6 +306,18 @@ export const startMoraleGeneral = createServerFn({ method: "POST" })
     const trainer = await loadTrainer(supabase, userId);
     await sweepMoraleSessions(supabase, trainer.id);
 
+    const { data: academyState } = await supabase
+      .from("academies")
+      .select("morale_meeting_completes_at")
+      .eq("id", trainer.academyId)
+      .maybeSingle();
+    if (
+      academyState?.morale_meeting_completes_at &&
+      new Date(academyState.morale_meeting_completes_at).getTime() > Date.now()
+    ) {
+      throw new Error("Aguarde ou cancele a Reunião de Equipe antes de usar o Incentivo Geral.");
+    }
+
     // Descobre divisão atual (fonte única: time atual do jogador)
     const { resolvePlayerDivision } = await import("./division.server");
     const division = await resolvePlayerDivision(supabase, trainer.id);
@@ -278,7 +327,7 @@ export const startMoraleGeneral = createServerFn({ method: "POST" })
 
     const { data: allCrs } = await supabase
       .from("creatures")
-      .select("id, retired, morale_session_completes_at")
+      .select("id, morale, retired, morale_session_completes_at")
       .eq("owner_trainer_id", trainer.id);
     const targets = (allCrs ?? []).filter(
       (c: any) =>
@@ -287,7 +336,10 @@ export const startMoraleGeneral = createServerFn({ method: "POST" })
           new Date(c.morale_session_completes_at).getTime() <= Date.now()),
     );
     if (targets.length === 0) {
-      throw new Error("Nenhuma criatura disponível (todas já estão em sessão de incentivo).");
+      throw new Error("Aguarde as sessões individuais terminarem antes de aplicar o Incentivo Geral.");
+    }
+    if (targets.length !== (allCrs ?? []).filter((c: any) => !c.retired).length) {
+      throw new Error("Aguarde as sessões individuais terminarem antes de aplicar o Incentivo Geral.");
     }
 
     const totalCost = pricePer * targets.length;
@@ -301,10 +353,7 @@ export const startMoraleGeneral = createServerFn({ method: "POST" })
       throw new Error(`Você precisa de $${totalCost.toLocaleString("pt-BR")} para o Incentivo Geral.`);
     }
 
-    await supabase
-      .from("academies")
-      .update({ money: Number(acad.money) - totalCost })
-      .eq("id", acad.id);
+    await adjustAcademyMoney(supabase, trainer.id, -totalCost);
 
     await supabase.from("financial_transactions").insert({
       trainer_id: trainer.id,
@@ -313,13 +362,12 @@ export const startMoraleGeneral = createServerFn({ method: "POST" })
       description: `Incentivo Geral (${targets.length} criaturas × $${pricePer.toLocaleString("pt-BR")})`,
     });
 
-    const completesAt = new Date(Date.now() + MORALE_GENERAL_MS).toISOString();
-    // Marca sessão individual em todas as criaturas alvo em paralelo.
+    // O produto pago economiza tempo: o efeito é aplicado imediatamente.
     await Promise.all(
       targets.map((c: any) =>
         supabase
           .from("creatures")
-          .update({ morale_session_completes_at: completesAt })
+          .update({ morale: applyDiminishing(c.morale ?? 50, MORALE_GENERAL_BOOST) })
           .eq("id", c.id),
       ),
     );
@@ -328,6 +376,6 @@ export const startMoraleGeneral = createServerFn({ method: "POST" })
       applied: targets.length,
       total_cost: totalCost,
       price_per_creature: pricePer,
-      completes_at: completesAt,
+      completes_at: null,
     };
   });

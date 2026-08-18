@@ -6,7 +6,8 @@ import { simulate, persistableSimulationEvents, generateCpuSideFor, type EngineS
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { loadBestiary } from "./bestiary.server";
-import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, computeAwayWinBonus, CUP_PHASE_BONUS, type Division as EconDivision } from "./economy";
+import { MATCH_REVENUE, totalMaintenancePerMatch, divisionalMatchSalary, computeAwayWinBonus, cupPhaseBonus, type Division as EconDivision } from "./economy";
+import { adjustAcademyMoney } from "./academy-money.server";
 
 // Prêmio por partida da Copa por divisão (V / E / D). Empate resolvido em pênaltis
 // no motor, portanto D raramente é pago — mantido para compatibilidade.
@@ -340,7 +341,7 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
     const trainer = await getTrainer(supabase, userId);
     const { data: cup } = await supabase
       .from("competitions")
-      .select("id")
+      .select("id, division")
       .eq("trainer_id", trainer.id)
       .eq("type", "cup")
       .eq("status", "active")
@@ -479,21 +480,19 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
         const playerGa = isHome ? result.away_score : result.home_score;
         const outcome: "W" | "D" | "L" =
           playerGf > playerGa ? "W" : playerGf < playerGa ? "L" : "D";
-        const division = (trainer.division ?? "bronze") as EconDivision;
+        const division = ((cup as any).division ?? "bronze") as EconDivision;
         const [pw, pd, pl] = CUP_MATCH_PRIZE[division];
         const matchPrize = outcome === "W" ? pw : outcome === "D" ? pd : pl;
         const rev = MATCH_REVENUE[division];
 
-        const [rosterRes, bldgsRes, acadRes] = await Promise.all([
+        const [rosterRes, bldgsRes] = await Promise.all([
           supabase.from("creatures").select("overall, salary_mult").eq("owner_trainer_id", trainer.id),
           supabase.from("buildings").select("building_type, level").eq("trainer_id", trainer.id),
-          supabase.from("academies").select("money").eq("trainer_id", trainer.id).maybeSingle(),
         ]);
         const roster = (rosterRes as any).data as Array<{ overall: number }> | null;
         const bldgs = (bldgsRes as any).data as Array<{ building_type: string; level: number }> | null;
-        const acad = (acadRes as any).data as { money: number } | null;
 
-        const salaries = (roster ?? []).reduce((a: number, c: any) => a + Math.round(matchSalary(c.overall ?? 40) * (c.salary_mult ?? 1)), 0);
+        const salaries = (roster ?? []).reduce((a: number, c: any) => a + Math.round(divisionalMatchSalary(c.overall ?? 40, division) * (c.salary_mult ?? 1)), 0);
         const maintenance = totalMaintenancePerMatch(division, bldgs ?? []);
         const awayWinBonus = !isHome && outcome === "W"
           ? computeAwayWinBonus(salaries + maintenance, rev.tv + rev.sponsor + rev.merch, matchPrize)
@@ -532,7 +531,7 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
         };
 
         await Promise.all([
-          supabase.from("academies").update({ money: (acad?.money ?? 0) + net }).eq("trainer_id", trainer.id),
+          adjustAcademyMoney(supabase, trainer.id, net),
           supabase.from("financial_transactions").insert(txs),
           supabase.from("matches").update({ finance_summary: financeSummary }).eq("id", next.id),
         ]);
@@ -578,7 +577,7 @@ export const advanceCupRoundBackground = createServerFn({ method: "POST" })
 
     const { data: cup } = await supabase
       .from("competitions")
-      .select("id, status")
+      .select("id, status, division")
       .eq("id", competition_id)
       .eq("trainer_id", trainer.id)
       .eq("type", "cup")
@@ -646,16 +645,15 @@ export const advanceCupRoundBackground = createServerFn({ method: "POST" })
             }
             let prize = 0;
             let label = "";
-            if (playerWonFinal)   { prize = CUP_PHASE_BONUS.champion; label = "Campeão da Copa"; }
-            else if (reachedFinal){ prize = CUP_PHASE_BONUS.runnerUp; label = "Vice-campeão da Copa"; }
-            else if (reachedSemi) { prize = CUP_PHASE_BONUS.semi;     label = "Semifinalista da Copa"; }
-            else                  { prize = CUP_PHASE_BONUS.qf;       label = "Quartas de final da Copa"; }
+            const prizeDivision = ((cup as any).division ?? "bronze") as EconDivision;
+            if (playerWonFinal)   { prize = cupPhaseBonus(prizeDivision, "champion"); label = "Campeão da Copa"; }
+            else if (reachedFinal){ prize = cupPhaseBonus(prizeDivision, "runnerUp"); label = "Vice-campeão da Copa"; }
+            else if (reachedSemi) { prize = cupPhaseBonus(prizeDivision, "semi");     label = "Semifinalista da Copa"; }
+            else                  { prize = cupPhaseBonus(prizeDivision, "qf");       label = "Quartas de final da Copa"; }
             if (prize > 0) {
               const { data: acad } = await supabase
                 .from("academies").select("money").eq("trainer_id", trainer.id).maybeSingle();
-              await supabase.from("academies")
-                .update({ money: (acad?.money ?? 0) + prize })
-                .eq("trainer_id", trainer.id);
+              await adjustAcademyMoney(supabase, trainer.id, prize);
               await supabase.from("financial_transactions").insert({
                 trainer_id: trainer.id,
                 transaction_type: "income",

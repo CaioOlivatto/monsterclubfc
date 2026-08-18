@@ -5,6 +5,7 @@ import { getFinances } from "@/lib/finances.functions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Coins, Gem, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import { GameRecovery } from "@/components/GameRecovery";
 
 export const Route = createFileRoute("/_authenticated/finances")({
   head: () => ({
@@ -16,9 +17,7 @@ export const Route = createFileRoute("/_authenticated/finances")({
     ],
   }),
   component: FinancesPage,
-  errorComponent: ({ error }) => (
-    <div className="p-8 text-center text-sm text-destructive">Erro: {error.message}</div>
-  ),
+  errorComponent: () => <GameRecovery area="as finanças" />,
   notFoundComponent: () => (
     <div className="p-8 text-center text-muted-foreground">Não encontrada.</div>
   ),

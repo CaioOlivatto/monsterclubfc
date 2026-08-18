@@ -35,7 +35,7 @@ export function StarRating({ value, className, size = 0.85, showNumber = false }
         <span key={`f${i}`}>★</span>
       ))}
       {hasHalf && (
-        <span className="relative inline-block" style={{ width: `${size}rem` }}>
+        <span className="relative inline-block shrink-0 align-middle" style={{ width: `${size}rem`, height: "1em" }}>
           <span className="absolute inset-0 text-amber-300/30">★</span>
           <span
             className="absolute inset-0 overflow-hidden"

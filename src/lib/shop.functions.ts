@@ -9,7 +9,7 @@ import {
   extraBuilderCostFor,
   MAX_BUILDERS,
   ROSTER_EXPANSIONS,
-  SPEED_UNLOCK_COSTS,
+  SPEED_REAL_MONEY_PRODUCTS,
   XP_BURST_MATCHES,
   XP_BURST_MULTIPLIER,
   GEM_TO_MONEY_RATE,
@@ -109,7 +109,7 @@ export const getShopState = createServerFn({ method: "GET" })
         extraBuilderCosts: EXTRA_BUILDER_COSTS,
         nextBuilderCost: extraBuilderCostFor(academy.builders ?? 1),
         maxBuilders: MAX_BUILDERS,
-        speedUnlockCosts: SPEED_UNLOCK_COSTS,
+        speedProducts: SPEED_REAL_MONEY_PRODUCTS,
         xpBurstMatches: XP_BURST_MATCHES,
         gemToMoneyRate: GEM_TO_MONEY_RATE,
         gemToMoneyRateEffective: gemExchangeRateFor(division),
@@ -126,25 +126,9 @@ export const exchangeGemsForMoney = createServerFn({ method: "POST" })
     gems: z.number().int().min(1).max(100000).parse(data.gems),
   }))
   .handler(async ({ data, context }) => {
-    const { trainer, academy, division } = await loadCtx(context);
-    if (academy.gems < data.gems) throw new Error("Gemas insuficientes.");
-    const rate = gemExchangeRateFor(division);
-    const money = data.gems * rate;
-    await context.supabase
-      .from("academies")
-      .update({
-        gems: academy.gems - data.gems,
-        money: Number(academy.money) + money,
-      })
-      .eq("id", academy.id);
-    await logTx(
-      context,
-      trainer.id,
-      "income",
-      money,
-      `Troca de ${data.gems}💎 por dinheiro (${division}, ×${DIVISION_EXCHANGE_MULT[division]})`,
-    );
-    return { ok: true, message: `+$${money.toLocaleString("pt-BR")} creditados.` };
+    void data;
+    void context;
+    throw new Error("A troca de gemas por dinheiro foi encerrada para preservar o equilíbrio competitivo.");
   });
 
 
@@ -163,40 +147,13 @@ export const buyItem = createServerFn({ method: "POST" })
     if (unit == null) throw new Error("Este item não aceita essa forma de pagamento.");
     const total = unit * data.quantity;
 
-    if (data.currency === "money") {
-      if (Number(academy.money) < total) throw new Error("Dinheiro insuficiente.");
-      await context.supabase
-        .from("academies")
-        .update({ money: Number(academy.money) - total })
-        .eq("id", academy.id);
-      await logTx(context, trainer.id, "expense", total, `Loja: ${spec.name} × ${data.quantity}`);
-    } else {
-      if (academy.gems < total) throw new Error("Gemas insuficientes.");
-      await context.supabase
-        .from("academies")
-        .update({ gems: academy.gems - total })
-        .eq("id", academy.id);
-    }
-
-    const { data: existing } = await context.supabase
-      .from("items")
-      .select("id, quantity")
-      .eq("trainer_id", trainer.id)
-      .eq("item_key", data.itemKey)
-      .maybeSingle();
-
-    if (existing) {
-      await context.supabase
-        .from("items")
-        .update({ quantity: existing.quantity + data.quantity })
-        .eq("id", existing.id);
-    } else {
-      await context.supabase.from("items").insert({
-        trainer_id: trainer.id,
-        item_key: data.itemKey,
-        quantity: data.quantity,
-      });
-    }
+    const { error } = await context.supabase.rpc("buy_shop_item_atomic", {
+      p_trainer_id: trainer.id,
+      p_item_key: data.itemKey,
+      p_currency: data.currency,
+      p_quantity: data.quantity,
+    });
+    if (error) throw error;
 
     return { ok: true, message: `Comprou ${data.quantity}× ${spec.name}.` };
   });
@@ -313,13 +270,8 @@ export const buyGemPackage = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const pkg = GEM_PACKAGES.find((p) => p.id === data.packageId);
     if (!pkg) throw new Error("Pacote inválido.");
-    const { academy } = await loadCtx(context);
-    const total = pkg.gems + pkg.bonus;
-    await context.supabase
-      .from("academies")
-      .update({ gems: academy.gems + total })
-      .eq("id", academy.id);
-    return { ok: true, message: `+${total}💎 creditados (${pkg.name}).` };
+    void context;
+    throw new Error("Os pagamentos reais ainda não foram ativados. Nenhuma cobrança foi realizada.");
   });
 
 // ---------- Construtor extra ----------
@@ -366,16 +318,7 @@ export const unlockSpeed = createServerFn({ method: "POST" })
     mode: z.enum(["4x", "instant"]).parse(data.mode),
   }))
   .handler(async ({ data, context }) => {
-    const { academy } = await loadCtx(context);
-    const isFourX = data.mode === "4x";
-    if (isFourX ? academy.paid_4x : academy.paid_instant) {
-      return { ok: true, message: "Velocidade já desbloqueada." };
-    }
-    const cost = SPEED_UNLOCK_COSTS[data.mode];
-    if (academy.gems < cost) throw new Error("Gemas insuficientes.");
-    const patch = isFourX
-      ? { gems: academy.gems - cost, paid_4x: true }
-      : { gems: academy.gems - cost, paid_instant: true };
-    await context.supabase.from("academies").update(patch).eq("id", academy.id);
-    return { ok: true, message: `Velocidade ${data.mode} desbloqueada!` };
+    void data;
+    void context;
+    throw new Error("Este recurso exige pagamento em dinheiro real. Pagamentos em breve.");
   });

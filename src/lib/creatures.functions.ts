@@ -5,7 +5,6 @@ import {
   STARTER_TEAMS,
   generateStarterRoster,
   getStarterTeam,
-  starterTeamSummary,
   rosterToDbRows,
   type StarterKey,
 } from "./starter-teams";
@@ -13,6 +12,7 @@ import { overallToStars } from "./bestiary";
 import { generateSchedule } from "./league.server";
 import { getNextOfficialMatchForTrainer } from "./official-match.server";
 import { buildConfidence } from "./career.functions";
+import { divisionalMatchSalary, totalMaintenancePerMatch, type Division } from "./economy";
 
 
 // ---------- gerador de criatura inicial ----------
@@ -123,7 +123,7 @@ export const getDashboard = createServerFn({ method: "GET" })
     const rosterPromise = supabase
       .from("creatures")
       .select(
-        "id, name, species, epithet, element, suggested_position, is_goalkeeper, power_key, overall, energy, morale, xp, half_stars_earned, market_value, age, injury_matches_remaining, injury_severity, is_prodigy, morale_session_completes_at, attr_training_key, attr_training_completes_at",
+        "id, name, species, epithet, element, suggested_position, is_goalkeeper, power_key, overall, energy, morale, xp, half_stars_earned, market_value, age, salary_mult, injury_matches_remaining, injury_severity, is_prodigy, morale_session_completes_at, attr_training_key, attr_training_completes_at",
       )
       .eq("owner_trainer_id", trainer.id)
       .order("overall", { ascending: false });
@@ -132,10 +132,15 @@ export const getDashboard = createServerFn({ method: "GET" })
       .select("formation, strategy, starters, bench, default_tactics")
       .eq("trainer_id", trainer.id)
       .maybeSingle();
+    const buildingsPromise = supabase
+      .from("buildings")
+      .select("building_type, level")
+      .eq("trainer_id", trainer.id);
 
-    const [{ data: creatures, error: creaturesError }, { data: lineup }] = await Promise.all([
+    const [{ data: creatures, error: creaturesError }, { data: lineup }, { data: buildings }] = await Promise.all([
       rosterPromise,
       lineupPromise,
+      buildingsPromise,
     ]);
     if (creaturesError) throw creaturesError;
 
@@ -154,11 +159,11 @@ export const getDashboard = createServerFn({ method: "GET" })
     // Liga ativa do jogador: a fonte canônica do clube atual é trainers.current_team_id.
     // Existem times antigos do jogador com is_player=true e competition_id null; eles não
     // podem decidir o estado do dashboard.
-    let playerTeam: null | { id: string; name: string; competition_id: string | null } = null;
+    let playerTeam: null | { id: string; name: string; competition_id: string | null; division: string | null } = null;
     if (trainer.current_team_id) {
       const { data: currentTeam } = await supabase
         .from("teams")
-        .select("id, name, competition_id")
+        .select("id, name, competition_id, division")
         .eq("id", trainer.current_team_id)
         .eq("trainer_id", trainer.id)
         .maybeSingle();
@@ -168,7 +173,7 @@ export const getDashboard = createServerFn({ method: "GET" })
     if (!playerTeam) {
       const { data: fallbackTeam } = await supabase
         .from("teams")
-        .select("id, name, competition_id")
+        .select("id, name, competition_id, division")
         .eq("trainer_id", trainer.id)
         .eq("is_player", true)
         .not("competition_id", "is", null)
@@ -208,6 +213,10 @@ export const getDashboard = createServerFn({ method: "GET" })
       played_at: string | null;
       home_team: string;
       away_team: string;
+      home_starter_key: string | null;
+      away_starter_key: string | null;
+      home_element: string | null;
+      away_element: string | null;
       is_home: boolean;
     };
 
@@ -226,6 +235,10 @@ export const getDashboard = createServerFn({ method: "GET" })
         played_at: null,
         home_team: officialMatch.homeTeam,
         away_team: officialMatch.awayTeam,
+        home_starter_key: officialMatch.homeStarterKey,
+        away_starter_key: officialMatch.awayStarterKey,
+        home_element: officialMatch.homeElement,
+        away_element: officialMatch.awayElement,
         is_home: officialMatch.isHome,
       };
     }
@@ -269,6 +282,14 @@ export const getDashboard = createServerFn({ method: "GET" })
           .limit(5)
       : { data: [] };
     const confidence = buildConfidence(trainer, confidenceStandings, recentMatches ?? []);
+    const division = ((playerTeam?.division ?? "bronze") as Division);
+    const operatingCostPerMatch = Math.round(
+      list.reduce((sum, c: any) => sum + Math.round(divisionalMatchSalary(c.overall ?? 40, division) * (c.salary_mult ?? 1)), 0) +
+      totalMaintenancePerMatch(division, buildings ?? []),
+    );
+    const academyState = Array.isArray(trainer.academies) ? trainer.academies[0] : trainer.academies;
+    const minimumOperatingReserve = operatingCostPerMatch * 5;
+    const cash = Number(academyState?.money ?? 0);
 
     const { levelProgress } = await import("./trainer-xp.server");
     const prog = levelProgress(trainer.xp ?? 0);
@@ -301,6 +322,13 @@ export const getDashboard = createServerFn({ method: "GET" })
       rosterList: list,
       lineupData: { lineup: lineup ?? { starters: [] }, creatures: list },
       confidence,
+      financialHealth: {
+        division,
+        operatingCostPerMatch,
+        minimumOperatingReserve,
+        coveredMatches: operatingCostPerMatch > 0 ? Math.floor(cash / operatingCostPerMatch) : 99,
+        status: cash < minimumOperatingReserve ? "risk" : cash < minimumOperatingReserve * 2 ? "attention" : "healthy",
+      },
     };
   });
 
@@ -367,10 +395,19 @@ export const createInitialTrainer = createServerFn({ method: "POST" })
 // ---------- Times iniciais ----------
 
 export const listStarterTeams = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { loadBestiary } = await import("./bestiary.server");
-    const bestiary = await loadBestiary(context.supabase);
+  .handler(async () => {
+    // A vitrine inicial não depende do usuário nem muda entre acessos. Mantê-la
+    // fora do Supabase evita bloquear o onboarding enquanto a sessão é renovada
+    // ou o catálogo de espécies está em cold start. O elenco real continua sendo
+    // gerado e validado no servidor quando o usuário confirma a escolha.
+    const summaries: Record<StarterKey, { totalStars: number; avgAttack: number; avgDefense: number }> = {
+      titas_pedra: { totalStars: 25, avgAttack: 20, avgDefense: 25 },
+      furacoes_vento: { totalStars: 25, avgAttack: 25, avgDefense: 20 },
+      chamas_rubras: { totalStars: 25, avgAttack: 25, avgDefense: 20 },
+      mares_profundas: { totalStars: 25, avgAttack: 23, avgDefense: 23 },
+      laminas_gelo: { totalStars: 25, avgAttack: 20, avgDefense: 25 },
+      guardioes_mistos: { totalStars: 25, avgAttack: 23, avgDefense: 23 },
+    };
     return STARTER_TEAMS.map((t) => ({
       key: t.key,
       name: t.name,
@@ -380,7 +417,7 @@ export const listStarterTeams = createServerFn({ method: "GET" })
       dominant: t.dominant,
       style: t.style,
       description: t.description,
-      ...starterTeamSummary(t.key, bestiary),
+      ...summaries[t.key],
     }));
   });
 
@@ -511,6 +548,34 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
       if (linkErr) throw linkErr;
     }
 
+    // As construções pertencem ao clube escolhido. O treinador administra os
+    // prédios enquanto estiver no comando, mas eles ficam no clube se ele sair.
+    const { error: buildingLinkErr } = await supabase
+      .from("buildings")
+      .update({ team_id: playerTeamId })
+      .eq("trainer_id", trainer.id)
+      .is("team_id", null);
+    if (buildingLinkErr) throw buildingLinkErr;
+
+    // Fonte canônica usada por carreira, partidas, confiança e construções.
+    // O time já era marcado como pertencente ao treinador pelo seeder, mas o
+    // vínculo direto no treinador também precisa existir desde o onboarding.
+    const { error: trainerTeamErr } = await supabase
+      .from("trainers")
+      .update({ current_team_id: playerTeamId, status: "employed" })
+      .eq("id", trainer.id);
+    if (trainerTeamErr) throw trainerTeamErr;
+
+    const { error: careerStartErr } = await supabase.from("trainer_career").insert({
+      trainer_id: trainer.id,
+      team_id: playerTeamId,
+      team_name: teamDef.name,
+      division: "bronze",
+      season_start: 1,
+      event: "arrived",
+    });
+    if (careerStartErr) throw careerStartErr;
+
     return {
       trainerId: trainer.id,
       competitionId: competitionsByDiv.bronze,
@@ -543,7 +608,7 @@ export const listMyCreatures = createServerFn({ method: "GET" })
     const { data, error } = await supabase
       .from("creatures")
       .select(
-        "id, name, species, epithet, element, suggested_position, is_goalkeeper, power_key, overall, energy, morale, xp, half_stars_earned, market_value, age, injury_matches_remaining, injury_severity, is_prodigy, morale_session_completes_at, attr_training_key, attr_training_completes_at",
+        "id, name, species, epithet, element, suggested_position, is_goalkeeper, power_key, overall, energy, morale, xp, xp_spent_training, career_baseline_xp, pending_half_stars, half_stars_earned, market_value, age, salary_mult, injury_matches_remaining, injury_severity, is_prodigy, morale_session_completes_at, attr_training_key, attr_training_completes_at, attr_atacar, attr_defender, attr_forca, attr_pique, attr_tecnica, attr_passar, attr_concentracao, attr_elasticidade, attr_maos",
       )
       .eq("owner_trainer_id", trainer.id)
       .order("overall", { ascending: false });

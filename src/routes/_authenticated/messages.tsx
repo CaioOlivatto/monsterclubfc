@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Check, CheckCheck, Inbox, Trash2 } from "lucide-react";
+import { GameRecovery } from "@/components/GameRecovery";
 
 export const Route = createFileRoute("/_authenticated/messages")({
   head: () => ({
@@ -23,9 +24,7 @@ export const Route = createFileRoute("/_authenticated/messages")({
     ],
   }),
   component: MessagesPage,
-  errorComponent: ({ error }) => (
-    <div className="p-8 text-center text-sm text-destructive">Erro: {error.message}</div>
-  ),
+  errorComponent: () => <GameRecovery area="a central do clube" />,
   notFoundComponent: () => (
     <div className="p-8 text-center text-muted-foreground">Não encontrada.</div>
   ),

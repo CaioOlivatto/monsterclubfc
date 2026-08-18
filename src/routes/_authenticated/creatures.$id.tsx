@@ -33,6 +33,7 @@ import { ArrowLeft, BatteryCharging, Clock, Coins, Dumbbell, Gem, HeartPulse, Ho
 import { ageStatus, seasonsRemaining, rebirthHalfStarsPreview, sellValuePreview, matchesUntilExhausted } from "@/lib/age";
 import { moraleState, MORALE_EMOJI, MORALE_LABEL } from "@/lib/morale";
 import { StarRating, halfStarsToStars } from "@/components/StarRating";
+import { GameRecovery } from "@/components/GameRecovery";
 
 
 export const Route = createFileRoute("/_authenticated/creatures/$id")({
@@ -50,11 +51,7 @@ export const Route = createFileRoute("/_authenticated/creatures/$id")({
       Criatura não encontrada.
     </div>
   ),
-  errorComponent: ({ error }) => (
-    <div className="p-8 text-center text-sm text-destructive">
-      Erro: {error.message}
-    </div>
-  ),
+  errorComponent: () => <GameRecovery area="a ficha da criatura" />,
 });
 
 const ELEMENT_COLORS: Record<string, string> = {

@@ -44,6 +44,7 @@ function LeaguePage() {
   const { data, isLoading } = useQuery({
     queryKey: ["league", division ?? "auto"],
     queryFn: () => fetchLeague({ data: division ? { division } : {} } as any),
+    staleTime: 30_000,
   });
 
 

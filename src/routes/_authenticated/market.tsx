@@ -77,6 +77,7 @@ function MarketPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["market"],
     queryFn: () => fetchMarket(),
+    staleTime: 5 * 60_000,
   });
 
   const [tab, setTab] = useState<"buy" | "sell">("buy");
@@ -258,6 +259,49 @@ function MarketPage() {
           </Button>
         </div>
 
+        {tab === "buy" && data?.premium_offer && (
+          <Card className="overflow-hidden border-amber-400/40 bg-gradient-to-br from-amber-500/15 via-card to-violet-500/10">
+            <CardHeader className="space-y-2 pb-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Badge className="gap-1 bg-amber-400 text-amber-950 hover:bg-amber-400">
+                  <Sparkles className="h-3.5 w-3.5" /> Oferta única da carreira
+                </Badge>
+                <span className="text-lg font-black text-amber-300">
+                  {data.premium_offer.real_price_label}
+                </span>
+              </div>
+              <CardTitle className="text-xl">{data.premium_offer.name}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 pb-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className={ELEMENT_COLORS[data.premium_offer.element]}>
+                  {ELEMENT_LABEL[data.premium_offer.element]}
+                </Badge>
+                <Badge variant="outline">{data.premium_offer.suggested_position}</Badge>
+                <Badge variant="outline">18 anos</Badge>
+                <Stars overall={data.premium_offer.overall} />
+                <span className="text-sm font-bold">OVR {data.premium_offer.overall}</span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {data.premium_offer.premium_tier_label}. Jovem prodígio de 18 anos selecionado pelo olheiro premium.
+                Limite permanente de uma contratação premium por treinador.
+              </p>
+              <Button disabled className="w-full">
+                Pagamento em breve
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {tab === "buy" && data?.premium_offer_used && (
+          <Card className="border-dashed">
+            <CardContent className="flex items-center gap-2 py-3 text-sm text-muted-foreground">
+              <Star className="h-4 w-4 text-amber-400" />
+              Sua contratação premium única já foi utilizada.
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardContent className="space-y-3 py-4">
             <Input
@@ -322,6 +366,9 @@ function MarketPage() {
               const currentPayroll = data?.payroll ?? 0;
               const cap = data?.salary_cap ?? 0;
               const newPayroll = currentPayroll + salary;
+              const cashAfter = (data?.money ?? 0) - l.price;
+              const reserve = data?.minimum_operating_reserve ?? 0;
+              const belowReserve = canAfford && cashAfter < reserve;
               const overCap = newPayroll > cap;
               const disabled = !canAfford || rosterFull || overCap || buyMut.isPending;
               const btnLabel = rosterFull
@@ -383,6 +430,12 @@ function MarketPage() {
                       {" "}(limite: {formatMoney(cap)})
                       {overCap && " — teto de folha estourado."}
                     </p>
+                    {canAfford && (
+                      <p className={`text-[11px] ${belowReserve ? "text-amber-400" : "text-emerald-400"}`}>
+                        Caixa após a compra: {formatMoney(cashAfter)}. Reserva recomendada para 5 jogos: {formatMoney(reserve)}.
+                        {belowReserve && " A contratação deixa o clube financeiramente exposto."}
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               );
@@ -399,7 +452,7 @@ function MarketPage() {
               </Card>
             )}
             {filteredMine.map((c) => {
-              const sellPrice = Math.round((c.market_value * 0.9) / 100) * 100;
+              const sellPrice = (c as any).sell_price ?? Math.round((c.market_value * 0.9) / 100) * 100;
               const canSell = (data?.roster_count ?? 0) > 11;
               return (
                 <Card key={c.id}>
@@ -498,4 +551,3 @@ function MarketPage() {
     </div>
   );
 }
-

@@ -188,13 +188,19 @@ export function rollCreature(
  * Valor de mercado canônico (Tabela de Balanceamento §9.1):
  * valor por estrela (band = overall / 10). Age não altera o valor.
  */
-const STAR_VALUE_TABLE = [
-  15_000, 35_000, 70_000, 130_000, 240_000,
-  430_000, 780_000, 1_400_000, 2_500_000, 4_500_000,
-];
-export function computeMarketValue(overall: number, _age: number): number {
+  const STAR_VALUE_TABLE = [
+    15_000, 35_000, 70_000, 130_000, 240_000,
+    430_000, 780_000, 2_400_000, 5_500_000, 12_000_000,
+  ];
+export function computeMarketValue(overall: number, age: number): number {
   const band = Math.max(1, Math.min(10, Math.round((overall ?? 0) / 10)));
-  return STAR_VALUE_TABLE[band - 1];
+  const ageMultiplier = age <= 18 ? 1.15
+    : age <= 21 ? 1.10
+    : age <= 24 ? 1.05
+    : age <= 27 ? 1
+    : age <= 30 ? 0.85
+    : 0.65;
+  return Math.round((STAR_VALUE_TABLE[band - 1] * ageMultiplier) / 1_000) * 1_000;
 }
 
 // -------- Filtros sobre uma lista já carregada --------

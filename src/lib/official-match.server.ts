@@ -12,6 +12,10 @@ export type OfficialMatchContext = {
   awayTeamId: string;
   homeTeam: string;
   awayTeam: string;
+  homeStarterKey: string | null;
+  awayStarterKey: string | null;
+  homeElement: string | null;
+  awayElement: string | null;
   playerTeamId: string;
   playerTeam: string;
   opponentTeamId: string;
@@ -112,7 +116,7 @@ async function buildContext(
 ): Promise<OfficialMatchContext | null> {
   const { data: teams } = await supabase
     .from("teams")
-    .select("id, name, cpu_strength")
+    .select("id, name, cpu_strength, starter_key, dominant_element")
     .in("id", [match.home_team_id, match.away_team_id]);
   const home = (teams ?? []).find((team: any) => team.id === match.home_team_id);
   const away = (teams ?? []).find((team: any) => team.id === match.away_team_id);
@@ -135,6 +139,10 @@ async function buildContext(
     awayTeamId: away.id,
     homeTeam: home.name ?? "?",
     awayTeam: away.name ?? "?",
+    homeStarterKey: home.starter_key ?? null,
+    awayStarterKey: away.starter_key ?? null,
+    homeElement: home.dominant_element ?? null,
+    awayElement: away.dominant_element ?? null,
     playerTeamId,
     playerTeam: player.name ?? "Seu time",
     opponentTeamId: opponent.id,

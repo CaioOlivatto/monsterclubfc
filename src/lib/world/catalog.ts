@@ -14,6 +14,15 @@ export type DivisionSlug = "lendaria" | "diamante" | "ouro" | "prata" | "bronze"
 
 export const DIVISION_ORDER: DivisionSlug[] = ["bronze", "prata", "ouro", "diamante", "lendaria"];
 
+/** Força central usada quando um time CPU ainda não possui força persistida. */
+export const DIVISION_STRENGTH: Record<DivisionSlug, number> = {
+  bronze: 33,
+  prata: 44,
+  ouro: 55,
+  diamante: 64,
+  lendaria: 72,
+};
+
 export const DIVISION_LABEL: Record<DivisionSlug, string> = {
   lendaria: "1ª — Liga Lendária",
   diamante: "2ª — Liga Diamante",

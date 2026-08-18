@@ -13,6 +13,7 @@ import { loadBestiary, type LoadedBestiary } from "@/lib/bestiary.server";
 import {
   AGE_BUCKETS,
   DIVISION_ORDER,
+  DIVISION_STRENGTH,
   ROSTER_COMPOSITION,
   WORLD_TEAMS,
   pickHalfStars,
@@ -280,7 +281,7 @@ export async function seedWorldForTrainer({
         starter_key: t.starterKey ?? null,
         division: div,
         colors: { primary: t.primary, secondary: t.secondary },
-        cpu_strength: null,
+        cpu_strength: isPlayerSlot ? null : DIVISION_STRENGTH[div],
       };
     }),
   );

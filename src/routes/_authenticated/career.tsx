@@ -26,6 +26,14 @@ const REASON_LABEL: Record<JobOffer["reason"], string> = {
   after_dismissal: "Após demissão",
 };
 
+const OFFER_INFRASTRUCTURE: Record<string, string> = {
+  bronze: "Estádio 1 · CT 1 · Centro Médico 1",
+  prata: "Estádio 2 · CT 2 · Centro Médico 2",
+  ouro: "Estádio 4 · CT 3 · Centro Médico 3",
+  diamante: "Estádio 6 · CT 4 · Centro Médico 4",
+  lendaria: "Estádio 8 · CT 5 · Centro Médico 5",
+};
+
 const EVENT_META: Record<
   CareerEntry["event"],
   { label: string; tone: string; Icon: typeof Trophy }
@@ -226,6 +234,9 @@ function OfferCard({ offer }: { offer: JobOffer }) {
             R$ {Math.round(offer.signing_bonus).toLocaleString("pt-BR")}
           </span>
         </p>
+        <p className="mt-1 text-xs text-cyan-300">
+          Estrutura oferecida: {OFFER_INFRASTRUCTURE[offer.division] ?? "Estrutura do clube"}
+        </p>
         <div className="mt-2 flex gap-2">
           <Button size="sm" className="flex-1" onClick={() => setOpen(true)}>
             Aceitar
@@ -293,9 +304,15 @@ function AcceptDialog({
         <DialogHeader>
           <DialogTitle>Aceitar proposta do {offer.team_name}</DialogTitle>
           <DialogDescription>
-            Escolha 2 criaturas do seu elenco atual para levar. As demais permanecem no clube antigo.
+            Escolha 2 criaturas do seu elenco atual para levar. As demais e toda a infraestrutura permanecem no clube antigo.
           </DialogDescription>
         </DialogHeader>
+
+        <div className="rounded-md border border-cyan-500/30 bg-cyan-500/5 p-3 text-xs">
+          <p className="font-semibold text-cyan-200">O novo clube oferece</p>
+          <p className="mt-1 text-muted-foreground">{OFFER_INFRASTRUCTURE[offer.division] ?? "Infraestrutura compatível com a divisão"}</p>
+          <p className="mt-2 text-amber-200">Estádio, CT e Centro Médico não acompanham o treinador na transferência.</p>
+        </div>
 
         <div className="max-h-[45vh] overflow-y-auto rounded-md border">
           {isLoading ? (

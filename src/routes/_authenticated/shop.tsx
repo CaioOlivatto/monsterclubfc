@@ -6,11 +6,8 @@ import {
   getShopState,
   buyItem,
   useItem,
-  buyGemPackage,
   buyExtraBuilder,
   expandRoster,
-  exchangeGemsForMoney,
-  unlockSpeed,
 } from "@/lib/shop.functions";
 
 import { listMyCreatures } from "@/lib/creatures.functions";
@@ -47,11 +44,8 @@ function ShopPage() {
   const fetchCreatures = useServerFn(listMyCreatures);
   const buyItemFn = useServerFn(buyItem);
   const useItemFn = useServerFn(useItem);
-  const buyGemsFn = useServerFn(buyGemPackage);
   const buyBuilderFn = useServerFn(buyExtraBuilder);
   const expandFn = useServerFn(expandRoster);
-  const exchangeFn = useServerFn(exchangeGemsForMoney);
-  const unlockSpeedFn = useServerFn(unlockSpeed);
 
 
   const { data: shop, isLoading } = useQuery({
@@ -64,7 +58,6 @@ function ShopPage() {
   });
 
   const [potionTarget, setPotionTarget] = useState<string>("");
-  const [exchangeAmount, setExchangeAmount] = useState<number>(100);
 
 
   const invalidate = () => {
@@ -84,11 +77,6 @@ function ShopPage() {
     onSuccess: (r) => { toast.success(r.message); invalidate(); },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao usar item"),
   });
-  const gemsMut = useMutation({
-    mutationFn: (packageId: string) => buyGemsFn({ data: { packageId } }),
-    onSuccess: (r) => { toast.success(r.message); invalidate(); },
-    onError: (e: any) => toast.error(e?.message ?? "Falha na compra"),
-  });
   const builderMut = useMutation({
     mutationFn: () => buyBuilderFn({}),
     onSuccess: (r) => { toast.success(r.message); invalidate(); },
@@ -98,16 +86,6 @@ function ShopPage() {
     mutationFn: () => expandFn({}),
     onSuccess: (r) => { toast.success(r.message); invalidate(); },
     onError: (e: any) => toast.error(e?.message ?? "Falha"),
-  });
-  const speedMut = useMutation({
-    mutationFn: (mode: "4x" | "instant") => unlockSpeedFn({ data: { mode } }),
-    onSuccess: (r) => { toast.success(r.message); invalidate(); },
-    onError: (e: any) => toast.error(e?.message ?? "Falha"),
-  });
-  const exchangeMut = useMutation({
-    mutationFn: (gems: number) => exchangeFn({ data: { gems } }),
-    onSuccess: (r) => { toast.success(r.message); invalidate(); },
-    onError: (e: any) => toast.error(e?.message ?? "Falha na troca"),
   });
 
 
@@ -142,7 +120,6 @@ function ShopPage() {
           <TabsList>
             <TabsTrigger value="itens"><Package className="mr-2 h-4 w-4" /> Itens</TabsTrigger>
             <TabsTrigger value="gemas"><Gem className="mr-2 h-4 w-4" /> Gemas</TabsTrigger>
-            <TabsTrigger value="trocar"><Coins className="mr-2 h-4 w-4" /> Trocar</TabsTrigger>
             <TabsTrigger value="upgrades"><Zap className="mr-2 h-4 w-4" /> Upgrades</TabsTrigger>
           </TabsList>
 
@@ -230,83 +207,17 @@ function ShopPage() {
                     {pkg.bonus > 0 && (
                       <p className="text-xs text-emerald-400">Inclui +{pkg.bonus} de bônus!</p>
                     )}
-                    <Button className="w-full" onClick={() => gemsMut.mutate(pkg.id)} disabled={gemsMut.isPending}>
-                      Adquirir
+                    {pkg.highlight && <Badge variant="secondary">{pkg.highlight}</Badge>}
+                    <Button className="w-full" disabled>
+                      Pagamentos em breve
                     </Button>
                   </CardContent>
                 </Card>
               ))}
             </div>
             <p className="text-center text-xs text-muted-foreground">
-              MVP: compras simuladas. Integração com pagamento real chega nas próximas etapas.
+              Os pacotes serão ativados apenas com pagamento seguro e confirmação automática. Nenhuma compra é simulada.
             </p>
-          </TabsContent>
-
-          {/* ---------- TROCAR ---------- */}
-          <TabsContent value="trocar" className="space-y-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Coins className="h-4 w-4 text-yellow-500" /> Trocar gemas por dinheiro
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-1 text-sm text-muted-foreground">
-                  <p>
-                    Taxa base:{" "}
-                    <span className="font-medium text-foreground">
-                      1💎 = ${catalogs.gemToMoneyRate.toLocaleString("pt-BR")}
-                    </span>{" "}
-                    <span className="text-xs">(ajustado para sua divisão)</span>
-                  </p>
-                  <p>
-                    Sua divisão:{" "}
-                    <span className="font-medium text-foreground uppercase">
-                      {catalogs.gemExchangeDivision}
-                    </span>{" "}
-                    <span className="text-xs">
-                      (×{catalogs.gemExchangeMultiplier.toFixed(2)}) — 1💎 ={" "}
-                      <span className="font-medium text-foreground">
-                        ${catalogs.gemToMoneyRateEffective.toLocaleString("pt-BR")}
-                      </span>
-                    </span>
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {catalogs.gemExchangePresets.map((amt: number) => (
-                    <Button
-                      key={amt}
-                      size="sm"
-                      variant={exchangeAmount === amt ? "default" : "outline"}
-                      onClick={() => setExchangeAmount(amt)}
-                    >
-                      <Gem className="mr-1 h-3 w-3" /> {amt}
-                    </Button>
-                  ))}
-                </div>
-
-                <div className="rounded-md border border-border/60 bg-card/40 p-4 text-center">
-                  <div className="flex items-center justify-center gap-3 text-lg font-semibold">
-                    <span className="flex items-center gap-1"><Gem className="h-5 w-5 text-cyan-400" /> {exchangeAmount}</span>
-                    <span className="text-muted-foreground">→</span>
-                    <span className="flex items-center gap-1"><Coins className="h-5 w-5 text-yellow-500" /> ${(exchangeAmount * catalogs.gemToMoneyRateEffective).toLocaleString("pt-BR")}</span>
-                  </div>
-                </div>
-
-                <Button
-                  className="w-full"
-                  disabled={exchangeMut.isPending || academy.gems < exchangeAmount}
-                  onClick={() => exchangeMut.mutate(exchangeAmount)}
-                >
-                  {academy.gems < exchangeAmount ? "Gemas insuficientes" : "Confirmar troca"}
-                </Button>
-
-                <p className="text-xs text-muted-foreground">
-                  ⚠️ O dinheiro não ultrapassa os limites de contratação e folha salarial da sua divisão.
-                </p>
-              </CardContent>
-            </Card>
           </TabsContent>
 
 
@@ -371,8 +282,8 @@ function ShopPage() {
               </CardContent>
             </Card>
             {([
-              { mode: "4x" as const, title: "Velocidade 4x (permanente)", desc: "Permite acelerar a simulação da partida em 4x.", cost: catalogs.speedUnlockCosts["4x"], owned: academy.paid_4x },
-              { mode: "instant" as const, title: "Modo Instantâneo (permanente)", desc: "Pula direto para o resultado da partida.", cost: catalogs.speedUnlockCosts.instant, owned: academy.paid_instant },
+              { mode: "4x" as const, title: "Velocidade 4x (permanente)", desc: "Permite acelerar a simulação da partida em 4x.", price: catalogs.speedProducts["4x"].priceLabel, owned: academy.paid_4x },
+              { mode: "instant" as const, title: "Modo Instantâneo (permanente)", desc: "Pula direto para o resultado da partida.", price: catalogs.speedProducts.instant.priceLabel, owned: academy.paid_instant },
             ]).map((s) => (
               <Card key={s.mode}>
                 <CardHeader className="pb-2">
@@ -387,10 +298,9 @@ function ShopPage() {
                     <Badge variant="secondary">Já desbloqueado</Badge>
                   ) : (
                     <Button
-                      disabled={speedMut.isPending || academy.gems < s.cost}
-                      onClick={() => speedMut.mutate(s.mode)}
+                      disabled
                     >
-                      <Gem className="mr-2 h-4 w-4" /> {s.cost}
+                      {s.price} · Pagamentos em breve
                     </Button>
                   )}
                 </CardContent>

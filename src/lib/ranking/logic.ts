@@ -5,7 +5,7 @@ import { levelFromXp, xpForLevel } from "../trainer-xp.server.ts";
 export type SortKey = "level" | "wins" | "patrimony";
 export type Div = "lendaria" | "diamante" | "ouro" | "prata" | "bronze" | "amador";
 
-export const TOTAL_ACADEMIES = 1200;
+export const TOTAL_ACADEMIES = 300;
 export const AMATEUR_COUNT = TOTAL_ACADEMIES - 70;
 
 // Distribuição de nível por faixa de posição (do prompt do SISTEMA DE NÍVEL)
@@ -70,14 +70,13 @@ export async function seedWorldAcademiesIfNeeded(supabase: any) {
     }
   }
 
-  // Faixas de nível por posição para os ~1130 amadores (posições 71..1200).
-  // 71-150 → 20-27 · 151-300 → 15-19 · 301-600 → 10-14 · 601-900 → 5-9 · 901-1200 → 1-4
+  // Faixas de nível dos 230 bots amadores (posições 71..300).
+  // Um treinador novo entra no fim da lista e sobe conforme conquista XP.
   const AMATEUR_BANDS: Array<{ count: number; min: number; max: number }> = [
-    { count: 80,  min: 20, max: 27 }, // pos 71-150
-    { count: 150, min: 15, max: 19 }, // pos 151-300
-    { count: 300, min: 10, max: 14 }, // pos 301-600
-    { count: 300, min: 5,  max: 9  }, // pos 601-900
-    { count: 300, min: 1,  max: 4  }, // pos 901-1200
+    { count: 50, min: 15, max: 19 },
+    { count: 60, min: 10, max: 14 },
+    { count: 60, min: 5,  max: 9  },
+    { count: 60, min: 1,  max: 4  },
   ];
 
   const amateurs = generateAmateurAcademies(AMATEUR_COUNT, 20260722);
@@ -195,6 +194,7 @@ export async function upsertPlayerAcademy(supabase: any, trainerId: string) {
 
   if (existing) {
     await supabase.from("world_academies").update(payload).eq("id", existing.id);
+    await supabase.rpc("prune_world_ranking_bots");
     return existing.id as string;
   }
   const { data: inserted } = await supabase
@@ -202,6 +202,7 @@ export async function upsertPlayerAcademy(supabase: any, trainerId: string) {
     .insert(payload)
     .select("id")
     .single();
+  await supabase.rpc("prune_world_ranking_bots");
   return inserted?.id as string | undefined;
 }
 

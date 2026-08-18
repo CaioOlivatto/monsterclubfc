@@ -11,6 +11,8 @@ export interface RevealedEvent {
   is_goal?: boolean;
   team_color?: string;
   raw_team_id?: string | null;
+  injury_severity?: "leve" | "moderada" | "grave" | null;
+  injury_matches?: number | null;
 }
 
 const ELEMENT_ICON: Record<string, string> = {
@@ -58,9 +60,9 @@ export function EventsPanel({ events }: Props) {
   const list = tab === "current" ? [...unique].reverse() : [...important].reverse();
 
   return (
-    <Card>
+    <Card className="border-violet-500/40 bg-slate-950/90 text-slate-100 shadow-[0_12px_30px_rgba(0,0,0,.3)] [&_.text-muted-foreground]:text-slate-400">
       <CardContent className="p-0">
-        <div className="flex border-b">
+        <div className="flex border-b border-slate-800 bg-slate-900/55">
           <button
             type="button"
             onClick={() => setTab("current")}
@@ -93,13 +95,23 @@ export function EventsPanel({ events }: Props) {
             <ul className="space-y-2">
               {list.map((e, i) => {
                 const color = e.element ? ELEMENT_COLOR[e.element] : "hsl(var(--muted-foreground))";
-                const icon = e.element ? ELEMENT_ICON[e.element] : "•";
+                const isSevereInjury = e.event_type === "injury" && (e.injury_severity === "grave" || (e.injury_matches ?? 0) >= 4);
+                const eventIcon = e.event_type === "red_card"
+                  ? "🟥"
+                  : e.event_type === "yellow_card"
+                    ? "🟨"
+                    : e.event_type === "injury"
+                      ? (isSevereInjury ? "🚑" : "🏥")
+                      : e.event_type === "substitution"
+                        ? "🔄"
+                        : null;
+                const icon = eventIcon ?? (e.element ? ELEMENT_ICON[e.element] : "•");
                 const goalHighlight = e.event_type === "goal";
                 return (
                   <li
                     key={i}
                     className={cn(
-                      "flex gap-2 rounded-md border-l-4 py-1.5 pl-2 pr-2 text-sm",
+                      "flex gap-2 rounded-md border border-slate-800 border-l-4 bg-slate-900/55 py-2 pl-2 pr-2 text-sm text-slate-200",
                       goalHighlight && "bg-yellow-500/10 dark:bg-yellow-500/15",
                     )}
                     style={{ borderLeftColor: color }}
@@ -112,9 +124,10 @@ export function EventsPanel({ events }: Props) {
                       className={cn(
                         "flex-1",
                         goalHighlight && "font-semibold",
-                        e.event_type === "yellow_card" && "text-yellow-600 dark:text-yellow-500",
-                        e.event_type === "red_card" && "text-destructive font-semibold",
-                        e.event_type === "injury" && "text-destructive",
+                        e.event_type === "yellow_card" && "font-semibold text-yellow-300",
+                        e.event_type === "red_card" && "font-bold text-red-400",
+                        e.event_type === "injury" && (isSevereInjury ? "font-bold text-red-300" : "font-semibold text-rose-200"),
+                        e.event_type === "substitution" && "text-cyan-200",
                       )}
                     >
                       {e.narration ?? e.description}

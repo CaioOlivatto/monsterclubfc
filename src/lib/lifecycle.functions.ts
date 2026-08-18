@@ -29,27 +29,13 @@ export const retireCreature = createServerFn({ method: "POST" })
       .from("trainers").select("id").eq("user_id", userId).maybeSingle();
     if (!trainer) throw new Error("Treinador não encontrado.");
 
-    const { data: c } = await supabase
-      .from("creatures")
-      .select("id, name, age, market_value, retired")
-      .eq("id", data.creature_id)
-      .eq("owner_trainer_id", trainer.id)
-      .maybeSingle();
-    if (!c) throw new Error("Criatura não encontrada.");
-    if (c.retired) throw new Error("Criatura já está aposentada.");
-    if ((c.age ?? 18) < 33) throw new Error("A criatura só pode se aposentar aos 33 anos.");
-
-    const payout = Math.round(((c.market_value ?? 0) * 0.75) / 1000) * 1000;
-
-    const { data: acad } = await supabase
-      .from("academies").select("money").eq("trainer_id", trainer.id).maybeSingle();
-    await supabase.from("academies").update({ money: (acad?.money ?? 0) + payout }).eq("trainer_id", trainer.id);
-    await supabase.from("financial_transactions").insert({
-      trainer_id: trainer.id, transaction_type: "income", amount: payout,
-      description: `Aposentadoria: ${c.name}`,
+    const { data: result, error } = await supabase.rpc("retire_creature_atomic", {
+      p_trainer_id: trainer.id,
+      p_creature_id: data.creature_id,
     });
-    await supabase.from("creatures").delete().eq("id", c.id).eq("owner_trainer_id", trainer.id);
-    return { retired: c.name, payout };
+    if (error) throw error;
+    const retirement = result as { name: string; amount: number };
+    return { retired: retirement.name, payout: retirement.amount };
   });
 
 export const rebirthCreature = createServerFn({ method: "POST" })

@@ -97,11 +97,11 @@ export const INCENTIVO_GERAL_PRICE_BY_DIVISION: Record<
   "bronze" | "prata" | "ouro" | "diamante" | "lendaria",
   number
 > = {
-  bronze: 3_000,
-  prata: 5_600,
-  ouro: 9_400,
-  diamante: 15_300,
-  lendaria: 23_500,
+  bronze: 5_000,
+  prata: 9_000,
+  ouro: 15_000,
+  diamante: 24_000,
+  lendaria: 36_000,
 };
 
 export const XP_BURST_MATCHES = 26;
@@ -117,15 +117,17 @@ export interface GemPackage {
   gems: number;
   bonus: number;
   price: string;
+  priceCents: number;
+  highlight?: string;
 }
 
 // Pacotes conforme Tabela de Balanceamento §3.2.
 export const GEM_PACKAGES: GemPackage[] = [
-  { id: "punhado",  name: "Punhado",  gems: 100,  bonus: 0,   price: "R$ 9,90" },
-  { id: "saco",     name: "Saco",     gems: 500,  bonus: 50,  price: "R$ 34,90" },
-  { id: "bau",      name: "Baú",      gems: 1000, bonus: 200, price: "R$ 79,90" },
-  { id: "cofre",    name: "Cofre",    gems: 2400, bonus: 400, price: "R$ 159,90" },
-  { id: "tesouro",  name: "Tesouro",  gems: 5600, bonus: 600, price: "R$ 289,90" },
+  { id: "primeiro_reforco", name: "Primeiro Reforço", gems: 100, bonus: 0, price: "R$ 7,90", priceCents: 790 },
+  { id: "saco", name: "Saco", gems: 400, bonus: 50, price: "R$ 24,90", priceCents: 2490, highlight: "Mais escolhido" },
+  { id: "bau", name: "Baú", gems: 900, bonus: 150, price: "R$ 49,90", priceCents: 4990, highlight: "Melhor começo" },
+  { id: "cofre", name: "Cofre", gems: 2000, bonus: 500, price: "R$ 99,90", priceCents: 9990 },
+  { id: "tesouro", name: "Tesouro", gems: 4500, bonus: 1500, price: "R$ 199,90", priceCents: 19990, highlight: "Maior valor" },
 ];
 
 // Construtor extra (2º / 3º / 4º) e teto absoluto.
@@ -144,10 +146,10 @@ export const ROSTER_EXPANSIONS: Array<{ from: number; to: number; gems: number }
 ];
 
 // Desbloqueio permanente de velocidade de partida.
-export const SPEED_UNLOCK_COSTS: Record<"4x" | "instant", number> = {
-  "4x": 300,
-  instant: 800,
-};
+export const SPEED_REAL_MONEY_PRODUCTS = {
+  "4x": { priceCents: 1490, priceLabel: "R$ 14,90" },
+  instant: { priceCents: 2990, priceLabel: "R$ 29,90" },
+} as const;
 
 // Conversão de gemas em dinheiro do jogo (§3.4).
 // Taxa BASE (referência 5ª Bronze). Multiplicador por divisão calibra o custo
@@ -168,4 +170,3 @@ export function gemExchangeRateFor(division: ExchangeDivision | null | undefined
   const mult = DIVISION_EXCHANGE_MULT[(division ?? "bronze") as ExchangeDivision] ?? 1;
   return Math.round(GEM_TO_MONEY_RATE * mult);
 }
-

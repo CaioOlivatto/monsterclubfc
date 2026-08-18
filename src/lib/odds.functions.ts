@@ -12,7 +12,8 @@ import { buildPlayerSideFromDb, buildPlayerSideFromDraft } from "./player-side.s
 import { loadBestiary } from "./bestiary.server";
 import { stadiumCapacity } from "./buildings.server";
 import { buildAttendance, rosterMoraleAverage, type AttendanceInfo } from "./attendance";
-import { WORLD_TEAMS, type DivisionSlug } from "./world/catalog";
+import { revenueCapacity } from "./economy";
+import { DIVISION_STRENGTH, WORLD_TEAMS, type DivisionSlug } from "./world/catalog";
 
 function hashSeed(s: string): number {
   let h = 2166136261 >>> 0;
@@ -84,6 +85,14 @@ export const getLineupPrognostic = createServerFn({ method: "POST" })
       .not("competition_id", "is", null)
       .maybeSingle();
 
+    // A divisão era criada apenas no ramo de amistoso, mas também era usada
+    // no preview de estádio das partidas oficiais. Isso fazia todo prognóstico
+    // oficial terminar em `division is not defined`.
+    const { resolvePlayerDivision } = await import("./division.server");
+    const division = (
+      playerLeagueTeam?.division ?? await resolvePlayerDivision(supabase, trainer.id)
+    ) as DivisionSlug;
+
     let nextMatch: any = null;
     if (playerLeagueTeam) {
       const { data: nm } = await supabase
@@ -116,13 +125,10 @@ export const getLineupPrognostic = createServerFn({ method: "POST" })
       const oppId = playerIsHome ? nextMatch.away_team_id : nextMatch.home_team_id;
       const { data: opp } = await supabase
         .from("teams").select("id, name, cpu_strength").eq("id", oppId).maybeSingle();
-      const strength = opp?.cpu_strength ?? 45;
+      const strength = opp?.cpu_strength ?? DIVISION_STRENGTH[division];
       opponentSide = generateCpuSideFor(hashSeed(oppId), oppId, opp?.name ?? "Adversário", strength, bestiary);
       opponentInfo = { name: opp?.name ?? "Adversário", is_next_official: true, round: nextMatch.round, is_home: playerIsHome };
     } else {
-      const { resolvePlayerDivision } = await import("./division.server");
-      const division = (await resolvePlayerDivision(supabase, trainer.id)) as DivisionSlug;
-
       const pool = (WORLD_TEAMS[division] ?? WORLD_TEAMS.bronze).filter((t) => t.name !== playerName);
       const opp = pool[Math.floor(Math.random() * pool.length)] ?? pool[0];
       const { data: creatures } = await supabase
@@ -150,12 +156,14 @@ export const getLineupPrognostic = createServerFn({ method: "POST" })
     // Sem ruído aleatório: mostra a ocupação ESPERADA a partir da moral média atual.
     let stadiumPreview: AttendanceInfo | null = null;
     if (playerIsHome) {
-      const [{ data: bldgs }, { data: rosterMor }] = await Promise.all([
+      const [{ data: bldgs }, { data: rosterMor }, { data: arenaProfile }] = await Promise.all([
         supabase.from("buildings").select("building_type, level").eq("trainer_id", trainer.id),
         supabase.from("creatures").select("morale").eq("owner_trainer_id", trainer.id),
+        (supabase as any).from("arena_profiles").select("stadium_damage_pct, repair_completes_at").eq("trainer_id", trainer.id).maybeSingle(),
       ]);
       const stadiumLevel = (bldgs ?? []).find((b: any) => b.building_type === "estadio")?.level ?? 0;
-      const capacity = stadiumCapacity(stadiumLevel);
+      const arenaDamage = arenaProfile?.repair_completes_at && new Date(arenaProfile.repair_completes_at).getTime() > Date.now() ? Number(arenaProfile.stadium_damage_pct ?? 0) : 0;
+      const capacity = Math.round(revenueCapacity(division, stadiumCapacity(stadiumLevel)) * (1 - arenaDamage / 100));
       if (capacity > 0) {
         const moraleAvg = rosterMoraleAverage(rosterMor ?? []);
         stadiumPreview = buildAttendance(capacity, moraleAvg); // sem RNG → esperado

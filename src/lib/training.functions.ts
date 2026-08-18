@@ -174,7 +174,9 @@ export const rushAttributeTraining = createServerFn({ method: "POST" })
       return { spent: 0 };
     }
     // Mesmo padrão dos demais temporizadores: 1 gema a cada 10 min restantes.
-    const cost = Math.max(1, Math.ceil(remainingMs / (10 * 60 * 1000)));
+    const { data: usedClubCredit, error: creditError } = await (supabase as any).rpc("consume_club_training_rush", { p_trainer: trainer.id });
+    if (creditError) throw creditError;
+    const cost = usedClubCredit ? 0 : Math.max(1, Math.ceil(remainingMs / (10 * 60 * 1000)));
     if (trainer.gems < cost) throw new Error(`Você precisa de ${cost} 💎 para acelerar.`);
 
     await supabase.from("academies").update({ gems: trainer.gems - cost }).eq("trainer_id", trainer.id);

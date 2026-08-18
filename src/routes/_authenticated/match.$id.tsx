@@ -3,16 +3,17 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getMatch } from "@/lib/match.functions";
-import { unlockSpeed } from "@/lib/shop.functions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Play, Pause, FastForward, SkipForward, Lock, Gem } from "lucide-react";
+import { ArrowLeft, Play, Pause, FastForward, SkipForward, Lock } from "lucide-react";
 import { PlayBanner } from "@/components/match/PlayBanner";
 import { EventsPanel, type RevealedEvent } from "@/components/match/EventsPanel";
 import { NarrationSession, type Outcome, type PlayMeta } from "@/lib/narration/session";
 import { TacticsSheet } from "@/components/match/TacticsSheet";
+import { GameLogo } from "@/components/GameLogo";
+import { TeamCrest } from "@/components/TeamCrest";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -95,6 +96,7 @@ function MatchPage() {
   const timerRef = useRef<number | null>(null);
   const narrRef = useRef<NarrationSession>(new NarrationSession());
   const processedRef = useRef<Set<number>>(new Set());
+  const cinematicSubsRef = useRef<Map<string, { id: string; outName: string; inName: string }>>(new Map());
 
   const homeId = data?.match?.home_team_id;
   const awayId = data?.match?.away_team_id;
@@ -107,6 +109,7 @@ function MatchPage() {
     setPending(null);
     narrRef.current = new NarrationSession();
     processedRef.current = new Set();
+    cinematicSubsRef.current = new Map();
   }, [id]);
 
   // Playback: pausa quando há banner pendente ou terminou
@@ -144,7 +147,8 @@ function MatchPage() {
     );
     if (!events.length) return;
 
-    for (const ev of events) {
+    for (const originalEvent of events) {
+      const ev = applyCinematicReplacements(originalEvent, cinematicSubsRef.current);
       processedRef.current.add(indexKey(ev));
       const meta = ev.meta as PlayMeta | null | undefined;
 
@@ -185,6 +189,13 @@ function MatchPage() {
               ? "miss"
               : "block")) as Outcome;
         narration = capFirst(narrRef.current.buildSingleOutcome(outcome, meta));
+      }
+      if (
+        ev.event_type === "injury" &&
+        (meta?.injury_severity === "grave" || Number(meta?.injury_matches ?? 0) >= 4) &&
+        ev.actor_team_id === ((data as any)?.player_team_id ?? homeId)
+      ) {
+        setPlaying(false);
       }
       setRevealed((r) => [
         ...r,
@@ -260,6 +271,9 @@ function MatchPage() {
   const awayGoals = revealed.filter(
     (e) => e.event_type === "goal" && e.raw_team_id === awayId,
   ).length;
+  const playerTeamIdForLive = (data as any)?.player_team_id ?? homeId;
+  const substitutionsUsed = revealed.filter((event) => event.event_type === "substitution" && event.raw_team_id === playerTeamIdForLive).length;
+  const severePlayerInjuryActive = !!revealed.find((event) => event.event_type === "injury" && event.raw_team_id === playerTeamIdForLive && (event.injury_severity === "grave" || (event.injury_matches ?? 0) >= 4));
 
   // Constrói NarrationParts sob demanda para o banner ativo (hook antes de qualquer return)
   const bannerParts = useMemo(() => {
@@ -293,27 +307,54 @@ function MatchPage() {
 
   const isFinal = minute >= 90 && !pending;
   const displayedMinute = pending ? pending.minute : minute;
+  const latestEvent = revealed.length ? revealed[revealed.length - 1] : null;
+  const latestNarration = latestEvent
+    ? latestEvent.narration ?? latestEvent.description
+    : "Os times estão em campo. A bola vai rolar!";
+  const latestIsSevereInjury = latestEvent?.event_type === "injury" && (latestEvent.injury_severity === "grave" || (latestEvent.injury_matches ?? 0) >= 4);
+  const latestEventIcon = latestEvent?.event_type === "red_card"
+    ? "🟥"
+    : latestEvent?.event_type === "yellow_card"
+      ? "🟨"
+      : latestEvent?.event_type === "injury"
+        ? (latestIsSevereInjury ? "🚑" : "🏥")
+        : "🎙️";
+  const latestNarrationColor = latestEvent?.event_type === "red_card"
+    ? "text-red-400"
+    : latestEvent?.event_type === "yellow_card"
+      ? "text-yellow-300"
+      : latestEvent?.event_type === "injury"
+        ? (latestIsSevereInjury ? "text-red-300" : "text-rose-200")
+        : "text-slate-100";
+
+  const registerCinematicSubstitution = (change: { outId: string; outName: string; inId: string; inName: string }) => {
+    cinematicSubsRef.current.set(change.outId, { id: change.inId, outName: change.outName, inName: change.inName });
+    setRevealed((current) => [...current, {
+      minute: displayedMinute,
+      event_type: "substitution",
+      description: `Substituição: entra ${change.inName}, sai ${change.outName}.`,
+      narration: `Mudança confirmada! ${change.inName} entra no lugar de ${change.outName}.`,
+      element: null,
+      raw_team_id: playerTeamIdForLive,
+    }]);
+  };
 
   return (
-    <div className="min-h-screen bg-background pb-6">
-      {pending && bannerParts && (
-        <PlayBanner
-          parts={bannerParts}
-          teamColor={pending.teamColor}
-          outcome={pending.outcome as any}
-          elementalAdvantage={pending.meta.elemental_advantage}
-          brief={(pending.outcome as any) === "red_card"}
-          onFinished={handleBannerFinished}
-        />
-
-      )}
-
-      <header className="border-b bg-card">
-        <div className="mx-auto flex max-w-3xl items-center gap-2 px-4 py-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate({ to: "/dashboard" })}>
+    <div
+      className="dark relative min-h-screen overflow-x-hidden bg-slate-950 bg-cover bg-[position:center_62%] pb-24 text-slate-100 sm:bg-center"
+      style={{ backgroundImage: "url('/assets/monster-stadium.webp')" }}
+    >
+      <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 bg-gradient-to-b from-slate-950/58 via-slate-950/82 to-slate-950/96" />
+      <header className="relative z-10 border-b border-violet-500/35 bg-slate-950/90 shadow-[0_4px_24px_rgba(76,29,149,.28)] backdrop-blur-md">
+        <div className="mx-auto flex max-w-5xl items-center gap-3 px-3 py-3 sm:px-4">
+          <GameLogo size="xs" className="hidden shrink-0 sm:block" />
+          <Button className="border-slate-700 bg-slate-900/75 text-slate-100" variant="outline" size="icon" onClick={() => navigate({ to: "/dashboard" })}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <h1 className="text-lg font-semibold">Partida ao vivo</h1>
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-[.16em] text-violet-300">Dia de jogo</p>
+            <h1 className="text-lg font-bold text-white">Partida ao vivo</h1>
+          </div>
           {data.match.is_friendly && (
             <Badge variant="secondary" className="ml-2">
               Amistoso
@@ -322,13 +363,14 @@ function MatchPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl space-y-4 px-4 py-4">
+      <main className="relative z-10 mx-auto w-full max-w-5xl space-y-3 p-2.5 text-slate-100 [&_.text-muted-foreground]:text-slate-400 sm:space-y-4 sm:p-4">
         {/* Placar */}
-        <Card>
+        <Card className="overflow-hidden border-violet-400/45 bg-gradient-to-br from-slate-950 via-indigo-950/95 to-violet-950/85 text-slate-100 shadow-[0_16px_40px_rgba(0,0,0,.38)]">
           <CardContent className="py-6">
             <div className="flex items-center justify-between gap-3">
               <div className="flex-1 text-center">
-                <div className="truncate text-sm text-muted-foreground">{data.home?.name}</div>
+                <TeamCrest teamName={data.home?.name} teamKey={data.home?.starter_key} teamElement={data.home?.dominant_element} size="lg" className="mx-auto" />
+                <div className="mt-2 truncate text-sm font-bold text-slate-100">{data.home?.name}</div>
                 <div className="mt-1 text-4xl font-bold">{homeGoals}</div>
               </div>
               <div className="text-center">
@@ -342,14 +384,15 @@ function MatchPage() {
                 <div className="mt-1 text-lg font-semibold text-muted-foreground">x</div>
               </div>
               <div className="flex-1 text-center">
-                <div className="truncate text-sm text-muted-foreground">{data.away?.name}</div>
+                <TeamCrest teamName={data.away?.name} teamKey={data.away?.starter_key} teamElement={data.away?.dominant_element} size="lg" className="mx-auto" />
+                <div className="mt-2 truncate text-sm font-bold text-slate-100">{data.away?.name}</div>
                 <div className="mt-1 text-4xl font-bold">{awayGoals}</div>
               </div>
             </div>
 
-            <div className="mt-4 h-1.5 rounded-full bg-muted">
+            <div className="mt-4 h-1.5 rounded-full bg-slate-800">
               <div
-                className="h-full rounded-full bg-primary transition-all"
+                className="h-full rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-400 transition-all"
                 style={{ width: `${(displayedMinute / 90) * 100}%` }}
               />
             </div>
@@ -411,15 +454,14 @@ function MatchPage() {
                 )}{" "}
                 Instantâneo
               </Button>
-              <TacticsSheet />
+              <TacticsSheet substitutionsUsed={substitutionsUsed} autoOpenSubstitutions={severePlayerInjuryActive} onSubstitute={registerCinematicSubstitution} />
             </div>
 
             <UnlockSpeedDialog
               mode={unlockMode}
               onOpenChange={(open) => !open && setUnlockMode(null)}
-              gems={data.speed?.gems ?? 0}
-              cost4x={data.speed?.cost_4x ?? 300}
-              costInstant={data.speed?.cost_instant ?? 800}
+              price4x={data.speed?.price_4x ?? "R$ 14,90"}
+              priceInstant={data.speed?.price_instant ?? "R$ 29,90"}
               onUnlocked={(mode) => {
                 setUnlockMode(null);
                 if (mode === "4x") setSpeed(4);
@@ -434,6 +476,35 @@ function MatchPage() {
           </CardContent>
         </Card>
 
+        {pending && bannerParts ? (
+          <PlayBanner
+            inline
+            parts={bannerParts}
+            teamColor={pending.teamColor}
+            outcome={pending.outcome as any}
+            elementalAdvantage={pending.meta.elemental_advantage}
+            brief={(pending.outcome as any) === "red_card"}
+            onFinished={handleBannerFinished}
+          />
+        ) : (
+          <Card className="border-violet-500/40 bg-slate-950/90 text-slate-100 shadow-[0_12px_30px_rgba(0,0,0,.3)]">
+            <CardContent className="p-4 sm:p-5">
+              <div className="flex items-start gap-3">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-violet-400/40 bg-violet-500/15 text-xl">{latestEventIcon}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[10px] font-bold uppercase tracking-[.16em] text-violet-300">Narração ao vivo</p>
+                    <span className="text-xs font-bold text-cyan-300">{isFinal ? "Fim" : `${displayedMinute}'`}</span>
+                  </div>
+                  <p className={`mt-2 text-sm font-semibold leading-relaxed sm:text-base ${latestNarrationColor}`}>
+                    {latestNarration}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {!isFinal && <EventsPanel events={revealed} />}
 
         {isFinal && (() => {
@@ -444,13 +515,13 @@ function MatchPage() {
           const label = myGoals > theirGoals ? "Vitória! 🏆" : myGoals < theirGoals ? "Derrota." : "Empate.";
           return (
             <Tabs defaultValue="resumo" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-2 border border-violet-500/30 bg-slate-950/90 p-1">
                 <TabsTrigger value="resumo">Resumo</TabsTrigger>
                 <TabsTrigger value="detalhes">Detalhes</TabsTrigger>
               </TabsList>
 
               <TabsContent value="resumo" className="space-y-4">
-                <Card>
+                <Card className="border-violet-500/40 bg-slate-950/90 text-slate-100">
                   <CardContent className="py-4 text-center">
                     <p className="text-sm text-muted-foreground">
                       {data.home?.name} {homeGoals} × {awayGoals} {data.away?.name}
@@ -499,6 +570,30 @@ function capFirst(s: string): string {
   return up + s.slice(1);
 }
 
+function applyCinematicReplacements(event: any, replacements: Map<string, { id: string; outName: string; inName: string }>) {
+  const replace = (value: unknown): unknown => {
+    if (typeof value === "string") {
+      let text = value;
+      for (const replacement of replacements.values()) {
+        text = text.split(replacement.outName).join(replacement.inName);
+      }
+      return text;
+    }
+    if (Array.isArray(value)) return value.map(replace);
+    if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, replace(item)]));
+    return value;
+  };
+  const normalized = replace(event) as any;
+  let actorId = event.actor_creature_id;
+  const visited = new Set<string>();
+  while (actorId && replacements.has(actorId) && !visited.has(actorId)) {
+    visited.add(actorId);
+    actorId = replacements.get(actorId)!.id;
+  }
+  if (actorId) normalized.actor_creature_id = actorId;
+  return normalized;
+}
+
 
 function buildRevealed(e: any, playerTeamId: string | undefined): RevealedEvent & { raw_team_id?: string | null } {
   const meta = e.meta ?? {};
@@ -507,6 +602,8 @@ function buildRevealed(e: any, playerTeamId: string | undefined): RevealedEvent 
     event_type: e.event_type,
     description: e.description,
     element: meta.element ?? null,
+    injury_severity: meta.injury_severity ?? null,
+    injury_matches: meta.injury_matches ?? null,
     team_color: teamColor(e.actor_team_id),
     is_goal: e.event_type === "goal",
     raw_team_id: e.actor_team_id ?? null,
@@ -536,7 +633,7 @@ function FinanceSummaryCard({ summary }: { summary: any }) {
 
   const netColor = totals.net >= 0 ? "text-emerald-400" : "text-red-400";
   return (
-    <Card>
+    <Card className="border-violet-500/40 bg-slate-950/90 text-slate-100 shadow-[0_12px_30px_rgba(0,0,0,.3)] [&_.text-muted-foreground]:text-slate-400">
       <CardContent className="space-y-3 py-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold">Finanças da partida</h3>
@@ -546,7 +643,7 @@ function FinanceSummaryCard({ summary }: { summary: any }) {
         </div>
         {/* Público (só em casa) */}
         {isHome && att && att.capacity > 0 ? (
-          <div className="flex items-center justify-between rounded-md border bg-muted/30 px-2 py-1.5 text-[11px]">
+          <div className="flex items-center justify-between rounded-md border border-slate-700 bg-slate-900/60 px-2 py-1.5 text-[11px]">
             <span className="text-muted-foreground">Público</span>
             <span className="font-medium">
               {att.attendance.toLocaleString("pt-BR")} / {att.capacity.toLocaleString("pt-BR")} torcedores
@@ -591,33 +688,18 @@ function FinanceSummaryCard({ summary }: { summary: any }) {
 function UnlockSpeedDialog({
   mode,
   onOpenChange,
-  gems,
-  cost4x,
-  costInstant,
+  price4x,
+  priceInstant,
   onUnlocked,
 }: {
   mode: "4x" | "instant" | null;
   onOpenChange: (open: boolean) => void;
-  gems: number;
-  cost4x: number;
-  costInstant: number;
+  price4x: string;
+  priceInstant: string;
   onUnlocked: (mode: "4x" | "instant") => void;
 }) {
-  const qc = useQueryClient();
-  const unlock = useServerFn(unlockSpeed);
-  const mutation = useMutation({
-    mutationFn: (m: "4x" | "instant") => unlock({ data: { mode: m } }),
-    onSuccess: async (_res, m) => {
-      toast.success(`Velocidade ${m === "4x" ? "4x" : "Instantânea"} desbloqueada!`);
-      await qc.invalidateQueries({ queryKey: ["match"] });
-      await qc.invalidateQueries({ queryKey: ["shop"] });
-      onUnlocked(m);
-    },
-    onError: (e: any) => toast.error(e?.message ?? "Falha ao desbloquear."),
-  });
-
-  const cost = mode === "4x" ? cost4x : mode === "instant" ? costInstant : 0;
-  const insufficient = gems < cost;
+  void onUnlocked;
+  const price = mode === "4x" ? price4x : mode === "instant" ? priceInstant : "";
   const label = mode === "4x" ? "Velocidade 4x" : "Modo Instantâneo";
 
   return (
@@ -628,28 +710,14 @@ function UnlockSpeedDialog({
             <Lock className="h-4 w-4" /> Desbloquear {label}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            Desbloqueio permanente para todas as partidas futuras. Custa{" "}
-            <span className="inline-flex items-center gap-1 font-semibold text-foreground">
-              <Gem className="h-3 w-3" /> {cost}
-            </span>
-            . Você tem{" "}
-            <span className="inline-flex items-center gap-1 font-semibold text-foreground">
-              <Gem className="h-3 w-3" /> {gems}
-            </span>
-            .
+            Desbloqueio permanente para todas as partidas futuras por{" "}
+            <span className="font-semibold text-foreground">{price}</span>.
+            Este recurso será vendido somente por pagamento em dinheiro real.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={mutation.isPending}>Cancelar</AlertDialogCancel>
-          <AlertDialogAction
-            disabled={!mode || insufficient || mutation.isPending}
-            onClick={(e) => {
-              e.preventDefault();
-              if (mode) mutation.mutate(mode);
-            }}
-          >
-            {insufficient ? "Gemas insuficientes" : mutation.isPending ? "Desbloqueando…" : `Comprar por ${cost} 💎`}
-          </AlertDialogAction>
+          <AlertDialogCancel>Voltar</AlertDialogCancel>
+          <AlertDialogAction disabled>Pagamentos em breve</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

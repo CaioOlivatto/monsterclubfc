@@ -9,14 +9,28 @@ import {
   type EngineSide,
   type EngineBestiary,
 } from "./match-engine.server";
-import { stadiumCapacity } from "./buildings.server";
+import { stadiumCapacity, stadiumRevenueMultiplier } from "./buildings.server";
 import { buildAttendance, rosterMoraleAverage } from "./attendance";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { awardTrainerXp, resetSeasonBreakdown } from "./trainer-xp.server";
-import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, computeAwayWinBonus, type Division as EconDivision } from "./economy";
+import {
+  BALANCE_VERSION,
+  MATCH_REVENUE,
+  TICKET_PRICE,
+  revenueCapacity,
+  totalMaintenancePerMatch,
+  divisionalMatchSalary,
+  eliteRenewalFee,
+  eliteInfrastructureRenewalFee,
+  eliteTreasuryReserveFee,
+  computeAwayWinBonus,
+  type Division as EconDivision,
+} from "./economy";
 import { loadBestiary } from "./bestiary.server";
+import { DIVISION_STRENGTH, type DivisionSlug } from "./world/catalog";
 import { applySeasonOutcome } from "./career-transition.server";
+import { adjustAcademyMoney } from "./academy-money.server";
 
 async function loadEngineBestiary(supabase: any): Promise<EngineBestiary> {
   const b = await loadBestiary(supabase);
@@ -29,8 +43,6 @@ async function loadEngineBestiary(supabase: any): Promise<EngineBestiary> {
     epithets: b.epithets,
   };
 }
-
-
 
 async function getTrainer(supabase: any, userId: string) {
   const { data: trainer } = await supabase
@@ -60,23 +72,26 @@ async function ensureCurrentSeason(supabase: any, trainerId: string) {
 }
 
 async function playerAverage(supabase: any, trainerId: string): Promise<number> {
-  const { data } = await supabase.from("creatures").select("overall, salary_mult").eq("owner_trainer_id", trainerId);
+  const { data } = await supabase
+    .from("creatures")
+    .select("overall, salary_mult")
+    .eq("owner_trainer_id", trainerId);
   const list = (data ?? []) as { overall: number }[];
   if (!list.length) return 45;
   return Math.round(list.reduce((a, c) => a + c.overall, 0) / list.length);
 }
 
 const DIVISION_ORDER = ["bronze", "prata", "ouro", "diamante", "lendaria"] as const;
-type Division = typeof DIVISION_ORDER[number];
+type Division = (typeof DIVISION_ORDER)[number];
 type PlayerLeagueTeam = { id: string; competition_id: string | null; division?: Division | null };
 
 // Prêmio por partida na liga por divisão (V / E / D) — Balanceamento §2.1
 const MATCH_PRIZE: Record<Division, [number, number, number]> = {
-  bronze:   [15_000,  6_000,  2_000],
-  prata:    [28_000, 11_000,  4_000],
-  ouro:     [50_000, 20_000,  7_000],
+  bronze: [15_000, 6_000, 2_000],
+  prata: [28_000, 11_000, 4_000],
+  ouro: [50_000, 20_000, 7_000],
   diamante: [90_000, 36_000, 13_000],
-  lendaria:[160_000, 64_000, 24_000],
+  lendaria: [160_000, 64_000, 24_000],
 };
 
 // Liga de 14 times, 26 rodadas (turno e returno) — Balanceamento §1.2 e §8.
@@ -85,18 +100,15 @@ const CPU_COUNT = LEAGUE_SIZE - 1;
 
 // Multiplicador aplicado sobre o prêmio de vitória da divisão (fim de temporada)
 // §2.3: 1º ×10 · 2º ×6 · 3º–4º ×3 · 5º–6º ×1,5 · 7º–8º ×0,5 · demais 0
-const SEASON_POSITION_MULT: number[] = [
-  10, 6, 3, 3, 1.5, 1.5, 0.5, 0.5,
-  0, 0, 0, 0, 0, 0,
-];
+const SEASON_POSITION_MULT: number[] = [10, 6, 3, 3, 1.5, 1.5, 0.5, 0.5, 0, 0, 0, 0, 0, 0];
 
 // Salário por temporada baseado no overall (aprox. tier de estrelas)
 function seasonSalary(overall: number): number {
-  if (overall < 30) return 4_000;    // 0,5–1★
-  if (overall < 50) return 9_000;    // 1,5–2★
-  if (overall < 70) return 20_000;   // 2,5–3★
-  if (overall < 90) return 45_000;   // 3,5–4★
-  return 90_000;                     // 4,5–5★
+  if (overall < 30) return 4_000; // 0,5–1★
+  if (overall < 50) return 9_000; // 1,5–2★
+  if (overall < 70) return 20_000; // 2,5–3★
+  if (overall < 90) return 45_000; // 3,5–4★
+  return 90_000; // 4,5–5★
 }
 
 export const startLeague = createServerFn({ method: "POST" })
@@ -146,7 +158,10 @@ export const startLeague = createServerFn({ method: "POST" })
       await supabase
         .from("creatures")
         .update({ owner_team_id: playerTeamId })
-        .in("id", myCreatures.map((c: any) => c.id));
+        .in(
+          "id",
+          myCreatures.map((c: any) => c.id),
+        );
     }
     const { data: playerTeamRow } = await supabase
       .from("teams")
@@ -154,7 +169,10 @@ export const startLeague = createServerFn({ method: "POST" })
       .eq("id", playerTeamId)
       .maybeSingle();
     if (playerTeamRow?.name) {
-      await supabase.from("trainers").update({ academy_name: playerTeamRow.name }).eq("id", trainer.id);
+      await supabase
+        .from("trainers")
+        .update({ academy_name: playerTeamRow.name })
+        .eq("id", trainer.id);
     }
 
     const { data: bronzeComp } = await supabase
@@ -172,7 +190,9 @@ export const startLeague = createServerFn({ method: "POST" })
 export const getLeague = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((raw: unknown) =>
-    z.object({ division: z.enum(["bronze", "prata", "ouro", "diamante", "lendaria"]).optional() }).parse(raw ?? {}),
+    z
+      .object({ division: z.enum(["bronze", "prata", "ouro", "diamante", "lendaria"]).optional() })
+      .parse(raw ?? {}),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
@@ -207,7 +227,10 @@ export const getLeague = createServerFn({ method: "GET" })
         .select("id, competition_id, division")
         .eq("trainer_id", trainer.id)
         .eq("is_player", true)
-        .in("competition_id", allComps.map((c: any) => c.id))
+        .in(
+          "competition_id",
+          allComps.map((c: any) => c.id),
+        )
         .limit(1)
         .maybeSingle();
       playerTeamRow = fallbackTeam as PlayerLeagueTeam | null;
@@ -246,7 +269,6 @@ export const getLeague = createServerFn({ method: "GET" })
       selectedDivision: requested,
     };
   });
-
 
 export const playNextLeagueMatch = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -295,9 +317,16 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     stamp("competition");
 
     // recover stale (independente de `next`) roda em paralelo com o próximo bloco
-    const recoverPromise = recoverStaleRounds(supabase, trainer.id, competition.season_id, competition.id)
+    const recoverPromise = recoverStaleRounds(
+      supabase,
+      trainer.id,
+      competition.season_id,
+      competition.id,
+    )
       .then(() => stamp("recover stale"))
-      .catch((e) => console.error("[playNextLeagueMatch] ERRO na recuperação de rodadas anteriores:", e));
+      .catch((e) =>
+        console.error("[playNextLeagueMatch] ERRO na recuperação de rodadas anteriores:", e),
+      );
 
     const { data: next } = await supabase
       .from("matches")
@@ -327,7 +356,14 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         return side;
       }
       const seed = hashSeed(team.id);
-      return generateCpuSideFor(seed, team.id, team.name, team.cpu_strength ?? 45, bestiary);
+      const division = (competition.division ?? "bronze") as DivisionSlug;
+      return generateCpuSideFor(
+        seed,
+        team.id,
+        team.name,
+        team.cpu_strength ?? DIVISION_STRENGTH[division],
+        bestiary,
+      );
     }
     // Build both sides em paralelo — player usa DB, CPU é sync.
     const [homeSide, awaySide] = await Promise.all([buildSide(home), buildSide(away)]);
@@ -337,7 +373,6 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     const seed = hashSeed(next.id);
     const result = simulate(homeSide, awaySide, seed);
     stamp("simulate");
-
 
     // IDEMPOTÊNCIA: só marca como finished se ainda estiver scheduled. Se outra chamada
     // concorrente já assumiu essa partida, abortamos aqui e não duplicamos XP/finanças.
@@ -358,7 +393,6 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       throw new Error("Esta partida já foi iniciada em outra aba. Recarregue a página.");
     }
 
-
     stamp("claim");
 
     // ============ POST-SIMULATION: TUDO EM PARALELO ============
@@ -367,8 +401,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
     const isHome = playerTeam.id === home.id;
     const playerGf = isHome ? result.home_score : result.away_score;
     const playerGa = isHome ? result.away_score : result.home_score;
-    const outcomeXp: "W" | "D" | "L" =
-      playerGf > playerGa ? "W" : playerGf < playerGa ? "L" : "D";
+    const outcomeXp: "W" | "D" | "L" = playerGf > playerGa ? "W" : playerGf < playerGa ? "L" : "D";
 
     // Bloco 1: match_events (bulk insert, uma round-trip)
     const eventsToInsert = persistableSimulationEvents(result).map((e) => ({
@@ -390,14 +423,31 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       substamp("events");
     })();
 
-
     // Bloco 2: standings (1 SELECT + 2 UPDATEs paralelos)
     const standingsJob = (async () => {
       const updates: Array<{ team_id: string; gf: number; ga: number; result: "W" | "D" | "L" }> = [
-        { team_id: home.id, gf: result.home_score, ga: result.away_score,
-          result: result.home_score > result.away_score ? "W" : result.home_score < result.away_score ? "L" : "D" },
-        { team_id: away.id, gf: result.away_score, ga: result.home_score,
-          result: result.away_score > result.home_score ? "W" : result.away_score < result.home_score ? "L" : "D" },
+        {
+          team_id: home.id,
+          gf: result.home_score,
+          ga: result.away_score,
+          result:
+            result.home_score > result.away_score
+              ? "W"
+              : result.home_score < result.away_score
+                ? "L"
+                : "D",
+        },
+        {
+          team_id: away.id,
+          gf: result.away_score,
+          ga: result.home_score,
+          result:
+            result.away_score > result.home_score
+              ? "W"
+              : result.away_score < result.home_score
+                ? "L"
+                : "D",
+        },
       ];
       const { data: rows } = await supabase
         .from("standings")
@@ -405,18 +455,24 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         .eq("competition_id", competition.id)
         .in("team_id", [home.id, away.id]);
       const byTeam = new Map<string, any>((rows ?? []).map((r: any) => [r.team_id, r]));
-      await Promise.all(updates.map((u) => {
-        const row = byTeam.get(u.team_id);
-        if (!row) return Promise.resolve();
-        return supabase.from("standings").update({
-          wins: row.wins + (u.result === "W" ? 1 : 0),
-          draws: row.draws + (u.result === "D" ? 1 : 0),
-          losses: row.losses + (u.result === "L" ? 1 : 0),
-          points: row.points + (u.result === "W" ? 3 : u.result === "D" ? 1 : 0),
-          goals_for: row.goals_for + u.gf,
-          goals_against: row.goals_against + u.ga,
-        }).eq("competition_id", competition.id).eq("team_id", u.team_id);
-      }));
+      await Promise.all(
+        updates.map((u) => {
+          const row = byTeam.get(u.team_id);
+          if (!row) return Promise.resolve();
+          return supabase
+            .from("standings")
+            .update({
+              wins: row.wins + (u.result === "W" ? 1 : 0),
+              draws: row.draws + (u.result === "D" ? 1 : 0),
+              losses: row.losses + (u.result === "L" ? 1 : 0),
+              points: row.points + (u.result === "W" ? 3 : u.result === "D" ? 1 : 0),
+              goals_for: row.goals_for + u.gf,
+              goals_against: row.goals_against + u.ga,
+            })
+            .eq("competition_id", competition.id)
+            .eq("team_id", u.team_id);
+        }),
+      );
       substamp("standings");
     })();
 
@@ -429,37 +485,71 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         const matchPrize = outcome === "W" ? pw : outcome === "D" ? pd : pl;
         const rev = MATCH_REVENUE[division];
 
-        const [bldgsRes, standRowsRes, rosterRes, acadRes] = await Promise.all([
+        const [bldgsRes, standRowsRes, rosterRes, arenaRes] = await Promise.all([
           supabase.from("buildings").select("building_type, level").eq("trainer_id", trainer.id),
           isHome
-            ? supabase.from("standings").select("team_id, points, goals_for, goals_against").eq("competition_id", competition.id)
+            ? supabase
+                .from("standings")
+                .select("team_id, points, goals_for, goals_against")
+                .eq("competition_id", competition.id)
             : Promise.resolve({ data: null }),
-          supabase.from("creatures").select("overall, morale").eq("owner_trainer_id", trainer.id),
-          supabase.from("academies").select("money").eq("trainer_id", trainer.id).maybeSingle(),
+          supabase
+            .from("creatures")
+            .select("overall, morale, salary_mult")
+            .eq("owner_trainer_id", trainer.id),
+          (supabase as any)
+            .from("arena_profiles")
+            .select("stadium_damage_pct, repair_completes_at")
+            .eq("trainer_id", trainer.id)
+            .maybeSingle(),
         ]);
-        const bldgs = (bldgsRes as any).data as Array<{ building_type: string; level: number }> | null;
+        const bldgs = (bldgsRes as any).data as Array<{
+          building_type: string;
+          level: number;
+        }> | null;
         const standRows = (standRowsRes as any).data as any[] | null;
-        const roster = (rosterRes as any).data as Array<{ overall: number; morale?: number | null }> | null;
-        const acad = (acadRes as any).data as { money: number } | null;
+        const roster = (rosterRes as any).data as Array<{
+          overall: number;
+          morale?: number | null;
+        }> | null;
 
         let gate = 0;
         let stadiumLevel = 0;
         let attendanceInfo: ReturnType<typeof buildAttendance> | null = null;
         if (isHome) {
           stadiumLevel = (bldgs ?? []).find((b) => b.building_type === "estadio")?.level ?? 0;
-          const capacity = stadiumCapacity(stadiumLevel);
+          const arenaDamage =
+            (arenaRes as any).data?.repair_completes_at &&
+            new Date((arenaRes as any).data.repair_completes_at).getTime() > Date.now()
+              ? Number((arenaRes as any).data.stadium_damage_pct ?? 0)
+              : 0;
+          const capacity = Math.round(
+            revenueCapacity(division as EconDivision, stadiumCapacity(stadiumLevel)) *
+              (1 - arenaDamage / 100),
+          );
           // Ocupação = clamp(10 + moral_média × 0,9, 10, 100) ± 5% de ruído.
           // Substitui a fillRate fixa por posição — spec Ocupacao-Estadio-Moral.
           const moraleAvg = rosterMoraleAverage(roster ?? []);
           attendanceInfo = buildAttendance(capacity, moraleAvg, Math.random);
-          gate = Math.round(attendanceInfo.attendance * 25);
+          gate = Math.round(
+            attendanceInfo.attendance * TICKET_PRICE[division] * stadiumRevenueMultiplier(stadiumLevel),
+          );
         }
 
-        const salaries = (roster ?? []).reduce((a: number, c: any) => a + Math.round(matchSalary(c.overall ?? 40) * (c.salary_mult ?? 1)), 0);
+        const salaries = (roster ?? []).reduce(
+          (a: number, c: any) =>
+            a + Math.round(divisionalMatchSalary(c.overall ?? 40, division) * (c.salary_mult ?? 1)),
+          0,
+        );
         const maintenance = totalMaintenancePerMatch(division as EconDivision, bldgs ?? []);
-        const awayWinBonus = !isHome && outcome === "W"
-          ? computeAwayWinBonus(salaries + maintenance, rev.tv + rev.sponsor + rev.merch, matchPrize)
-          : 0;
+        const awayWinBonus =
+          !isHome && outcome === "W"
+            ? computeAwayWinBonus(
+                salaries + maintenance,
+                rev.tv + rev.sponsor + rev.merch,
+                matchPrize,
+              )
+            : 0;
 
         const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch + gate + awayWinBonus;
         const totalExpense = salaries + maintenance;
@@ -468,44 +558,97 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         const label = outcome === "W" ? "vitória" : outcome === "D" ? "empate" : "derrota";
         const roundTag = `Rodada ${next.round}`;
         const txs: any[] = [
-          { trainer_id: trainer.id, transaction_type: "income", category: "premio_partida",
-            amount: matchPrize, description: `${roundTag} — premiação por ${label} (${division})` },
-          { trainer_id: trainer.id, transaction_type: "income", category: "tv",
-            amount: rev.tv, description: `${roundTag} — Direitos de TV` },
-          { trainer_id: trainer.id, transaction_type: "income", category: "patrocinio",
-            amount: rev.sponsor, description: `${roundTag} — Patrocínio` },
-          { trainer_id: trainer.id, transaction_type: "income", category: "merch",
-            amount: rev.merch, description: `${roundTag} — Merchandising` },
+          {
+            trainer_id: trainer.id,
+            transaction_type: "income",
+            category: "premio_partida",
+            amount: matchPrize,
+            description: `${roundTag} — premiação por ${label} (${division})`,
+          },
+          {
+            trainer_id: trainer.id,
+            transaction_type: "income",
+            category: "tv",
+            amount: rev.tv,
+            description: `${roundTag} — Direitos de TV`,
+          },
+          {
+            trainer_id: trainer.id,
+            transaction_type: "income",
+            category: "patrocinio",
+            amount: rev.sponsor,
+            description: `${roundTag} — Patrocínio`,
+          },
+          {
+            trainer_id: trainer.id,
+            transaction_type: "income",
+            category: "merch",
+            amount: rev.merch,
+            description: `${roundTag} — Merchandising`,
+          },
         ];
         if (isHome && gate > 0) {
-          txs.push({ trainer_id: trainer.id, transaction_type: "income", category: "bilheteria",
-            amount: gate, description: `${roundTag} — Bilheteria (estádio nv.${stadiumLevel})` });
+          txs.push({
+            trainer_id: trainer.id,
+            transaction_type: "income",
+            category: "bilheteria",
+            amount: gate,
+            description: `${roundTag} — Bilheteria (estádio nv.${stadiumLevel})`,
+          });
         }
         if (awayWinBonus > 0) {
-          txs.push({ trainer_id: trainer.id, transaction_type: "income", category: "bonus_visitante",
-            amount: awayWinBonus, description: `${roundTag} — Prêmio de vitória fora` });
+          txs.push({
+            trainer_id: trainer.id,
+            transaction_type: "income",
+            category: "bonus_visitante",
+            amount: awayWinBonus,
+            description: `${roundTag} — Prêmio de vitória fora`,
+          });
         }
         if (salaries > 0) {
-          txs.push({ trainer_id: trainer.id, transaction_type: "expense", category: "salarios",
-            amount: salaries, description: `${roundTag} — Salários (${(roster ?? []).length} criaturas)` });
+          txs.push({
+            trainer_id: trainer.id,
+            transaction_type: "expense",
+            category: "salarios",
+            amount: salaries,
+            description: `${roundTag} — Salários (${(roster ?? []).length} criaturas)`,
+          });
         }
         if (maintenance > 0) {
-          txs.push({ trainer_id: trainer.id, transaction_type: "expense", category: "manutencao",
-            amount: maintenance, description: `${roundTag} — Manutenção de infraestrutura` });
+          txs.push({
+            trainer_id: trainer.id,
+            transaction_type: "expense",
+            category: "manutencao",
+            amount: maintenance,
+            description: `${roundTag} — Manutenção de infraestrutura`,
+          });
         }
 
         const financeSummary = {
-          outcome, division, round: next.round, is_home: isHome,
-          income: { match_prize: matchPrize, tv: rev.tv, sponsor: rev.sponsor, merch: rev.merch, gate, away_win_bonus: awayWinBonus },
+          outcome,
+          division,
+          round: next.round,
+          is_home: isHome,
+          income: {
+            match_prize: matchPrize,
+            tv: rev.tv,
+            sponsor: rev.sponsor,
+            merch: rev.merch,
+            gate,
+            away_win_bonus: awayWinBonus,
+          },
           expense: { salaries, maintenance },
           totals: { income: totalIncome, expense: totalExpense, net },
           attendance: attendanceInfo, // { capacity, attendance, occupancy, morale_avg, label } | null
         };
         // 3 writes em paralelo
         await Promise.all([
-          supabase.from("academies").update({ money: (acad?.money ?? 0) + net }).eq("trainer_id", trainer.id),
+          adjustAcademyMoney(supabase, trainer.id, net),
           supabase.from("financial_transactions").insert(txs),
-          supabase.from("matches").update({ finance_summary: financeSummary as any }).eq("id", next.id),
+          supabase
+            .from("matches")
+            .update({ finance_summary: financeSummary as any })
+            .eq("id", next.id),
         ]);
       } catch (e) {
         console.error("[playNextLeagueMatch] payoff error", e);
@@ -551,7 +694,6 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
       substamp("xp (message deferred)");
     })();
 
-
     await Promise.all([eventsJob, standingsJob, payoffJob, xpMsgJob]);
     stamp("player match persisted");
     return {
@@ -593,7 +735,7 @@ export const advanceLeagueRoundBackground = createServerFn({ method: "POST" })
     // Confere posse da competição
     const { data: comp } = await supabase
       .from("competitions")
-      .select("id")
+      .select("id, division")
       .eq("id", competition_id)
       .eq("trainer_id", trainer.id)
       .maybeSingle();
@@ -619,6 +761,8 @@ export const advanceLeagueRoundBackground = createServerFn({ method: "POST" })
         .select("id, name, cpu_strength")
         .in("id", teamIds);
       const teamMap = new Map<string, any>((pair ?? []).map((t: any) => [t.id, t]));
+      const division = ((comp as any).division ?? "bronze") as DivisionSlug;
+      const fallbackStrength = DIVISION_STRENGTH[division];
 
       // Standings em memória
       const { data: standRows } = await supabase
@@ -632,8 +776,14 @@ export const advanceLeagueRoundBackground = createServerFn({ method: "POST" })
         const h = teamMap.get(m.home_team_id);
         const a = teamMap.get(m.away_team_id);
         if (!h || !a) continue;
-        const hs = generateCpuSideFor(hashSeed(h.id), h.id, h.name, (h.cpu_strength ?? 45) + 4, bestiary);
-        const as = generateCpuSideFor(hashSeed(a.id), a.id, a.name, a.cpu_strength ?? 45, bestiary);
+        const hs = generateCpuSideFor(
+          hashSeed(h.id),
+          h.id,
+          h.name,
+          (h.cpu_strength ?? fallbackStrength) + 4,
+          bestiary,
+        );
+        const as = generateCpuSideFor(hashSeed(a.id), a.id, a.name, a.cpu_strength ?? fallbackStrength, bestiary);
         const r = simulate(hs, as, hashSeed(m.id));
         matchUpdates.push(
           supabase
@@ -649,16 +799,30 @@ export const advanceLeagueRoundBackground = createServerFn({ method: "POST" })
         const hRow = standMap.get(h.id);
         const aRow = standMap.get(a.id);
         if (hRow) {
-          hRow.goals_for += r.home_score; hRow.goals_against += r.away_score;
-          if (r.home_score > r.away_score) { hRow.wins++; hRow.points += 3; }
-          else if (r.home_score < r.away_score) { hRow.losses++; }
-          else { hRow.draws++; hRow.points += 1; }
+          hRow.goals_for += r.home_score;
+          hRow.goals_against += r.away_score;
+          if (r.home_score > r.away_score) {
+            hRow.wins++;
+            hRow.points += 3;
+          } else if (r.home_score < r.away_score) {
+            hRow.losses++;
+          } else {
+            hRow.draws++;
+            hRow.points += 1;
+          }
         }
         if (aRow) {
-          aRow.goals_for += r.away_score; aRow.goals_against += r.home_score;
-          if (r.away_score > r.home_score) { aRow.wins++; aRow.points += 3; }
-          else if (r.away_score < r.home_score) { aRow.losses++; }
-          else { aRow.draws++; aRow.points += 1; }
+          aRow.goals_for += r.away_score;
+          aRow.goals_against += r.home_score;
+          if (r.away_score > r.home_score) {
+            aRow.wins++;
+            aRow.points += 3;
+          } else if (r.away_score < r.home_score) {
+            aRow.losses++;
+          } else {
+            aRow.draws++;
+            aRow.points += 1;
+          }
         }
       }
       await Promise.all(matchUpdates);
@@ -670,8 +834,12 @@ export const advanceLeagueRoundBackground = createServerFn({ method: "POST" })
           supabase
             .from("standings")
             .update({
-              points: row.points, wins: row.wins, draws: row.draws, losses: row.losses,
-              goals_for: row.goals_for, goals_against: row.goals_against,
+              points: row.points,
+              wins: row.wins,
+              draws: row.draws,
+              losses: row.losses,
+              goals_for: row.goals_for,
+              goals_against: row.goals_against,
             })
             .eq("competition_id", competition_id)
             .eq("team_id", tid),
@@ -683,17 +851,18 @@ export const advanceLeagueRoundBackground = createServerFn({ method: "POST" })
 
     // Avança as 4 divisões restantes
     try {
-      await advanceOtherDivisionsForRound(
-        supabase,
-        trainer.id,
-        season_id,
-        competition_id,
-        round,
-      );
+      await advanceOtherDivisionsForRound(supabase, trainer.id, season_id, competition_id, round);
       stamp("other divisions advanced");
     } catch (e) {
-      console.error(`[advanceLeagueRoundBackground] ERRO ao avançar outras divisões (comp=${competition_id}, round=${round}):`, e);
-      return { ok: false, reason: "other_divisions_failed", error: String((e as any)?.message ?? e) };
+      console.error(
+        `[advanceLeagueRoundBackground] ERRO ao avançar outras divisões (comp=${competition_id}, round=${round}):`,
+        e,
+      );
+      return {
+        ok: false,
+        reason: "other_divisions_failed",
+        error: String((e as any)?.message ?? e),
+      };
     }
 
     return { ok: true };
@@ -775,7 +944,6 @@ async function recoverStaleRounds(
   }
 }
 
-
 export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -792,6 +960,29 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
     if (!allComps || !allComps.length) throw new Error("Nenhuma liga ativa.");
 
     const seasonId = allComps[0].season_id;
+
+    // A temporada só pode virar quando todas as competições iniciadas nela terminaram.
+    // Evita deixar uma Copa antiga ativa e bloquear a Copa da temporada seguinte.
+    const { data: activeSideCompetitions, error: sideCompError } = await supabase
+      .from("competitions")
+      .select("id, type")
+      .eq("trainer_id", trainer.id)
+      .eq("season_id", seasonId)
+      .neq("type", "league")
+      .eq("status", "active");
+    if (sideCompError) throw sideCompError;
+    if ((activeSideCompetitions ?? []).length > 0) {
+      const labels: Record<string, string> = {
+        cup: "Copa Nacional",
+        world_league: "Liga Mundial",
+        world_cup: "Copa Mundial",
+      };
+      const pendingNames = Array.from(
+        new Set((activeSideCompetitions ?? []).map((c: any) => labels[c.type] ?? "competição")),
+      ).join(", ");
+      throw new Error(`Conclua antes de encerrar a temporada: ${pendingNames}.`);
+    }
+
     const compByDiv = new Map<Division, { id: string }>();
     for (const c of allComps) compByDiv.set(c.division as Division, { id: c.id });
 
@@ -896,36 +1087,83 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
     const previousDivision = playerMove.fromDiv;
     const newDivision = playerMove.toDiv;
     const promoted = DIVISION_ORDER.indexOf(newDivision) > DIVISION_ORDER.indexOf(previousDivision);
-    const relegated = DIVISION_ORDER.indexOf(newDivision) < DIVISION_ORDER.indexOf(previousDivision);
+    const relegated =
+      DIVISION_ORDER.indexOf(newDivision) < DIVISION_ORDER.indexOf(previousDivision);
 
     // Salários agora são cobrados por partida — nada a descontar aqui.
-    const { data: acad } = await supabase
-      .from("academies")
-      .select("money, gems")
-      .eq("trainer_id", trainer.id)
-      .maybeSingle();
+    const [academyResult, renewalRosterResult, renewalBuildingsResult] = await Promise.all([
+      supabase.from("academies").select("money, gems").eq("trainer_id", trainer.id).maybeSingle(),
+      supabase.from("creatures").select("overall, salary_mult").eq("owner_trainer_id", trainer.id),
+      supabase.from("buildings").select("building_type, level").eq("trainer_id", trainer.id),
+    ]);
+    const acad = academyResult.data;
+    const contractRenewal = eliteRenewalFee(playerDiv, renewalRosterResult.data ?? []);
+    const infrastructureRenewal = eliteInfrastructureRenewalFee(
+      playerDiv,
+      renewalBuildingsResult.data ?? [],
+    );
+    const availableAfterPrize = Number(acad?.money ?? 0) + prize;
+    const treasuryReserve = eliteTreasuryReserveFee(playerDiv, availableAfterPrize);
+    const eliteSeasonExpense = Math.min(
+      availableAfterPrize,
+      contractRenewal + infrastructureRenewal + treasuryReserve,
+    );
     await supabase
       .from("academies")
       .update({
-        money: (acad?.money ?? 0) + prize,
+        money: availableAfterPrize - eliteSeasonExpense,
         gems: (acad?.gems ?? 0) + championGems,
       })
       .eq("trainer_id", trainer.id);
+
+    // Mantém o campo legado sincronizado; a fonte canônica continua sendo o time atual.
+    await supabase.from("trainers").update({ division: newDivision }).eq("id", trainer.id);
 
     // XP de prestígio de fim de temporada
     if (playerIsChampion) await awardTrainerXp(supabase, trainer.id, "title", 1);
     if (promoted) await awardTrainerXp(supabase, trainer.id, "promotion", 1);
 
-
-
     const txs: any[] = [];
-    if (prize > 0) txs.push({
-      trainer_id: trainer.id,
-      transaction_type: "income",
-      category: "premio_temporada",
-      amount: prize,
-      description: `Prêmio de temporada — ${playerDiv} • ${position}º lugar`,
-    });
+    if (prize > 0)
+      txs.push({
+        trainer_id: trainer.id,
+        transaction_type: "income",
+        category: "premio_temporada",
+        amount: prize,
+        description: `Prêmio de temporada — ${playerDiv} • ${position}º lugar`,
+      });
+    if (contractRenewal > 0)
+      txs.push({
+        trainer_id: trainer.id,
+        transaction_type: "expense",
+        category: "renovacao_contratos",
+        amount: Math.min(contractRenewal, eliteSeasonExpense),
+        description: `Renovação anual de contratos — ${playerDiv}`,
+      });
+    const paidInfrastructureRenewal = Math.min(
+      infrastructureRenewal,
+      Math.max(0, eliteSeasonExpense - contractRenewal),
+    );
+    if (paidInfrastructureRenewal > 0)
+      txs.push({
+        trainer_id: trainer.id,
+        transaction_type: "expense",
+        category: "modernizacao_infraestrutura",
+        amount: paidInfrastructureRenewal,
+        description: `Fundo anual de modernização — ${playerDiv}`,
+      });
+    const paidTreasuryReserve = Math.max(
+      0,
+      eliteSeasonExpense - contractRenewal - paidInfrastructureRenewal,
+    );
+    if (paidTreasuryReserve > 0)
+      txs.push({
+        trainer_id: trainer.id,
+        transaction_type: "expense",
+        category: "fundo_sustentabilidade_elite",
+        amount: paidTreasuryReserve,
+        description: `Fundo de sustentabilidade da elite — ${playerDiv}`,
+      });
     if (txs.length) await supabase.from("financial_transactions").insert(txs);
 
     // 5) FASE 2 — aplica tudo: fecha competições antigas, cria novas, move times, gera tabelas/calendários
@@ -956,6 +1194,7 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
         trainer_id: trainer.id,
         season_number: currentSeason.season_number + 1,
         is_current: true,
+        balance_version: BALANCE_VERSION,
       })
       .select("id")
       .single();
@@ -1009,7 +1248,12 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
           competition_id: newCompId,
           team_id: tid,
           division: div,
-          points: 0, wins: 0, draws: 0, losses: 0, goals_for: 0, goals_against: 0,
+          points: 0,
+          wins: 0,
+          draws: 0,
+          losses: 0,
+          goals_for: 0,
+          goals_against: 0,
         })),
       );
       const schedule = generateSchedule(teamIds.length, true);
@@ -1084,11 +1328,11 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
     });
 
     return {
-
       position,
       prize,
       championGems,
       salaries: 0,
+      eliteSeasonExpense,
       previousDivision,
       newDivision,
       promoted,
@@ -1151,11 +1395,7 @@ async function advanceOtherDivisionsForRound(
  * específica em uma competição, e atualiza standings.
  * Idempotente: filtra por status='scheduled'.
  */
-async function fastAdvanceCompetitionRound(
-  supabase: any,
-  compId: string,
-  round: number,
-) {
+async function fastAdvanceCompetitionRound(supabase: any, compId: string, round: number) {
   const { data: matches } = await supabase
     .from("matches")
     .select("id, home_team_id, away_team_id")
@@ -1164,7 +1404,9 @@ async function fastAdvanceCompetitionRound(
     .eq("status", "scheduled");
   if (!matches || !matches.length) return;
 
-  const teamIds = Array.from(new Set(matches.flatMap((m: any) => [m.home_team_id, m.away_team_id])));
+  const teamIds = Array.from(
+    new Set(matches.flatMap((m: any) => [m.home_team_id, m.away_team_id])),
+  );
   const { data: cr } = await supabase
     .from("creatures")
     .select("owner_team_id, overall")
@@ -1173,7 +1415,8 @@ async function fastAdvanceCompetitionRound(
   const totals = new Map<string, { sum: number; n: number }>();
   for (const c of cr ?? []) {
     const t = totals.get(c.owner_team_id) ?? { sum: 0, n: 0 };
-    t.sum += c.overall; t.n += 1;
+    t.sum += c.overall;
+    t.n += 1;
     totals.set(c.owner_team_id, t);
   }
   for (const [id, t] of totals) strength.set(id, t.n ? t.sum / t.n : 45);
@@ -1209,16 +1452,30 @@ async function fastAdvanceCompetitionRound(
     const hRow = standMap.get(m.home_team_id);
     const aRow = standMap.get(m.away_team_id);
     if (hRow) {
-      hRow.goals_for += hg; hRow.goals_against += ag;
-      if (hg > ag) { hRow.wins++; hRow.points += 3; }
-      else if (hg < ag) { hRow.losses++; }
-      else { hRow.draws++; hRow.points += 1; }
+      hRow.goals_for += hg;
+      hRow.goals_against += ag;
+      if (hg > ag) {
+        hRow.wins++;
+        hRow.points += 3;
+      } else if (hg < ag) {
+        hRow.losses++;
+      } else {
+        hRow.draws++;
+        hRow.points += 1;
+      }
     }
     if (aRow) {
-      aRow.goals_for += ag; aRow.goals_against += hg;
-      if (ag > hg) { aRow.wins++; aRow.points += 3; }
-      else if (ag < hg) { aRow.losses++; }
-      else { aRow.draws++; aRow.points += 1; }
+      aRow.goals_for += ag;
+      aRow.goals_against += hg;
+      if (ag > hg) {
+        aRow.wins++;
+        aRow.points += 3;
+      } else if (ag < hg) {
+        aRow.losses++;
+      } else {
+        aRow.draws++;
+        aRow.points += 1;
+      }
     }
   }
   await Promise.all(matchWrites);
@@ -1229,8 +1486,12 @@ async function fastAdvanceCompetitionRound(
       supabase
         .from("standings")
         .update({
-          points: row.points, wins: row.wins, draws: row.draws, losses: row.losses,
-          goals_for: row.goals_for, goals_against: row.goals_against,
+          points: row.points,
+          wins: row.wins,
+          draws: row.draws,
+          losses: row.losses,
+          goals_for: row.goals_for,
+          goals_against: row.goals_against,
         })
         .eq("competition_id", compId)
         .eq("team_id", tid),

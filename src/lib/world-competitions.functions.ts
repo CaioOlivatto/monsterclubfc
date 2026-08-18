@@ -23,7 +23,8 @@ import {
 import { loadBestiary } from "./bestiary.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
-import { MATCH_REVENUE, totalMaintenancePerMatch, matchSalary, computeAwayWinBonus, WORLD_LEAGUE_PHASE_BONUS, type Division as EconDivision } from "./economy";
+import { MATCH_REVENUE, totalMaintenancePerMatch, divisionalMatchSalary, computeAwayWinBonus, computeWorldParticipationGrant, worldLeaguePhaseBonus, type Division as EconDivision } from "./economy";
+import { adjustAcademyMoney } from "./academy-money.server";
 
 // Premiação por partida em competições MUNDIAIS — maiores que Campeonato.
 // Grupos: V/E/D. Mata-mata (avançar vale mais que a fase de grupos).
@@ -209,22 +210,24 @@ async function simulatePlayerMatch(
       const rev = MATCH_REVENUE[div] ?? MATCH_REVENUE.bronze;
 
       // Reads em paralelo
-      const [rosterRes, bldgsRes, acadRes] = await Promise.all([
+      const [rosterRes, bldgsRes] = await Promise.all([
         supabase.from("creatures").select("overall, salary_mult").eq("owner_trainer_id", trainerId),
         supabase.from("buildings").select("building_type, level").eq("trainer_id", trainerId),
-        supabase.from("academies").select("money").eq("trainer_id", trainerId).maybeSingle(),
       ]);
       const roster = (rosterRes as any).data as Array<{ overall: number }> | null;
       const bldgs = (bldgsRes as any).data as Array<{ building_type: string; level: number }> | null;
-      const acad = (acadRes as any).data as { money: number } | null;
 
-      const salaries = (roster ?? []).reduce((a: number, c: any) => a + Math.round(matchSalary(c.overall ?? 40) * (c.salary_mult ?? 1)), 0);
+      const salaries = (roster ?? []).reduce((a: number, c: any) => a + Math.round(divisionalMatchSalary(c.overall ?? 40, div) * (c.salary_mult ?? 1)), 0);
       const maintenance = totalMaintenancePerMatch(div, bldgs ?? []);
+      const participationGrant = computeWorldParticipationGrant(
+        salaries + maintenance,
+        rev.tv + rev.sponsor + rev.merch,
+      );
       const awayWinBonus = !isHome && outcome === "W"
         ? computeAwayWinBonus(salaries + maintenance, rev.tv + rev.sponsor + rev.merch, matchPrize)
         : 0;
 
-      const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch + awayWinBonus;
+      const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch + participationGrant + awayWinBonus;
       const totalExpense = salaries + maintenance;
       const net = totalIncome - totalExpense;
 
@@ -241,6 +244,8 @@ async function simulatePlayerMatch(
         { trainer_id: trainerId, transaction_type: "income", category: "merch",
           amount: rev.merch, description: `${roundTag} — Merchandising` },
       ];
+      if (participationGrant > 0) txs.push({ trainer_id: trainerId, transaction_type: "income",
+        category: "participacao_mundial", amount: participationGrant, description: `${roundTag} — Cota de participação` });
       if (awayWinBonus > 0) txs.push({ trainer_id: trainerId, transaction_type: "income",
         category: "bonus_visitante", amount: awayWinBonus, description: `${roundTag} — Prêmio de vitória fora` });
       if (salaries > 0) txs.push({ trainer_id: trainerId, transaction_type: "expense",
@@ -251,14 +256,14 @@ async function simulatePlayerMatch(
       const financeSummary = {
         outcome, division: div, round: ctx.round, is_home: isHome,
         competition: ctx.competition,
-        income: { match_prize: matchPrize, tv: rev.tv, sponsor: rev.sponsor, merch: rev.merch, gate: 0, away_win_bonus: awayWinBonus },
+        income: { match_prize: matchPrize, tv: rev.tv, sponsor: rev.sponsor, merch: rev.merch, gate: 0, participation_grant: participationGrant, away_win_bonus: awayWinBonus },
         expense: { salaries, maintenance },
         totals: { income: totalIncome, expense: totalExpense, net },
       };
 
       // Writes em paralelo
       await Promise.all([
-        supabase.from("academies").update({ money: (acad?.money ?? 0) + net }).eq("trainer_id", trainerId),
+        adjustAcademyMoney(supabase, trainerId, net),
         supabase.from("financial_transactions").insert(txs),
         supabase.from("matches").update({ finance_summary: financeSummary }).eq("id", matchRow.id),
       ]);
@@ -754,16 +759,15 @@ async function advanceWorldLeagueRoundInternal(
           const reachedSemi = (pMatches ?? []).some((m: any) => m.round === 7);
           const playedGroups = (pMatches ?? []).some((m: any) => m.round <= 5);
           let prize = 0; let label = "";
-          if (reachedFinal && koWon(8)) { prize = WORLD_LEAGUE_PHASE_BONUS.champion; label = "Campeão da Liga Mundial"; }
-          else if (reachedFinal)         { prize = WORLD_LEAGUE_PHASE_BONUS.runnerUp; label = "Vice-campeão da Liga Mundial"; }
-          else if (reachedSemi)          { prize = WORLD_LEAGUE_PHASE_BONUS.semi;     label = "Semifinalista da Liga Mundial"; }
-          else if (playedGroups)         { prize = WORLD_LEAGUE_PHASE_BONUS.groups;   label = "Fase de grupos da Liga Mundial"; }
+          const prizeDivision = ((comp as any)?.division ?? "bronze") as EconDivision;
+          if (reachedFinal && koWon(8)) { prize = worldLeaguePhaseBonus(prizeDivision, "champion"); label = "Campeão da Liga Mundial"; }
+          else if (reachedFinal)         { prize = worldLeaguePhaseBonus(prizeDivision, "runnerUp"); label = "Vice-campeão da Liga Mundial"; }
+          else if (reachedSemi)          { prize = worldLeaguePhaseBonus(prizeDivision, "semi");     label = "Semifinalista da Liga Mundial"; }
+          else if (playedGroups)         { prize = worldLeaguePhaseBonus(prizeDivision, "groups");   label = "Fase de grupos da Liga Mundial"; }
           if (prize > 0) {
             const { data: acad } = await supabase
               .from("academies").select("money").eq("trainer_id", trainerId).maybeSingle();
-            await supabase.from("academies")
-              .update({ money: (acad?.money ?? 0) + prize })
-              .eq("trainer_id", trainerId);
+            await adjustAcademyMoney(supabase, trainerId, prize);
             await supabase.from("financial_transactions").insert({
               trainer_id: trainerId,
               transaction_type: "income",

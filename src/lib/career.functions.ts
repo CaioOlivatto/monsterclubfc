@@ -344,6 +344,14 @@ export interface AcceptOfferResult {
   brought_creatures: number;
 }
 
+const CLUB_INFRASTRUCTURE_BASELINE: Record<string, { estadio: number; ct_treino: number; centro_medico: number }> = {
+  bronze: { estadio: 1, ct_treino: 1, centro_medico: 1 },
+  prata: { estadio: 2, ct_treino: 2, centro_medico: 2 },
+  ouro: { estadio: 4, ct_treino: 3, centro_medico: 3 },
+  diamante: { estadio: 6, ct_treino: 4, centro_medico: 4 },
+  lendaria: { estadio: 8, ct_treino: 5, centro_medico: 5 },
+};
+
 export const acceptOffer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { offerId: string; keepCreatureIds: string[] }) => {
@@ -432,6 +440,13 @@ export const acceptOffer = createServerFn({ method: "POST" })
         .from("teams")
         .update({ trainer_id: null, is_player: false, is_cpu: true })
         .eq("id", trainer.current_team_id);
+
+      // A infraestrutura permanece fisicamente no clube antigo.
+      await supabase
+        .from("buildings")
+        .update({ trainer_id: null })
+        .eq("team_id", trainer.current_team_id)
+        .eq("trainer_id", trainer.id);
     }
 
     // 7) Descarta os 2 mais fracos do novo clube (liberados para nada — sumiram)
@@ -472,6 +487,28 @@ export const acceptOffer = createServerFn({ method: "POST" })
         pending_transition: false,
       })
       .eq("id", trainer.id);
+
+    // Assume a infraestrutura do novo clube. Clubes CPU ainda sem registro
+    // recebem uma estrutura-base coerente com a divisão da proposta.
+    const { data: newClubBuildings } = await supabase
+      .from("buildings")
+      .select("id")
+      .eq("team_id", newTeam.id);
+    if (newClubBuildings && newClubBuildings.length > 0) {
+      const { error: claimBuildingsError } = await supabase
+        .from("buildings")
+        .update({ trainer_id: trainer.id })
+        .eq("team_id", newTeam.id);
+      if (claimBuildingsError) throw claimBuildingsError;
+    } else {
+      const baseline = CLUB_INFRASTRUCTURE_BASELINE[newTeam.division ?? "bronze"] ?? CLUB_INFRASTRUCTURE_BASELINE.bronze;
+      const { error: createBuildingsError } = await supabase.from("buildings").insert([
+        { trainer_id: trainer.id, team_id: newTeam.id, building_type: "estadio", level: baseline.estadio },
+        { trainer_id: trainer.id, team_id: newTeam.id, building_type: "ct_treino", level: baseline.ct_treino },
+        { trainer_id: trainer.id, team_id: newTeam.id, building_type: "centro_medico", level: baseline.centro_medico },
+      ]);
+      if (createBuildingsError) throw createBuildingsError;
+    }
 
     // 11) Ofertas: aceita esta, expira as demais
     await supabase

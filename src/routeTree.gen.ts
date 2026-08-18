@@ -26,8 +26,10 @@ import { Route as AuthenticatedFinancesRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedDevRouteImport } from './routes/_authenticated/dev'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCupRouteImport } from './routes/_authenticated/cup'
+import { Route as AuthenticatedClubRouteImport } from './routes/_authenticated/club'
 import { Route as AuthenticatedCareerRouteImport } from './routes/_authenticated/career'
 import { Route as AuthenticatedBuildingsRouteImport } from './routes/_authenticated/buildings'
+import { Route as AuthenticatedArenaRouteImport } from './routes/_authenticated/arena'
 import { Route as AuthenticatedMatchIdRouteImport } from './routes/_authenticated/match.$id'
 import { Route as AuthenticatedCreaturesIdRouteImport } from './routes/_authenticated/creatures.$id'
 
@@ -116,6 +118,11 @@ const AuthenticatedCupRoute = AuthenticatedCupRouteImport.update({
   path: '/cup',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedClubRoute = AuthenticatedClubRouteImport.update({
+  id: '/club',
+  path: '/club',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedCareerRoute = AuthenticatedCareerRouteImport.update({
   id: '/career',
   path: '/career',
@@ -124,6 +131,11 @@ const AuthenticatedCareerRoute = AuthenticatedCareerRouteImport.update({
 const AuthenticatedBuildingsRoute = AuthenticatedBuildingsRouteImport.update({
   id: '/buildings',
   path: '/buildings',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedArenaRoute = AuthenticatedArenaRouteImport.update({
+  id: '/arena',
+  path: '/arena',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedMatchIdRoute = AuthenticatedMatchIdRouteImport.update({
@@ -141,8 +153,10 @@ const AuthenticatedCreaturesIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/arena': typeof AuthenticatedArenaRoute
   '/buildings': typeof AuthenticatedBuildingsRoute
   '/career': typeof AuthenticatedCareerRoute
+  '/club': typeof AuthenticatedClubRoute
   '/cup': typeof AuthenticatedCupRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/dev': typeof AuthenticatedDevRoute
@@ -163,8 +177,10 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/arena': typeof AuthenticatedArenaRoute
   '/buildings': typeof AuthenticatedBuildingsRoute
   '/career': typeof AuthenticatedCareerRoute
+  '/club': typeof AuthenticatedClubRoute
   '/cup': typeof AuthenticatedCupRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/dev': typeof AuthenticatedDevRoute
@@ -187,8 +203,10 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/_authenticated/arena': typeof AuthenticatedArenaRoute
   '/_authenticated/buildings': typeof AuthenticatedBuildingsRoute
   '/_authenticated/career': typeof AuthenticatedCareerRoute
+  '/_authenticated/club': typeof AuthenticatedClubRoute
   '/_authenticated/cup': typeof AuthenticatedCupRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/dev': typeof AuthenticatedDevRoute
@@ -211,8 +229,10 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/arena'
     | '/buildings'
     | '/career'
+    | '/club'
     | '/cup'
     | '/dashboard'
     | '/dev'
@@ -233,8 +253,10 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/arena'
     | '/buildings'
     | '/career'
+    | '/club'
     | '/cup'
     | '/dashboard'
     | '/dev'
@@ -256,8 +278,10 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/_authenticated/arena'
     | '/_authenticated/buildings'
     | '/_authenticated/career'
+    | '/_authenticated/club'
     | '/_authenticated/cup'
     | '/_authenticated/dashboard'
     | '/_authenticated/dev'
@@ -403,6 +427,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCupRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/club': {
+      id: '/_authenticated/club'
+      path: '/club'
+      fullPath: '/club'
+      preLoaderRoute: typeof AuthenticatedClubRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/career': {
       id: '/_authenticated/career'
       path: '/career'
@@ -415,6 +446,13 @@ declare module '@tanstack/react-router' {
       path: '/buildings'
       fullPath: '/buildings'
       preLoaderRoute: typeof AuthenticatedBuildingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/arena': {
+      id: '/_authenticated/arena'
+      path: '/arena'
+      fullPath: '/arena'
+      preLoaderRoute: typeof AuthenticatedArenaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/match/$id': {
@@ -435,8 +473,10 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedArenaRoute: typeof AuthenticatedArenaRoute
   AuthenticatedBuildingsRoute: typeof AuthenticatedBuildingsRoute
   AuthenticatedCareerRoute: typeof AuthenticatedCareerRoute
+  AuthenticatedClubRoute: typeof AuthenticatedClubRoute
   AuthenticatedCupRoute: typeof AuthenticatedCupRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDevRoute: typeof AuthenticatedDevRoute
@@ -456,8 +496,10 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedArenaRoute: AuthenticatedArenaRoute,
   AuthenticatedBuildingsRoute: AuthenticatedBuildingsRoute,
   AuthenticatedCareerRoute: AuthenticatedCareerRoute,
+  AuthenticatedClubRoute: AuthenticatedClubRoute,
   AuthenticatedCupRoute: AuthenticatedCupRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDevRoute: AuthenticatedDevRoute,

@@ -1,20 +1,34 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { BUILDINGS, BUILDING_TYPES, MAX_LEVEL, type BuildingType } from "./buildings.server";
+import { BUILDINGS, BUILDING_TYPES, stadiumCapacity, stadiumRevenueMultiplier, type BuildingType } from "./buildings.server";
 import { awardTrainerXp } from "./trainer-xp.server";
+import { levelProgress } from "./trainer-xp.server";
+import { ATTENDANCE_DEMAND_CAP, TICKET_PRICE, maintenancePerMatch, revenueCapacity } from "./economy";
+import { resolvePlayerDivision } from "./division.server";
+import { adjustAcademyMoney } from "./academy-money.server";
 
 
 async function getTrainer(supabase: any, userId: string) {
   const { data, error } = await supabase
     .from("trainers")
-    .select("id, academies(money, gems, builders)")
+    .select("id, trainer_name, academy_name, level, xp, current_team_id, academies(money, gems, builders)")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw error;
   if (!data) throw new Error("Treinador não encontrado.");
   const academy = Array.isArray(data.academies) ? data.academies[0] : data.academies;
-  return { id: data.id, money: academy?.money ?? 0, gems: academy?.gems ?? 0, builders: academy?.builders ?? 1 };
+  return {
+    id: data.id,
+    trainerName: data.trainer_name,
+    academyName: data.academy_name,
+    level: data.level ?? 0,
+    xp: data.xp ?? 0,
+    currentTeamId: data.current_team_id,
+    money: academy?.money ?? 0,
+    gems: academy?.gems ?? 0,
+    builders: academy?.builders ?? 1,
+  };
 }
 
 /** Finaliza upgrades cujo tempo já passou. Idempotente. */
@@ -43,6 +57,8 @@ export const getBuildings = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const trainer = await getTrainer(supabase, userId);
     await finalizeCompletedUpgrades(supabase, trainer.id);
+    const division = await resolvePlayerDivision(supabase, trainer.id, trainer.currentTeamId);
+    const progress = levelProgress(trainer.xp);
 
     const { data: rows } = await supabase
       .from("buildings")
@@ -63,17 +79,29 @@ export const getBuildings = createServerFn({ method: "GET" })
       const state = byType.get(type) ?? { level: 0, upgrade_completes_at: null };
       const upgrading = !!state.upgrade_completes_at;
       const nextLevel = state.level + 1;
-      const canUpgrade = state.level < MAX_LEVEL;
+      const canUpgrade = state.level < spec.maxLevel;
+      const currentMaintenance = maintenancePerMatch(division, type, state.level);
+      const nextMaintenance = canUpgrade ? maintenancePerMatch(division, type, nextLevel) : null;
+      const stadiumSeasonReturn = type === "estadio" && canUpgrade
+        ? Math.round(
+            (revenueCapacity(division, stadiumCapacity(nextLevel)) * stadiumRevenueMultiplier(nextLevel) - revenueCapacity(division, stadiumCapacity(state.level)) * stadiumRevenueMultiplier(state.level)) * 0.73 * TICKET_PRICE[division] * 13 -
+            ((nextMaintenance ?? 0) - currentMaintenance) * 26,
+          )
+        : null;
       return {
         type,
         name: spec.name,
         description: spec.description,
         level: state.level,
-        maxLevel: MAX_LEVEL,
+        maxLevel: spec.maxLevel,
         currentEffect: spec.effectByLevel(state.level),
         nextEffect: canUpgrade ? spec.effectByLevel(nextLevel) : null,
         nextCost: canUpgrade ? spec.cost(nextLevel) : null,
         nextDurationSec: canUpgrade ? spec.duration(nextLevel) : null,
+        maintenancePerMatch: currentMaintenance,
+        nextMaintenancePerMatch: nextMaintenance,
+        estimatedSeasonReturn: stadiumSeasonReturn,
+        divisionDemandCap: type === "estadio" ? ATTENDANCE_DEMAND_CAP[division] : null,
         upgrading,
         completes_at: state.upgrade_completes_at,
       };
@@ -83,10 +111,19 @@ export const getBuildings = createServerFn({ method: "GET" })
     const anyUpgrading = items.some((i) => i.upgrading);
 
     return {
+      trainer: {
+        name: trainer.trainerName,
+        academyName: trainer.academyName,
+        level: progress.level,
+        xpIntoLevel: progress.intoLevel,
+        xpForNextLevel: progress.levelNeed,
+        isMaxLevel: progress.isMax,
+      },
       money: trainer.money,
       gems: trainer.gems,
       builders: trainer.builders,
       builders_busy: anyUpgrading ? 1 : 0,
+      division,
       buildings: items,
     };
   });
@@ -126,7 +163,7 @@ export const startUpgrade = createServerFn({ method: "POST" })
     const { data: existing } = existingResult;
 
     const currentLevel = existing?.level ?? 0;
-    if (currentLevel >= MAX_LEVEL) throw new Error("Nível máximo já atingido.");
+    if (currentLevel >= spec.maxLevel) throw new Error("Nível máximo já atingido.");
 
     const nextLevel = currentLevel + 1;
     const cost = spec.cost(nextLevel);
@@ -136,30 +173,32 @@ export const startUpgrade = createServerFn({ method: "POST" })
 
     const completesAt = new Date(Date.now() + durationSec * 1000).toISOString();
 
+    await adjustAcademyMoney(supabase, trainer.id, -cost);
+
     if (existing) {
       const { error } = await supabase
         .from("buildings")
         .update({ upgrade_completes_at: completesAt })
         .eq("id", existing.id);
-      if (error) throw error;
+      if (error) {
+        await adjustAcademyMoney(supabase, trainer.id, cost).catch(() => undefined);
+        throw error;
+      }
     } else {
       const { error } = await supabase
         .from("buildings")
         .insert({
           trainer_id: trainer.id,
+          team_id: trainer.currentTeamId,
           building_type: type,
           level: 0,
           upgrade_completes_at: completesAt,
         });
-      if (error) throw error;
+      if (error) {
+        await adjustAcademyMoney(supabase, trainer.id, cost).catch(() => undefined);
+        throw error;
+      }
     }
-
-    // Debita e registra
-    const { error: aErr } = await supabase
-      .from("academies")
-      .update({ money: trainer.money - cost })
-      .eq("trainer_id", trainer.id);
-    if (aErr) throw aErr;
 
     await supabase.from("financial_transactions").insert({
       trainer_id: trainer.id,

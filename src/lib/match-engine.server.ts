@@ -148,10 +148,10 @@ function elementalMult(attacker: Element, defender: Element): number {
 
 // Estratégia (Mentalidade) — GDD: multiplica chance de lance (x0.70..x1.30)
 // e altera rating dos defensores adversários (+8 defensiva / -8 ofensiva).
-function strategyMod(s: EngineSide["strategy"]): { atk: number; def: number; freqMul: number } {
-  if (s === "ofensiva") return { atk: 8, def: -8, freqMul: 1.30 };
-  if (s === "defensiva") return { atk: -8, def: 8, freqMul: 0.70 };
-  return { atk: 0, def: 0, freqMul: 1.0 };
+function strategyMod(s: EngineSide["strategy"]): { atk: number; def: number; freqMul: number; energyAdj: number; injuryMul: number } {
+  if (s === "ofensiva") return { atk: 8, def: -8, freqMul: 1.18, energyAdj: 2, injuryMul: 1.15 };
+  if (s === "defensiva") return { atk: -8, def: 8, freqMul: 0.78, energyAdj: -1, injuryMul: 0.90 };
+  return { atk: 0, def: 0, freqMul: 1.0, energyAdj: 0, injuryMul: 1.0 };
 }
 
 
@@ -564,7 +564,9 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
       if (!cands.length) continue;
       const outSlot = pick(cands, rand);
       const actor = outSlot.creature;
-      const tMul = live === liveHome ? tH.injuryMul : tA.injuryMul;
+      const tMul = live === liveHome
+        ? tH.injuryMul * sH.injuryMul
+        : tA.injuryMul * sA.injuryMul;
       const fMul = injuryFatigueMult(actor.energy);
       const mMul = medicalInjuryMult(live.side.medical_level);
       const aMul = ageInjuryMult(actor.age);
@@ -640,8 +642,8 @@ export function simulate(home: EngineSide, away: EngineSide, seed: number): Simu
     if (p <= -1) return -1;    // Pressão baixa: poupa 1
     return 0;
   };
-  const homeBase = outcomeLoss(true) + pressureAdj(home.tactics);
-  const awayBase = outcomeLoss(false) + pressureAdj(away.tactics);
+  const homeBase = Math.max(1, outcomeLoss(true) + pressureAdj(home.tactics) + sH.energyAdj);
+  const awayBase = Math.max(1, outcomeLoss(false) + pressureAdj(away.tactics) + sA.energyAdj);
 
   // Toda criatura que jogou (titular do início OU reserva que entrou) sofre o base,
   // escalado pelo modificador de idade (auge=24 → x1.00; veterana=30 → x1.20).
@@ -979,6 +981,12 @@ function buildCpuSideCore(
   const rand = mulberry32(seed ^ 0x9e3779b9);
   const roles: SlotRole[] = ["GOL", "DEF", "DEF", "DEF", "DEF", "MEI", "MEI", "MEI", "MEI", "ATA", "ATA"];
   const benchRoles: SlotRole[] = ["GOL", "DEF", "MEI", "ATA", "MEI"];
+  const buckets: [number, Division][] = [[33,"bronze"],[44,"prata"],[55,"ouro"],[64,"diamante"],[72,"lendaria"]];
+  let division: Division = "bronze"; let dbest = Infinity;
+  for (const [ovr, d] of buckets) { const dd = Math.abs(ovr - target); if (dd < dbest) { dbest = dd; division = d; } }
+  const cpuMorale: Record<Division, number> = { bronze: 50, prata: 55, ouro: 60, diamante: 65, lendaria: 70 };
+  const medicalLevel: Record<Division, number> = { bronze: 1, prata: 1, ouro: 2, diamante: 3, lendaria: 4 };
+
   const buildSlot = (role: SlotRole, i: number, tag: string): EngineSlot => {
     const overall = Math.max(10, Math.min(99, Math.round(target + (rand() - 0.5) * 15)));
     const element = pick(ELS, rand);
@@ -987,7 +995,7 @@ function buildCpuSideCore(
       creature: {
         id: `cpu-${teamId}-${tag}-${i}`,
         name: creatureName(element, role, rand, bestiary),
-        element, overall, physical: overall, energy: 100,
+        element, overall, physical: overall, energy: 100, morale: cpuMorale[division], age: 24,
         affinity_fogo: element === "fogo" ? 7 : 1,
         affinity_agua: element === "agua" ? 7 : 1,
         affinity_terra: element === "terra" ? 7 : 1,
@@ -998,10 +1006,34 @@ function buildCpuSideCore(
   };
   const starters = roles.map((r, i) => buildSlot(r, i, "s"));
   const bench = benchRoles.map((r, i) => buildSlot(r, i, "b"));
-  // Inferir divisão a partir do OVR alvo (para normalização de chances).
-  const buckets: [number, Division][] = [[33,"bronze"],[44,"prata"],[55,"ouro"],[64,"diamante"],[72,"lendaria"]];
-  let division: Division = "bronze"; let dbest = Infinity;
-  for (const [ovr, d] of buckets) { const dd = Math.abs(ovr - target); if (dd < dbest) { dbest = dd; division = d; } }
-  return { team_id: teamId, team_name: teamName, starters, bench, strategy: "equilibrada", division };
+  const archetypes: Array<{ strategy: EngineSide["strategy"]; tactics: Tactics }> = [
+    { strategy: "ofensiva", tactics: { mentalidade: 2, verticalidade: 2, pressao: 1, cortes: 0 } },
+    { strategy: "defensiva", tactics: { mentalidade: -1, verticalidade: -1, pressao: 0, cortes: 2 } },
+    { strategy: "equilibrada", tactics: { mentalidade: 0, verticalidade: -2, pressao: 1, cortes: 1 } },
+  ];
+  const chosen = archetypes[Math.floor(rand() * archetypes.length)];
+  const sophistication: Record<Division, number> = {
+    bronze: 0,
+    prata: 0.35,
+    ouro: 0.6,
+    diamante: 0.8,
+    lendaria: 1,
+  };
+  const scale = sophistication[division];
+  const scaledTactics: Tactics = {
+    mentalidade: Math.round(chosen.tactics.mentalidade * scale),
+    verticalidade: Math.round(chosen.tactics.verticalidade * scale),
+    pressao: Math.round(chosen.tactics.pressao * scale),
+    cortes: Math.round(chosen.tactics.cortes * scale),
+  };
+  return {
+    team_id: teamId,
+    team_name: teamName,
+    starters,
+    bench,
+    strategy: division === "bronze" ? "equilibrada" : chosen.strategy,
+    tactics: scaledTactics,
+    medical_level: medicalLevel[division],
+    division,
+  };
 }
-
