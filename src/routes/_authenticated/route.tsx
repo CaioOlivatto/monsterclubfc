@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet, redirect, useLocation, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { syncServerSession } from "@/integrations/supabase/session.functions";
 import { repairCurrentCareerWithSession } from "@/lib/creatures.functions";
@@ -32,6 +32,48 @@ function AuthenticatedLayout() {
   const syncSession = useServerFn(syncServerSession);
   const repairCareer = useServerFn(repairCurrentCareerWithSession);
   const [sessionReady, setSessionReady] = useState(false);
+  const accessTokenRef = useRef<string | null>(null);
+
+  // Correção global para o host: toda server function do jogo (Mercado,
+  // Construções, Liga, Ranking, etc.) recebe o JWT atual diretamente. Isso
+  // evita que cada página dependa de cookies que o proxy do Lovable pode
+  // reaproveitar de uma sessão antiga. Chamadas ao Supabase continuam indo
+  // direto ao domínio do Supabase e não são alteradas.
+  useEffect(() => {
+    const originalFetch = window.fetch.bind(window);
+    const addCurrentSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      accessTokenRef.current = data.session?.access_token ?? null;
+    };
+    void addCurrentSession();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      accessTokenRef.current = session?.access_token ?? null;
+    });
+
+    window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const requestUrl = input instanceof Request ? input.url : String(input);
+      const url = new URL(requestUrl, window.location.origin);
+      const token = accessTokenRef.current;
+      if (url.origin !== window.location.origin || !token) {
+        return originalFetch(input, init);
+      }
+
+      const headers = new Headers(input instanceof Request ? input.headers : undefined);
+      if (init?.headers) new Headers(init.headers).forEach((value, key) => headers.set(key, value));
+      if (!headers.has("x-supabase-access-token")) headers.set("x-supabase-access-token", token);
+
+      if (input instanceof Request) {
+        return originalFetch(new Request(input, { ...init, headers }));
+      }
+      return originalFetch(input, { ...init, headers });
+    }) as typeof window.fetch;
+
+    return () => {
+      listener.subscription.unsubscribe();
+      window.fetch = originalFetch;
+    };
+  }, []);
 
   // Todas as telas protegidas usam o mesmo JWT do navegador. Só liberamos o
   // conteúdo após gravá-lo na sessão HttpOnly do jogo; isso elimina a corrida
