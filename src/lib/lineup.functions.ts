@@ -71,10 +71,7 @@ async function getTrainerId(supabase: any, userId: string): Promise<string> {
   return (await getTrainer(supabase, userId)).id;
 }
 
-export const getMyLineup = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { supabase, userId } = context;
+async function loadMyLineup(supabase: any, userId: string) {
     const trainer = await getTrainer(supabase, userId);
     const trainerId = trainer.id;
     // A escalação pode ser a primeira tela aberta após o onboarding. Garante
@@ -118,7 +115,7 @@ export const getMyLineup = createServerFn({ method: "GET" })
       if (error) throw error;
     }
 
-    return {
+  return {
       lineup: automatic ? {
         formation,
         strategy: lineup?.strategy ?? "equilibrada",
@@ -135,7 +132,30 @@ export const getMyLineup = createServerFn({ method: "GET" })
       creatures: creatures ?? [],
       club_active: !!membership && new Date(membership.active_until).getTime() > Date.now(),
       club_preset: clubPreset ?? null,
-    };
+  };
+}
+
+export const getMyLineup = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => loadMyLineup(context.supabase, context.userId));
+
+const lineupSessionSchema = z.object({ access_token: z.string().min(20) });
+
+// O host do Lovable pode alterar o cabeçalho/cookie de funções protegidas.
+// A escalação usa o JWT enviado pelo próprio cliente, como o Painel e o Elenco,
+// para garantir que todos leiam exatamente a mesma carreira.
+export const getMyLineupWithSession = createServerFn({ method: "POST" })
+  .inputValidator((raw: unknown) => lineupSessionSchema.parse(raw))
+  .handler(async ({ data }) => {
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabase = createClient(
+      "https://gwqvninbrmrsabuseqbx.supabase.co",
+      "sb_publishable_ycTtamLVwKvO3G89F5dAfw_W6ozxpo9",
+      { global: { headers: { Authorization: `Bearer ${data.access_token}` } }, auth: { persistSession: false, autoRefreshToken: false } },
+    );
+    const { data: auth, error } = await supabase.auth.getUser(data.access_token);
+    if (error || !auth.user?.id) throw new Error("Sua sessão expirou. Entre novamente.");
+    return loadMyLineup(supabase, auth.user.id);
   });
 
 export const saveClubLineupPreset = createServerFn({ method: "POST" })

@@ -2,8 +2,9 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { getMyLineup, saveClubLineupPreset, saveLineup } from "@/lib/lineup.functions";
-import { getDashboard } from "@/lib/creatures.functions";
+import { getMyLineupWithSession, saveClubLineupPreset, saveLineup } from "@/lib/lineup.functions";
+import { getDashboardWithSession } from "@/lib/creatures.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { getLineupPrognostic } from "@/lib/odds.functions";
 import { playNextLeagueMatch, advanceLeagueRoundBackground } from "@/lib/league.functions";
 import { playNextCupMatch, advanceCupRoundBackground } from "@/lib/cup.functions";
@@ -117,8 +118,8 @@ function LineupPage() {
   const search = Route.useSearch();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const fetchLineup = useServerFn(getMyLineup);
-  const fetchDashboard = useServerFn(getDashboard);
+  const fetchLineup = useServerFn(getMyLineupWithSession);
+  const fetchDashboard = useServerFn(getDashboardWithSession);
   const save = useServerFn(saveLineup);
   const saveClubPreset = useServerFn(saveClubLineupPreset);
   const fetchProg = useServerFn(getLineupPrognostic);
@@ -134,12 +135,20 @@ function LineupPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["lineup"],
-    queryFn: () => fetchLineup(),
+    queryFn: async () => {
+      const { data: current, error } = await supabase.auth.getSession();
+      if (error || !current.session?.access_token) throw error ?? new Error("Sessão não encontrada.");
+      return fetchLineup({ data: { access_token: current.session.access_token } });
+    },
     staleTime: 2 * 60_000,
   });
   const { data: dashboardData } = useQuery({
     queryKey: ["dashboard"],
-    queryFn: () => fetchDashboard(),
+    queryFn: async () => {
+      const { data: current, error } = await supabase.auth.getSession();
+      if (error || !current.session?.access_token) throw error ?? new Error("Sessão não encontrada.");
+      return fetchDashboard({ data: { access_token: current.session.access_token } });
+    },
     staleTime: 20_000,
   });
   const { data: upcomingMatch } = useQuery<OfficialMatchContext | null>({
