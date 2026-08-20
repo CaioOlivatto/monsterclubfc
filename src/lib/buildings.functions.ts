@@ -1,21 +1,35 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "./auth-middleware";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabase } from "@/integrations/supabase/client";
-import { adjustAcademyMoney } from "./economy.server";
-import { CLUB_INFRASTRUCTURE_BASELINE } from "./career.functions";
+
+// O banco não tem helper server-side para isso, então usamos RPC ou insert direto
+async function adjustAcademyMoney(supabase: any, trainerId: string, amount: number) {
+  const { data: academy } = await supabase
+    .from("academies")
+    .select("money")
+    .eq("trainer_id", trainerId)
+    .single();
+  
+  if (!academy) return;
+
+  await supabase
+    .from("academies")
+    .update({ money: academy.money + amount })
+    .eq("trainer_id", trainerId);
+}
 
 export const upgradeBuilding = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data) =>
+  .validator((data: unknown) =>
     z
       .object({
         type: z.enum(["estadio", "ct_treino", "centro_medico"]),
       })
       .parse(data),
   )
-  .handler(async ({ input, context }) => {
+  .handler(async ({ data: input, context }) => {
     const { type } = input;
     const { userId } = context;
 
@@ -42,11 +56,12 @@ export const upgradeBuilding = createServerFn({ method: "POST" })
     if (nextLevel > 5) throw new Error("Nível máximo atingido");
 
     // 3) Verifica custo
-    const spec = {
+    const specs: Record<string, { name: string; base: number; mult: number }> = {
       estadio: { name: "Estádio", base: 100000, mult: 2.5 },
       ct_treino: { name: "CT de Treino", base: 50000, mult: 2.0 },
       centro_medico: { name: "Centro Médico", base: 75000, mult: 2.2 },
-    }[type];
+    };
+    const spec = specs[type];
 
     const cost = Math.round(spec.base * Math.pow(spec.mult, currentLevel));
 
@@ -69,7 +84,7 @@ export const upgradeBuilding = createServerFn({ method: "POST" })
     if (existing) {
       const { error } = await supabase
         .from("buildings")
-        .update({ upgrade_completes_at: completesAt })
+        .update({ upgrade_completes_at: completesAt } as any)
         .eq("id", existing.id);
       if (error) {
         await adjustAcademyMoney(supabase, trainer.id, cost).catch(() => undefined);
@@ -95,7 +110,7 @@ export const upgradeBuilding = createServerFn({ method: "POST" })
       transaction_type: "expense",
       amount: cost,
       description: `Obra: ${spec.name} nível ${nextLevel}`,
-    });
+    } as any);
 
     return { ok: true, completesAt };
   });
