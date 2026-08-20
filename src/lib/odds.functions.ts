@@ -14,6 +14,7 @@ import { stadiumCapacity } from "./buildings.server";
 import { buildAttendance, rosterMoraleAverage, type AttendanceInfo } from "./attendance";
 import { revenueCapacity } from "./economy";
 import { DIVISION_STRENGTH, WORLD_TEAMS, type DivisionSlug } from "./world/catalog";
+import { getDirectSession } from "./direct-session.server";
 
 function hashSeed(s: string): number {
   let h = 2166136261 >>> 0;
@@ -69,8 +70,9 @@ const InputSchema = z.object({ draft: DraftSchema }).optional();
 export const getLineupPrognostic = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((raw: unknown) => InputSchema.parse(raw ?? {}))
-  .handler(async ({ data, context }): Promise<PrognosticResponse> => {
-    const { supabase, userId } = context;
+  .handler(async ({ data, context }): Promise<PrognosticResponse> => loadLineupPrognostic(context.supabase, context.userId, data));
+
+async function loadLineupPrognostic(supabase: any, userId: string, data: z.infer<typeof InputSchema>): Promise<PrognosticResponse> {
     const [trainer, bestiary] = await Promise.all([
       getTrainer(supabase, userId),
       loadEngineBestiary(supabase),
@@ -185,4 +187,16 @@ export const getLineupPrognostic = createServerFn({ method: "POST" })
       return { analysis: swapped, opponent: opponentInfo, stadium_preview: stadiumPreview };
     }
     return { analysis, opponent: opponentInfo, stadium_preview: stadiumPreview };
+}
+
+const DirectPrognosticSchema = z.object({
+  access_token: z.string().min(20),
+  draft: DraftSchema,
+});
+
+export const getLineupPrognosticWithSession = createServerFn({ method: "POST" })
+  .inputValidator((raw: unknown) => DirectPrognosticSchema.parse(raw))
+  .handler(async ({ data }) => {
+    const { supabase, userId } = await getDirectSession(data.access_token);
+    return loadLineupPrognostic(supabase, userId, { draft: data.draft });
   });

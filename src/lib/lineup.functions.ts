@@ -4,6 +4,7 @@ import { z } from "zod";
 import { buildSlots, FORMATIONS, MAX_BENCH, type SlotRole } from "./lineup.server";
 import { NEUTRAL_TACTICS, type Tactics } from "./match-engine.server";
 import { ensureStarterRoster, resolvePlayerCareerTeam } from "./starter-roster-recovery.server";
+import { getDirectSession } from "./direct-session.server";
 
 // Controles HTML/Radix podem serializar valores movidos como texto. Coagir aqui
 // mantem a fronteira do servidor estrita depois da conversao e evita rejeitar
@@ -201,8 +202,9 @@ export const saveTactics = createServerFn({ method: "POST" })
 export const saveLineup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((raw: unknown) => SaveInput.parse(raw))
-  .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
+  .handler(async ({ data, context }) => saveLineupForUser(context.supabase, context.userId, data));
+
+async function saveLineupForUser(supabase: any, userId: string, data: z.infer<typeof SaveInput>) {
     const trainerId = await getTrainerId(supabase, userId);
 
     // valida que nenhuma criatura está duplicada e todas pertencem ao treinador
@@ -241,4 +243,13 @@ export const saveLineup = createServerFn({ method: "POST" })
       );
     if (error) throw error;
     return { ok: true };
+}
+
+const DirectSaveInput = SaveInput.extend({ access_token: z.string().min(20) });
+export const saveLineupWithSession = createServerFn({ method: "POST" })
+  .inputValidator((raw: unknown) => DirectSaveInput.parse(raw))
+  .handler(async ({ data }) => {
+    const { supabase, userId } = await getDirectSession(data.access_token);
+    const { access_token: _accessToken, ...lineup } = data;
+    return saveLineupForUser(supabase, userId, lineup);
   });

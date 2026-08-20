@@ -2,14 +2,14 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { getMyLineupWithSession, saveClubLineupPreset, saveLineup } from "@/lib/lineup.functions";
+import { getMyLineupWithSession, saveClubLineupPreset, saveLineupWithSession } from "@/lib/lineup.functions";
 import { getDashboardWithSession } from "@/lib/creatures.functions";
 import { supabase } from "@/integrations/supabase/client";
-import { getLineupPrognostic } from "@/lib/odds.functions";
+import { getLineupPrognosticWithSession } from "@/lib/odds.functions";
 import { playNextLeagueMatch, advanceLeagueRoundBackground } from "@/lib/league.functions";
 import { playNextCupMatch, advanceCupRoundBackground } from "@/lib/cup.functions";
 import { simulateWorldCupRound, simulateWorldLeagueRound, advanceWorldLeagueRoundBackground, advanceWorldCupRoundBackground } from "@/lib/world-competitions.functions";
-import { getUpcomingOfficialMatch, type OfficialCompetition, type OfficialMatchContext } from "@/lib/official-match.functions";
+import { getUpcomingOfficialMatchWithSession, type OfficialCompetition, type OfficialMatchContext } from "@/lib/official-match.functions";
 import { PrognosticCard } from "@/components/PrognosticCard";
 import { buildSlots, FORMATIONS, MAX_BENCH, type Formation, type SlotRole } from "@/lib/lineup.server";
 import { Button } from "@/components/ui/button";
@@ -120,10 +120,10 @@ function LineupPage() {
   const qc = useQueryClient();
   const fetchLineup = useServerFn(getMyLineupWithSession);
   const fetchDashboard = useServerFn(getDashboardWithSession);
-  const save = useServerFn(saveLineup);
+  const save = useServerFn(saveLineupWithSession);
   const saveClubPreset = useServerFn(saveClubLineupPreset);
-  const fetchProg = useServerFn(getLineupPrognostic);
-  const fetchUpcoming = useServerFn(getUpcomingOfficialMatch);
+  const fetchProg = useServerFn(getLineupPrognosticWithSession);
+  const fetchUpcoming = useServerFn(getUpcomingOfficialMatchWithSession);
   const playLeague = useServerFn(playNextLeagueMatch);
   const advanceLeagueBg = useServerFn(advanceLeagueRoundBackground);
   const playCup = useServerFn(playNextCupMatch);
@@ -153,7 +153,11 @@ function LineupPage() {
   });
   const { data: upcomingMatch } = useQuery<OfficialMatchContext | null>({
     queryKey: ["upcoming-official-match", search.competition ?? "auto"],
-    queryFn: () => fetchUpcoming({ data: search.competition ? { competition: search.competition } : {} }),
+    queryFn: async () => {
+      const { data: current, error } = await supabase.auth.getSession();
+      if (error || !current.session?.access_token) throw error ?? new Error("Sessão não encontrada.");
+      return fetchUpcoming({ data: { access_token: current.session.access_token, ...(search.competition ? { competition: search.competition } : {}) } });
+    },
     staleTime: 30_000,
   });
 
@@ -182,7 +186,11 @@ function LineupPage() {
 
   const prog = useQuery({
     queryKey: ["prognostic", draftKey],
-    queryFn: () => fetchProg({ data: { draft: debouncedDraft } }),
+    queryFn: async () => {
+      const { data: current, error } = await supabase.auth.getSession();
+      if (error || !current.session?.access_token) throw error ?? new Error("Sessão não encontrada.");
+      return fetchProg({ data: { access_token: current.session.access_token, draft: debouncedDraft } });
+    },
     retry: false,
     placeholderData: keepPreviousData,
     // Desabilita durante a confirmação para não competir com a criação da partida.
@@ -406,7 +414,10 @@ function LineupPage() {
     try {
       const pouparDraft = { formation, strategy, starters: built.starters, bench: built.bench };
       const [pouparProg] = await Promise.all([
-        fetchProg({ data: { draft: pouparDraft } }).catch(() => null),
+        supabase.auth.getSession().then(({ data: current, error }) => {
+          if (error || !current.session?.access_token) throw error ?? new Error("Sessão não encontrada.");
+          return fetchProg({ data: { access_token: current.session.access_token, draft: pouparDraft } });
+        }).catch(() => null),
       ]);
       const currentWin = prog.data?.analysis.odds.home_win ?? null;
       const pouparWin = pouparProg?.analysis.odds.home_win ?? null;
@@ -432,7 +443,9 @@ function LineupPage() {
   const mut = useMutation({
     mutationFn: async () => {
       const payload = { formation, strategy, starters, bench };
-      await save({ data: payload });
+      const { data: current, error } = await supabase.auth.getSession();
+      if (error || !current.session?.access_token) throw error ?? new Error("Sessão não encontrada.");
+      await save({ data: { ...payload, access_token: current.session.access_token } });
       return JSON.stringify(payload);
     },
     onSuccess: (key) => {
@@ -481,19 +494,26 @@ function LineupPage() {
       const payload = { formation, strategy, starters, bench };
       const currentKey = JSON.stringify(payload);
       if (currentKey !== lastSavedKey) {
-        await withTimeout(save({ data: payload }), 20_000, "salvar a escalação");
+        const { data: current, error } = await supabase.auth.getSession();
+        if (error || !current.session?.access_token) throw error ?? new Error("Sessão não encontrada.");
+        await withTimeout(save({ data: { ...payload, access_token: current.session.access_token } }), 20_000, "salvar a escalação");
         setLastSavedKey(currentKey);
       }
 
       const match = upcomingMatch ?? await withTimeout(
-        fetchUpcoming({ data: search.competition ? { competition: search.competition } : {} }),
+        supabase.auth.getSession().then(({ data: current, error }) => {
+          if (error || !current.session?.access_token) throw error ?? new Error("Sessão não encontrada.");
+          return fetchUpcoming({ data: { access_token: current.session.access_token, ...(search.competition ? { competition: search.competition } : {}) } });
+        }),
         15_000,
         "buscar a próxima partida",
       );
       if (!match) throw new Error("Nenhuma partida oficial pronta para jogar.");
 
       if (match.competition === "league") {
-        const res = await withTimeout(playLeague(), 60_000, "iniciar a partida");
+        const { data: current, error } = await supabase.auth.getSession();
+        if (error || !current.session?.access_token) throw error ?? new Error("Sessão não encontrada.");
+        const res = await withTimeout(playLeague({ data: { access_token: current.session.access_token } }), 60_000, "iniciar a partida");
         // Avança o resto da rodada (outras partidas da divisão + 4 divisões) em background,
         // sem bloquear a navegação para a tela de partida ao vivo.
         if (res.background_advance) {
@@ -623,12 +643,12 @@ function LineupPage() {
 
 
             <Button
-              onClick={() => mut.mutate()}
-              disabled={mut.isPending || filledStarters !== 11}
+              onClick={() => confirmPlayMut.mutate()}
+              disabled={confirmPlayMut.isPending || filledStarters !== 11 || !upcomingMatch}
               size="sm"
             >
-              <Save className="h-4 w-4 sm:mr-2" />
-              <span>Salvar</span>
+              <Play className="h-4 w-4 sm:mr-2" />
+              <span>{confirmPlayMut.isPending ? "Iniciando..." : "Jogar partida"}</span>
             </Button>
           </div>
         </div>

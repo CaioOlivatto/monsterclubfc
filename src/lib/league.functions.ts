@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { getDirectSession } from "./direct-session.server";
 import { z } from "zod";
 import { generateSchedule } from "./league.server";
 import {
@@ -272,12 +273,12 @@ export const getLeague = createServerFn({ method: "GET" })
   });
 
 export const playNextLeagueMatch = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((raw: unknown) => z.object({ access_token: z.string().min(20) }).parse(raw))
+  .handler(async ({ data }) => {
     const t0 = Date.now();
     const stamp = (label: string) =>
       console.log(`[playNextLeagueMatch] +${Date.now() - t0}ms ${label}`);
-    const { supabase, userId } = context;
+    const { supabase, userId } = await getDirectSession(data.access_token);
     // Bestiário é independente do trainer — dispara já em paralelo.
     const bestiaryPromise = loadEngineBestiary(supabase);
     const trainer = await getTrainer(supabase, userId);
