@@ -70,13 +70,17 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       throw new Error('Unauthorized: No authorization header provided');
     }
 
-    if (!sessionCookieToken && !transportedToken && !forwardedToken && !authHeader!.startsWith('Bearer ')) {
+    if (!sessionCookieToken && !transportedToken && !forwardedToken && !authHeader?.startsWith('Bearer ')) {
       throw new Error('Unauthorized: Only Bearer tokens are supported');
     }
 
-    // O contexto serializado é o transporte oficial do TanStack Start. Os
-    // cabeçalhos permanecem como compatibilidade para desenvolvimento local.
-    const token = sessionCookieToken || transportedToken || forwardedToken || authHeader!.replace('Bearer ', '');
+    // O token atual enviado pelo navegador sempre vence. Cookies antigos do
+    // host são apenas o último recurso; priorizá-los mantinha o jogo preso em
+    // "Invalid token" mesmo depois de o Supabase renovar corretamente a sessão.
+    const bearerToken = authHeader?.startsWith('Bearer ')
+      ? authHeader.slice('Bearer '.length)
+      : null;
+    const token = transportedToken || forwardedToken || bearerToken || sessionCookieToken;
     if (!token) {
       throw new Error('Unauthorized: No token provided');
     }
