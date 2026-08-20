@@ -356,7 +356,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         return side;
       }
       const seed = hashSeed(team.id);
-      const division = (competition.division ?? "bronze") as DivisionSlug;
+      .eq("id", (competition.division as any) || "bronze") as DivisionSlug;
       return generateCpuSideFor(
         seed,
         team.id,
@@ -1117,7 +1117,7 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
       .eq("trainer_id", trainer.id);
 
     // Mantém o campo legado sincronizado; a fonte canônica continua sendo o time atual.
-    await supabase.from("trainers").update({ division: newDivision } as any).eq("id", trainer.id);
+    await supabase.from("trainers").update({ division: newDivision } as any).eq("id", (trainer as any).id);
 
     // XP de prestígio de fim de temporada
     if (playerIsChampion) await awardTrainerXp(supabase, trainer.id, "title", 1);
@@ -1194,7 +1194,7 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
         trainer_id: trainer.id,
         season_number: currentSeason.season_number + 1,
         is_current: true,
-        balance_version: BALANCE_VERSION,
+        balance_version: (BALANCE_VERSION as any),
       })
       .select("id")
       .single();

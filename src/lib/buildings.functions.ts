@@ -189,7 +189,7 @@ export const startUpgrade = createServerFn({ method: "POST" })
         .from("buildings")
         .insert({
           trainer_id: trainer.id,
-          team_id: (trainer.currentTeamId as any) || null,
+          team_id: (trainer.currentTeamId as any) || (null as any),
           building_type: type,
           level: 0,
           upgrade_completes_at: completesAt,

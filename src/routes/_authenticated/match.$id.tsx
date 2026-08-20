@@ -192,7 +192,7 @@ function MatchPage() {
       }
       if (
         ev.event_type === "injury" &&
-        (meta?.injury_severity === "grave" || Number((meta as any)?.injury_matches ?? 0) >= 4) &&
+        ((meta as any)?.injury_severity === "grave" || Number((meta as any)?.injury_matches ?? 0) >= 4) &&
         ev.actor_team_id === ((data as any)?.player_team_id ?? homeId)
       ) {
         setPlaying(false);
