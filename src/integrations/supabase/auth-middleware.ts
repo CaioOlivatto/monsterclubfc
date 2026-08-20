@@ -95,20 +95,24 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       }
     );
 
-    const { data, error } = await supabase.auth.getClaims(token);
-    if (error || !data?.claims) {
+    // `getClaims` depends on local/JWKS claim verification and can reject an
+    // otherwise valid browser session when a hosted server function is
+    // invoked through Lovable's proxy. `getUser(token)` asks Supabase Auth to
+    // verify the token directly, which is the authoritative check here.
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data?.user) {
       throw new Error('Unauthorized: Invalid token');
     }
 
-    if (!data.claims.sub) {
+    if (!data.user.id) {
       throw new Error('Unauthorized: No user ID found in token');
     }
 
     return next({
       context: {
         supabase,
-        userId: data.claims.sub,
-        claims: data.claims,
+        userId: data.user.id,
+        claims: data.user,
       },
     });
   },
