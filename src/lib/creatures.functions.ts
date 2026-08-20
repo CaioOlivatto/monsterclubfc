@@ -377,9 +377,9 @@ export const createInitialTrainer = createServerFn({ method: "POST" })
         roster_slots: 26,
       }),
       supabase.from("buildings").insert([
-        { trainer_id: trainer.id, building_type: "estadio", level: 1 } as any,
-        { trainer_id: trainer.id, building_type: "ct_treino", level: 1 } as any,
-        { trainer_id: trainer.id, building_type: "centro_medico", level: 1 } as any,
+        { trainer_id: trainer.id, building_type: "estadio", level: 1 },
+        { trainer_id: trainer.id, building_type: "ct_treino", level: 1 },
+        { trainer_id: trainer.id, building_type: "centro_medico", level: 1 },
       ]),
       supabase.from("items").insert([
         { trainer_id: trainer.id, item_key: "potion_individual", quantity: 3 },
@@ -549,12 +549,11 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
       if (linkErr) throw linkErr;
     }
 
-    // As construções pertencem ao clube escolhido. O treinador administra os
-    // prédios enquanto estiver no comando, mas eles ficam no clube se ele sair.
+    // As construções pertencem ao treinador.
     const { error: buildingLinkErr } = await supabase
       .from("buildings")
-        .update({ trainer_id: trainer.id } as any) // team_id column missing
-        .eq("trainer_id", trainer.id);
+      .update({ trainer_id: trainer.id } as any)
+      .eq("trainer_id", trainer.id);
     if (buildingLinkErr) throw buildingLinkErr;
 
     // Fonte canônica usada por carreira, partidas, confiança e construções.

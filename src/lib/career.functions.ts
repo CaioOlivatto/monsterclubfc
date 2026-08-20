@@ -446,8 +446,6 @@ export const acceptOffer = createServerFn({ method: "POST" })
       await supabase
         .from("buildings")
         .update({ trainer_id: null as any })
-        .eq("trainer_id", trainer.id) // Fallback for missing team_id column
-        .limit(3) as any;
         .eq("trainer_id", trainer.id);
     }
 
