@@ -4,10 +4,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode } from "react";
 import { toast } from "sonner";
 import {
-  getBuildings,
-  startUpgrade,
-  finishNowWithGems,
+  getBuildingsWithSession,
+  startUpgradeWithSession,
+  finishNowWithGemsWithSession,
 } from "@/lib/buildings.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { GameLogo } from "@/components/GameLogo";
 import { TeamCrest } from "@/components/TeamCrest";
 import { Button } from "@/components/ui/button";
@@ -75,13 +76,21 @@ function formatDuration(sec: number) {
 
 function BuildingsPage() {
   const qc = useQueryClient();
-  const fetchBuildings = useServerFn(getBuildings);
-  const startFn = useServerFn(startUpgrade);
-  const finishFn = useServerFn(finishNowWithGems);
+  const fetchBuildings = useServerFn(getBuildingsWithSession);
+  const startFn = useServerFn(startUpgradeWithSession);
+  const finishFn = useServerFn(finishNowWithGemsWithSession);
+
+  const getAccessToken = async () => {
+    const { data, error } = await supabase.auth.getSession();
+    if (error || !data.session?.access_token) {
+      throw new Error("Sua sessão expirou. Entre novamente para continuar.");
+    }
+    return data.session.access_token;
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ["buildings"],
-    queryFn: () => fetchBuildings(),
+    queryFn: async () => fetchBuildings({ data: { access_token: await getAccessToken() } }),
     staleTime: 30_000,
     // Só consulta novamente enquanto existir uma obra em andamento. A contagem
     // regressiva continua no navegador; não há motivo para chamar o banco a
@@ -92,7 +101,7 @@ function BuildingsPage() {
     },
   });
   const startMut = useMutation({
-    mutationFn: (type: string) => startFn({ data: { type: type as any } }),
+    mutationFn: async (type: string) => startFn({ data: { type: type as any, access_token: await getAccessToken() } }),
     onSuccess: () => {
       toast.success("Obra iniciada");
       qc.invalidateQueries({ queryKey: ["buildings"] });
@@ -103,7 +112,7 @@ function BuildingsPage() {
   });
 
   const finishMut = useMutation({
-    mutationFn: (type: string) => finishFn({ data: { type: type as any } }),
+    mutationFn: async (type: string) => finishFn({ data: { type: type as any, access_token: await getAccessToken() } }),
     onSuccess: (res) => {
       toast.success(res.spent > 0 ? `Obra concluída (-${res.spent} 💎)` : "Obra concluída");
       qc.invalidateQueries({ queryKey: ["buildings"] });
