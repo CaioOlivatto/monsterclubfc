@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { GameRecovery } from "@/components/GameRecovery";
-import { getDashboard } from "@/lib/creatures.functions";
+import { getDashboardWithSession } from "@/lib/creatures.functions";
 import { createFriendlyMatch } from "@/lib/match.functions";
 import { claimWeeklyGems } from "@/lib/progression.functions";
 import { type ConfidenceInfo } from "@/lib/career.functions";
@@ -79,7 +79,7 @@ type Alert = {
 
 function Dashboard() {
   const nav = useNavigate();
-  const fetchDashboard = useServerFn(getDashboard);
+  const fetchDashboard = useServerFn(getDashboardWithSession);
   const startFriendly = useServerFn(createFriendlyMatch);
   const claimWeekly = useServerFn(claimWeeklyGems);
   const fetchLineup = useServerFn(getMyLineup);
@@ -90,12 +90,20 @@ function Dashboard() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["dashboard"],
     queryFn: async () => {
+      const { data: current, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !current.session?.access_token) {
+        throw sessionError ?? new Error("Sessão não encontrada.");
+      }
       try {
-        return await fetchDashboard();
+        return await fetchDashboard({
+          data: { access_token: current.session.access_token },
+        });
       } catch (firstError) {
         const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError || !refreshed.session) throw firstError;
-        return fetchDashboard();
+        if (refreshError || !refreshed.session?.access_token) throw firstError;
+        return fetchDashboard({
+          data: { access_token: refreshed.session.access_token },
+        });
       }
     },
     staleTime: 20_000,

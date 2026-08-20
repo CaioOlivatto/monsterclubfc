@@ -105,11 +105,7 @@ export const getMyTrainer = createServerFn({ method: "GET" })
   });
 
 
-export const getDashboard = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { supabase, userId } = context;
-
+async function loadDashboard(supabase: any, userId: string) {
     const { data: trainer } = await supabase
       .from("trainers")
       .select("*, academies(*)")
@@ -123,14 +119,14 @@ export const getDashboard = createServerFn({ method: "GET" })
     // esses blocos, em vez de disparar três server functions adicionais.
     const rosterPromise = supabase
       .from("creatures")
-      .select(
-        "id, name, species, epithet, element, suggested_position, is_goalkeeper, power_key, overall, energy, morale, xp, half_stars_earned, market_value, age, salary_mult, injury_matches_remaining, injury_severity, is_prodigy, morale_session_completes_at, attr_training_key, attr_training_completes_at",
-      )
+      // O painel aceita instalações que ainda estejam concluindo uma migração.
+      // Pedir `*` evita que uma coluna opcional nova derrube toda a página.
+      .select("*")
       .eq("owner_trainer_id", trainer.id)
       .order("overall", { ascending: false });
     const lineupPromise = supabase
       .from("team_lineups")
-      .select("formation, strategy, starters, bench, default_tactics")
+      .select("formation, strategy, starters, bench")
       .eq("trainer_id", trainer.id)
       .maybeSingle();
     const buildingsPromise = supabase
@@ -331,6 +327,24 @@ export const getDashboard = createServerFn({ method: "GET" })
         status: cash < minimumOperatingReserve ? "risk" : cash < minimumOperatingReserve * 2 ? "attention" : "healthy",
       },
     };
+}
+
+export const getDashboard = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => loadDashboard(context.supabase, context.userId));
+
+const dashboardSessionSchema = z.object({
+  access_token: z.string().min(20),
+});
+
+// Canal usado pelo site hospedado. O JWT segue no corpo da chamada e é
+// validado diretamente no Supabase, sem depender dos cabeçalhos/cookies que o
+// proxy do Lovable pode alterar.
+export const getDashboardWithSession = createServerFn({ method: "POST" })
+  .inputValidator((raw: unknown) => dashboardSessionSchema.parse(raw))
+  .handler(async ({ data }) => {
+    const { supabase, userId } = await createOnboardingSupabase(data.access_token);
+    return loadDashboard(supabase, userId);
   });
 
 const createSchema = z.object({

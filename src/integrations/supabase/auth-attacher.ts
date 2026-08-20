@@ -43,7 +43,14 @@ export const attachSupabaseAuth = createMiddleware({ type: 'function' }).client(
     // A própria função de sincronização também passa pelo middleware global.
     // O bloqueio evita recursão e deixa essa chamada pública chegar ao servidor.
     if (token && !sessionSyncPromise) {
-      await ensureServerSession(token)
+      // O cookie é apenas compatibilidade para funções antigas. Uma falha do
+      // host ao persistir esse cookie nunca pode impedir a função solicitada de
+      // receber o token pelo contexto/corpo da chamada.
+      try {
+        await ensureServerSession(token)
+      } catch (error) {
+        console.warn('[Supabase] Não foi possível sincronizar o cookie de compatibilidade.', error)
+      }
     }
 
     return next({

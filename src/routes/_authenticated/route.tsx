@@ -1,6 +1,5 @@
 import { createFileRoute, Outlet, redirect, useLocation } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { ensureServerSession } from "@/integrations/supabase/auth-attacher";
 import { BottomNav } from "@/components/BottomNav";
 import { GameLogo } from "@/components/GameLogo";
 
@@ -15,19 +14,9 @@ export const Route = createFileRoute("/_authenticated")({
       throw redirect({ to: "/auth" });
     }
 
-    try {
-      // Não dependemos do middleware automático do host: toda entrada em uma
-      // página protegida estabelece explicitamente a sessão HttpOnly usada por
-      // todas as Server Functions do jogo.
-      await ensureServerSession(data.session.access_token);
-    } catch {
-      const { data: refreshed, error: refreshError } =
-        await supabase.auth.refreshSession();
-      if (refreshError || !refreshed.session?.access_token) {
-        throw redirect({ to: "/auth" });
-      }
-      await ensureServerSession(refreshed.session.access_token);
-    }
+    // A sessão do navegador já é suficiente para entrar. Cada operação valida
+    // o JWT diretamente no Supabase; a navegação não depende de cookie criado
+    // pelo proxy do provedor de hospedagem.
     return { user: data.session.user };
   },
   component: AuthenticatedLayout,
