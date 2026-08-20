@@ -2,7 +2,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getMatch } from "@/lib/match.functions";
+import { getMatchWithSession } from "@/lib/match.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -65,12 +66,16 @@ interface PendingPlay {
 function MatchPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
-  const fetchMatch = useServerFn(getMatch);
+  const fetchMatch = useServerFn(getMatchWithSession);
   const qc = useQueryClient();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["match", id],
-    queryFn: () => fetchMatch({ data: { id } }),
+    queryFn: async () => {
+      const { data: current, error } = await supabase.auth.getSession();
+      if (error || !current.session?.access_token) throw error ?? new Error("Sessão não encontrada.");
+      return fetchMatch({ data: { id, access_token: current.session.access_token } });
+    },
   });
 
   // Invalida caches dependentes de energia/moral/lesão assim que o jogo termina.

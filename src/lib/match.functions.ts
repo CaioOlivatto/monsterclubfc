@@ -7,6 +7,7 @@ import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { SPEED_REAL_MONEY_PRODUCTS } from "./shop.server";
 import { WORLD_TEAMS, type DivisionSlug } from "./world/catalog";
+import { getDirectSession } from "./direct-session.server";
 
 
 async function getTrainerCtx(supabase: any, userId: string) {
@@ -184,8 +185,9 @@ export const createFriendlyMatch = createServerFn({ method: "POST" })
 export const getMatch = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((raw: unknown) => z.object({ id: z.string().uuid() }).parse(raw))
-  .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
+  .handler(async ({ data, context }) => loadMatchForUser(context.supabase, context.userId, data.id));
+
+async function loadMatchForUser(supabase: any, userId: string, matchId: string) {
     // O contexto do treinador e os dados da partida não dependem um do outro.
     // Começar ambos juntos reduz a espera para abrir a tela de jogo.
     const [trainer, matchResult] = await Promise.all([
@@ -193,7 +195,7 @@ export const getMatch = createServerFn({ method: "GET" })
       supabase
         .from("matches")
         .select("id, home_team_id, away_team_id, home_score, away_score, status, is_friendly, played_at, clima, finance_summary")
-        .eq("id", data.id)
+        .eq("id", matchId)
         .maybeSingle(),
     ]);
     const { data: match, error } = matchResult;
@@ -239,6 +241,14 @@ export const getMatch = createServerFn({ method: "GET" })
         gems: academy?.gems ?? 0,
       },
     };
+}
+
+const directMatchSchema = z.object({ id: z.string().uuid(), access_token: z.string().min(20) });
+export const getMatchWithSession = createServerFn({ method: "POST" })
+  .inputValidator((raw: unknown) => directMatchSchema.parse(raw))
+  .handler(async ({ data }) => {
+    const { supabase, userId } = await getDirectSession(data.access_token);
+    return loadMatchForUser(supabase, userId, data.id);
   });
 
 export { insertMessage };
