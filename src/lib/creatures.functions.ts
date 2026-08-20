@@ -104,6 +104,63 @@ export const getMyTrainer = createServerFn({ method: "GET" })
     return { ...data, has_roster: (count ?? 0) > 0 };
   });
 
+type PlayerDashboardTeam = {
+  id: string;
+  name: string;
+  competition_id: string | null;
+  division: string | null;
+  starter_key?: string | null;
+};
+
+async function resolvePlayerDashboardTeam(supabase: any, trainer: any): Promise<PlayerDashboardTeam | null> {
+  // `current_team_id` é a referência principal. O filtro `is_player` evita
+  // ressuscitar um clube antigo que não pertence mais à carreira atual.
+  if (trainer.current_team_id) {
+    const { data: currentTeam } = await supabase
+      .from("teams")
+      .select("id, name, competition_id, division, starter_key")
+      .eq("id", trainer.current_team_id)
+      .eq("trainer_id", trainer.id)
+      .eq("is_player", true)
+      .maybeSingle();
+    if (currentTeam) return currentTeam as PlayerDashboardTeam;
+  }
+
+  const { data: fallbackTeam } = await supabase
+    .from("teams")
+    .select("id, name, competition_id, division, starter_key")
+    .eq("trainer_id", trainer.id)
+    .eq("is_player", true)
+    .not("competition_id", "is", null)
+    .limit(1)
+    .maybeSingle();
+  return (fallbackTeam as PlayerDashboardTeam | null) ?? null;
+}
+
+// Recupera somente o caso interrompido que ocorria no onboarding antigo:
+// existia um clube/jogos válidos, porém a inserção do elenco não terminou.
+// Não mexe em partidas, saldo, liga nem em elencos que já tenham jogadores.
+async function restoreMissingStarterRoster(supabase: any, trainerId: string, team: PlayerDashboardTeam | null) {
+  if (!team?.starter_key || !getStarterTeam(team.starter_key)) return false;
+
+  const { count, error: countError } = await supabase
+    .from("creatures")
+    .select("id", { count: "exact", head: true })
+    .eq("owner_trainer_id", trainerId);
+  if (countError) throw countError;
+  if ((count ?? 0) > 0) return false;
+
+  const { loadBestiary } = await import("./bestiary.server");
+  const bestiary = await loadBestiary(supabase);
+  const roster = generateStarterRoster(team.starter_key as StarterKey, bestiary);
+  const rows = rosterToDbRows(trainerId, roster).map((row) => ({
+    ...row,
+    owner_team_id: team.id,
+  }));
+  const { error } = await supabase.from("creatures").insert(rows as any);
+  if (error) throw error;
+  return true;
+}
 
 async function loadDashboard(supabase: any, userId: string) {
     const { data: trainer } = await supabase
@@ -113,6 +170,9 @@ async function loadDashboard(supabase: any, userId: string) {
       .maybeSingle();
 
     if (!trainer) return null;
+
+    const playerTeam = await resolvePlayerDashboardTeam(supabase, trainer);
+    await restoreMissingStarterRoster(supabase, trainer.id, playerTeam);
 
     // O Dashboard também alimenta alertas, aposentadoria e titulares cansados.
     // Carregamos o elenco completo uma vez e reutilizamos o resultado para todos
@@ -152,32 +212,6 @@ async function loadDashboard(supabase: any, userId: string) {
     const topCreatures = [...list]
       .sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0))
       .slice(0, 3);
-
-    // Liga ativa do jogador: a fonte canônica do clube atual é trainers.current_team_id.
-    // Existem times antigos do jogador com is_player=true e competition_id null; eles não
-    // podem decidir o estado do dashboard.
-    let playerTeam: null | { id: string; name: string; competition_id: string | null; division: string | null } = null;
-    if (trainer.current_team_id) {
-      const { data: currentTeam } = await supabase
-        .from("teams")
-        .select("id, name, competition_id, division")
-        .eq("id", trainer.current_team_id)
-        .eq("trainer_id", trainer.id)
-        .maybeSingle();
-      playerTeam = currentTeam ?? null;
-    }
-
-    if (!playerTeam) {
-      const { data: fallbackTeam } = await supabase
-        .from("teams")
-        .select("id, name, competition_id, division")
-        .eq("trainer_id", trainer.id)
-        .eq("is_player", true)
-        .not("competition_id", "is", null)
-        .limit(1)
-        .maybeSingle();
-      playerTeam = fallbackTeam ?? null;
-    }
 
     const activeLeaguePromise = playerTeam?.competition_id
       ? supabase
