@@ -112,30 +112,30 @@ function BuildingsPage() {
       <header className="sticky top-0 z-20 border-b border-violet-500/35 bg-slate-950/90 text-white shadow-[0_4px_24px_rgba(76,29,149,0.28)] backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center gap-2 px-3 py-3 sm:px-4">
           <GameLogo size="xs" className="shrink-0" />
-          <TeamCrest teamName={data?.trainer?.academyName ?? null} size="md" />
+          <TeamCrest teamName={(data as any)?.trainer?.academyName ?? null} size="md" />
           <div className="min-w-0 flex-1">
             <p className="text-[10px] uppercase tracking-wider text-slate-400">Academia</p>
             <h1 className="truncate text-base font-bold sm:text-lg">
-              {data?.trainer?.academyName ?? "Estádio e CT"}
+              {(data as any)?.trainer?.academyName ?? "Estádio e CT"}
             </h1>
             <p className="truncate text-[11px] text-slate-400">
-              {data?.trainer ? `${data.trainer.name} · Nível ${data.trainer.level}` : "Infraestrutura do seu clube"}
+              {(data as any)?.trainer ? `${(data as any).trainer.name} · Nível ${(data as any).trainer.level}` : "Infraestrutura do seu clube"}
             </p>
             <BuildingTrainerProgress
-              level={data?.trainer?.level ?? 0}
-              xpIntoLevel={data?.trainer?.xpIntoLevel ?? 0}
-              xpForNextLevel={data?.trainer?.xpForNextLevel ?? 1}
-              isMaxLevel={data?.trainer?.isMaxLevel ?? false}
+              level={(data as any)?.trainer?.level ?? 0}
+              xpIntoLevel={(data as any)?.trainer?.xpIntoLevel ?? 0}
+              xpForNextLevel={(data as any)?.trainer?.xpForNextLevel ?? 1}
+              isMaxLevel={(data as any)?.trainer?.isMaxLevel ?? false}
             />
           </div>
           <div className="ml-auto flex items-center gap-2">
             <div className="flex h-10 items-center gap-2 rounded-lg border border-violet-400/25 bg-slate-900/80 px-3 text-sm font-bold">
               <Gem className="h-4 w-4 fill-violet-400/25 text-violet-300" />
-              {(data?.gems ?? 0).toLocaleString("pt-BR")}
+              {((data as any)?.gems ?? 0).toLocaleString("pt-BR")}
             </div>
             <div className="hidden h-10 items-center gap-2 rounded-lg border border-amber-400/25 bg-slate-900/80 px-3 text-sm font-bold sm:flex">
               <Coins className="h-4 w-4 text-amber-400" />
-              {(data?.money ?? 0).toLocaleString("pt-BR")}
+              {((data as any)?.money ?? 0).toLocaleString("pt-BR")}
             </div>
           </div>
         </div>
@@ -157,16 +157,16 @@ function BuildingsPage() {
             <span className="grid h-10 w-10 place-items-center rounded-lg border border-violet-400/30 bg-violet-500/10 text-violet-200"><Hammer className="h-5 w-5" /></span>
             <span className="text-slate-300">Construtores disponíveis:</span>
             <span className="font-semibold">
-              {(data?.builders ?? 1) - (data?.builders_busy ?? 0)}/{data?.builders ?? 1}
+              {((data as any)?.builders ?? 1) - ((data as any)?.builders_busy ?? 0)}/{(data as any)?.builders ?? 1}
             </span>
-            {data?.builders_busy ? (
+            {(data as any)?.builders_busy ? (
               <Badge variant="outline" className="ml-auto border-amber-400/40 bg-amber-500/10 text-amber-200">Obra em andamento</Badge>
             ) : null}
           </CardContent>
         </Card>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {data?.buildings?.map((b) => {
+          {(data as any)?.buildings?.map((b: any) => {
             const insufficientMoney = (b.nextCost ?? 0) > (data?.money ?? 0);
             const otherBusy = (data?.builders_busy ?? 0) > 0 && !b.upgrading;
             const maxed = b.level >= b.maxLevel;
