@@ -3,7 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { getDashboard, listMyCreatures } from "@/lib/creatures.functions";
+import { getDashboardWithSession } from "@/lib/creatures.functions";
+import { supabase } from "@/integrations/supabase/client";
 import {
   getMoraleSessionsState,
   startMoraleMeeting,
@@ -87,22 +88,23 @@ function xpForHalfStarsLocal(count: number) {
 
 function RosterPage() {
   const qc = useQueryClient();
-  const fetchList = useServerFn(listMyCreatures);
-  const fetchDashboard = useServerFn(getDashboard);
+  const fetchDashboard = useServerFn(getDashboardWithSession);
   const fetchMorale = useServerFn(getMoraleSessionsState);
-  const { data, isLoading } = useQuery({
-    queryKey: ["my-creatures"],
-    queryFn: () => fetchList(),
+  const { data: dashboardData, isLoading } = useQuery({
+    queryKey: ["dashboard"],
+    queryFn: async () => {
+      const { data: current, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !current.session?.access_token) {
+        throw sessionError ?? new Error("Sessão não encontrada.");
+      }
+      return fetchDashboard({ data: { access_token: current.session.access_token } });
+    },
     // Ações do elenco já invalidam esta chave. Mantê-la fresca por alguns
     // segundos evita repetir a leitura completa das 26 criaturas ao alternar
     // rapidamente entre Elenco, Escalação e ficha do jogador.
     staleTime: 30_000,
   });
-  const { data: dashboardData } = useQuery({
-    queryKey: ["dashboard"],
-    queryFn: () => fetchDashboard(),
-    staleTime: 20_000,
-  });
+  const data = dashboardData?.rosterList ?? [];
   const { data: morale } = useQuery({
     queryKey: ["morale-sessions"],
     queryFn: () => fetchMorale(),
@@ -125,7 +127,7 @@ function RosterPage() {
     onSuccess: (r: any) => {
       toast.success(r?.spent ? `Reunião acelerada (${r.spent} 💎).` : "Reunião concluída.");
       qc.invalidateQueries({ queryKey: ["morale-sessions"] });
-      qc.invalidateQueries({ queryKey: ["my-creatures"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao acelerar"),
   });
@@ -144,7 +146,7 @@ function RosterPage() {
         `Incentivo aplicado imediatamente em ${r?.applied ?? 0} jogadores.`,
       );
       qc.invalidateQueries({ queryKey: ["morale-sessions"] });
-      qc.invalidateQueries({ queryKey: ["my-creatures"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao aplicar Incentivo Geral"),
   });
