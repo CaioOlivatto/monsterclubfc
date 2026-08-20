@@ -336,13 +336,30 @@ export const getDashboard = createServerFn({ method: "GET" })
 const createSchema = z.object({
   trainer_name: z.string().trim().min(2).max(40),
   academy_name: z.string().trim().min(2).max(40),
+  access_token: z.string().min(20),
 });
 
+async function createOnboardingSupabase(accessToken: string) {
+  const { createClient } = await import("@supabase/supabase-js");
+  const supabase = createClient(
+    "https://gwqvninbrmrsabuseqbx.supabase.co",
+    "sb_publishable_ycTtamLVwKvO3G89F5dAfw_W6ozxpo9",
+    {
+      global: { headers: { Authorization: `Bearer ${accessToken}` } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    },
+  );
+  const { data, error } = await supabase.auth.getUser(accessToken);
+  if (error || !data.user?.id) {
+    throw new Error("Sua sessão expirou. Entre novamente para iniciar sua carreira.");
+  }
+  return { supabase, userId: data.user.id };
+}
+
 export const createInitialTrainer = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((raw: unknown) => createSchema.parse(raw))
-  .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
+  .handler(async ({ data }) => {
+    const { supabase, userId } = await createOnboardingSupabase(data.access_token);
 
     const [, { data: existing }] = await Promise.all([
       supabase.from("profiles").upsert({ id: userId }),
@@ -353,7 +370,7 @@ export const createInitialTrainer = createServerFn({ method: "POST" })
         .maybeSingle(),
     ]);
     if (existing) {
-      throw new Error("Você já tem um treinador criado.");
+      return { trainerId: existing.id };
     }
 
     // 1. Trainer
@@ -433,6 +450,10 @@ const starterKeySchema = z.object({
   ]),
 });
 
+const starterChoiceSchema = starterKeySchema.extend({
+  access_token: z.string().min(20),
+});
+
 export const getStarterTeamDetail = createServerFn({ method: "GET" })
   .inputValidator((raw: unknown) => starterKeySchema.parse(raw))
   .handler(async ({ data }) => {
@@ -479,10 +500,9 @@ export const getStarterTeamDetail = createServerFn({ method: "GET" })
   });
 
 export const chooseStarterTeam = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((raw: unknown) => starterKeySchema.parse(raw))
-  .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
+  .inputValidator((raw: unknown) => starterChoiceSchema.parse(raw))
+  .handler(async ({ data }) => {
+    const { supabase, userId } = await createOnboardingSupabase(data.access_token);
     const teamDef = getStarterTeam(data.key)!;
 
     const { data: trainer } = await supabase

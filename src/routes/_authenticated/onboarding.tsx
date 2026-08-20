@@ -180,12 +180,16 @@ function Onboarding() {
           data: {
             trainer_name: trainerName.trim(),
             academy_name: teamName,
+            access_token: accessToken,
           },
           headers: authHeaders,
         });
       }
 
-      await choose({ data: { key: openKey }, headers: authHeaders });
+      await choose({
+        data: { key: openKey, access_token: accessToken },
+        headers: authHeaders,
+      });
       setSetupProgress(100);
       setSetupStep("Tudo pronto! Entrando no clube...");
       toast.success("Time escolhido! Liga Bronze iniciada.");
