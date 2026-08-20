@@ -58,17 +58,20 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       throw new Error('Unauthorized: No request headers available');
     }
 
+    const forwardedToken = request.headers.get('x-supabase-access-token');
     const authHeader = request.headers.get('authorization');
 
-    if (!authHeader) {
+    if (!forwardedToken && !authHeader) {
       throw new Error('Unauthorized: No authorization header provided');
     }
 
-    if (!authHeader.startsWith('Bearer ')) {
+    if (!forwardedToken && !authHeader!.startsWith('Bearer ')) {
       throw new Error('Unauthorized: Only Bearer tokens are supported');
     }
 
-    const token = authHeader.replace('Bearer ', '');
+    // Preferimos o cabeçalho dedicado porque o proxy do host pode reservar ou
+    // reescrever `Authorization` com uma credencial da própria plataforma.
+    const token = forwardedToken || authHeader!.replace('Bearer ', '');
     if (!token) {
       throw new Error('Unauthorized: No token provided');
     }

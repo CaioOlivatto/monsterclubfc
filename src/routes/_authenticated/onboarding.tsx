@@ -170,7 +170,10 @@ function Onboarding() {
       if (!accessToken) {
         throw new Error("Sua sessão expirou. Entre novamente para iniciar sua carreira.");
       }
-      const authHeaders = { Authorization: `Bearer ${accessToken}` };
+      const authHeaders = {
+        Authorization: `Bearer ${accessToken}`,
+        "x-supabase-access-token": accessToken,
+      };
 
       if (!trainer) {
         await createFn({
