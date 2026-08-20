@@ -102,10 +102,13 @@ export const getBuildings = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { userId, supabase: authSupabase } = context;
     
-    // Busca dados do treinador e academia para o cabeçalho da UI
-    const { data: trainer } = await authSupabase.from("trainers").select("*").eq("id", userId).single();
-    const { data: academy } = await authSupabase.from("academies").select("*").eq("trainer_id", userId).single();
-    const { data: buildings } = await authSupabase.from("buildings").select("*").eq("trainer_id", userId);
+    // As três leituras são independentes. Executá-las juntas economiza duas
+    // viagens ao banco antes de a tela de infraestrutura poder ser desenhada.
+    const [{ data: trainer }, { data: academy }, { data: buildings }] = await Promise.all([
+      authSupabase.from("trainers").select("*").eq("id", userId).single(),
+      authSupabase.from("academies").select("*").eq("trainer_id", userId).single(),
+      authSupabase.from("buildings").select("*").eq("trainer_id", userId),
+    ]);
 
     // Mapeia para o formato esperado pelo BuildingsPage.tsx
     const mappedBuildings = (buildings || []).map((b: any) => ({

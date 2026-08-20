@@ -82,7 +82,14 @@ function BuildingsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["buildings"],
     queryFn: () => fetchBuildings(),
-    refetchInterval: 15_000,
+    staleTime: 30_000,
+    // Só consulta novamente enquanto existir uma obra em andamento. A contagem
+    // regressiva continua no navegador; não há motivo para chamar o banco a
+    // cada 15 segundos quando o clube não está construindo nada.
+    refetchInterval: (query) => {
+      const buildings = ((query.state.data as any)?.buildings ?? []) as Array<{ upgrading?: boolean }>;
+      return buildings.some((building) => building.upgrading) ? 30_000 : false;
+    },
   });
   const startMut = useMutation({
     mutationFn: (type: string) => startFn({ data: { type: type as any } }),

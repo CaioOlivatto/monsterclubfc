@@ -159,11 +159,12 @@ function LineupPage() {
     formation, strategy, starters, bench,
   }), [formation, strategy, starters, bench]);
 
-  // Debounce: só refaz o prognóstico 600ms depois da última mudança,
-  // evitando disparar 400 simulações a cada clique/keystroke.
+  // Só recalcula depois que o treinador termina a alteração. O prognóstico
+  // executa 120 simulações no servidor; 600ms preserva a sensação de resposta
+  // sem enviar uma nova simulação para cada clique consecutivo.
   const [debouncedDraft, setDebouncedDraft] = useState(draft);
   useEffect(() => {
-    const t = window.setTimeout(() => setDebouncedDraft(draft), 50);
+    const t = window.setTimeout(() => setDebouncedDraft(draft), 600);
     return () => window.clearTimeout(t);
   }, [draft]);
 

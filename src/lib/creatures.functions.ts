@@ -434,11 +434,23 @@ const starterKeySchema = z.object({
 });
 
 export const getStarterTeamDetail = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((raw: unknown) => starterKeySchema.parse(raw))
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
+    // Esta é somente a prévia pública dos seis times iniciais. Ela não lê nem
+    // altera informações do treinador; exigir o JWT aqui fazia a vitrine falhar
+    // quando o ambiente do Lovable não repassava o cabeçalho de autenticação ao
+    // server function. O catálogo species/epithets já é público e protegido de
+    // escrita pelas políticas do Supabase.
+    const { createClient } = await import("@supabase/supabase-js");
+    const catalogSupabase = createClient(
+      "https://gwqvninbrmrsabuseqbx.supabase.co",
+      "sb_publishable_ycTtamLVwKvO3G89F5dAfw_W6ozxpo9",
+      {
+        auth: { persistSession: false, autoRefreshToken: false },
+      },
+    );
     const { loadBestiary } = await import("./bestiary.server");
-    const bestiary = await loadBestiary(context.supabase);
+    const bestiary = await loadBestiary(catalogSupabase);
     const team = getStarterTeam(data.key)!;
     const roster = generateStarterRoster(data.key as StarterKey, bestiary);
     return {

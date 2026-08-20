@@ -93,6 +93,10 @@ function RosterPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["my-creatures"],
     queryFn: () => fetchList(),
+    // Ações do elenco já invalidam esta chave. Mantê-la fresca por alguns
+    // segundos evita repetir a leitura completa das 26 criaturas ao alternar
+    // rapidamente entre Elenco, Escalação e ficha do jogador.
+    staleTime: 30_000,
   });
   const { data: dashboardData } = useQuery({
     queryKey: ["dashboard"],

@@ -170,16 +170,20 @@ function Dashboard() {
     }
   }, [data]);
 
-  React.useEffect(() => {
+  // O painel precisa ficar disponível antes de qualquer trabalho opcional.
+  // Antes, ele disparava três consultas remotas pesadas logo após abrir
+  // (escalação, mercado e liga), mesmo sem intenção de navegar. Em conexões
+  // móveis isso competia com o próprio painel e dava a sensação de travamento.
+  // Agora antecipamos somente a tela que o treinador demonstrar interesse em abrir.
+  const prefetchDestination = React.useCallback((destination: string) => {
     if (!data) return;
-    const timer = window.setTimeout(() => {
-      void Promise.allSettled([
-        qc.prefetchQuery({ queryKey: ["lineup"], queryFn: () => fetchLineup(), staleTime: 2 * 60_000 }),
-        qc.prefetchQuery({ queryKey: ["market"], queryFn: () => fetchMarket(), staleTime: 5 * 60_000 }),
-        qc.prefetchQuery({ queryKey: ["league", "auto"], queryFn: () => fetchLeague({ data: {} } as any), staleTime: 30_000 }),
-      ]);
-    }, 700);
-    return () => window.clearTimeout(timer);
+    if (destination === "/lineup") {
+      void qc.prefetchQuery({ queryKey: ["lineup"], queryFn: () => fetchLineup(), staleTime: 2 * 60_000 });
+    } else if (destination === "/market") {
+      void qc.prefetchQuery({ queryKey: ["market"], queryFn: () => fetchMarket(), staleTime: 5 * 60_000 });
+    } else if (destination === "/league") {
+      void qc.prefetchQuery({ queryKey: ["league", "auto"], queryFn: () => fetchLeague({ data: {} } as any), staleTime: 30_000 });
+    }
   }, [data, fetchLeague, fetchLineup, fetchMarket, qc]);
 
   const friendlyMut = useMutation({
@@ -320,7 +324,7 @@ function Dashboard() {
 
         <FacilitiesBanner />
 
-        <NavigationHubs />
+        <NavigationHubs onDestinationIntent={prefetchDestination} />
       </main>
     </div>
   );
@@ -916,7 +920,7 @@ const HUBS: {
   },
 ];
 
-function NavigationHubs() {
+function NavigationHubs({ onDestinationIntent }: { onDestinationIntent: (destination: string) => void }) {
   return (
     <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-4">
       {HUBS.map((hub) => (
@@ -948,6 +952,8 @@ function NavigationHubs() {
                   key={l.to}
                   to={l.to}
                   preload="intent"
+                  onPointerEnter={() => onDestinationIntent(l.to)}
+                  onFocus={() => onDestinationIntent(l.to)}
                   className="flex items-center gap-3 rounded-lg border border-border/60 bg-card/40 p-3 transition-colors hover:bg-card/70"
                 >
                   <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
