@@ -3,22 +3,33 @@ import { createMiddleware } from '@tanstack/react-start'
 import { supabase } from './client'
 import { syncServerSession } from './session.functions'
 
-let syncingSession = false
+let sessionSyncPromise: Promise<void> | null = null
 let lastSyncedToken: string | null = null
 let lastSyncedAt = 0
 
 export async function ensureServerSession(token: string) {
   const isFresh =
     token === lastSyncedToken && Date.now() - lastSyncedAt < 10 * 60 * 1000
-  if (isFresh || syncingSession) return
+  if (isFresh) return
 
-  syncingSession = true
-  try {
+  // Mais de uma tela pode iniciar ao mesmo tempo. Todas precisam aguardar a
+  // mesma sincronização; retornar imediatamente aqui criava uma corrida em que
+  // o dashboard consultava o servidor antes de o cookie existir.
+  if (sessionSyncPromise) {
+    await sessionSyncPromise
+    if (token === lastSyncedToken) return
+  }
+
+  const sync = (async () => {
     await syncServerSession({ data: { accessToken: token } })
     lastSyncedToken = token
     lastSyncedAt = Date.now()
+  })()
+  sessionSyncPromise = sync
+  try {
+    await sync
   } finally {
-    syncingSession = false
+    if (sessionSyncPromise === sync) sessionSyncPromise = null
   }
 }
 
@@ -31,7 +42,7 @@ export const attachSupabaseAuth = createMiddleware({ type: 'function' }).client(
 
     // A própria função de sincronização também passa pelo middleware global.
     // O bloqueio evita recursão e deixa essa chamada pública chegar ao servidor.
-    if (token && !syncingSession) {
+    if (token && !sessionSyncPromise) {
       await ensureServerSession(token)
     }
 
