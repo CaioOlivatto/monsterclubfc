@@ -1,8 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { FORMATIONS, MAX_BENCH } from "./lineup.server";
+import { buildSlots, FORMATIONS, MAX_BENCH, type SlotRole } from "./lineup.server";
 import { NEUTRAL_TACTICS, type Tactics } from "./match-engine.server";
+import { ensureStarterRoster, resolvePlayerCareerTeam } from "./starter-roster-recovery.server";
 
 // Controles HTML/Radix podem serializar valores movidos como texto. Coagir aqui
 // mantem a fronteira do servidor estrita depois da conversao e evita rejeitar
@@ -32,21 +33,54 @@ const SaveInput = z.object({
   bench: z.array(z.string().uuid()).max(MAX_BENCH),
 });
 
-async function getTrainerId(supabase: any, userId: string): Promise<string> {
+function roleForPosition(position: string | null | undefined): SlotRole {
+  if (position === "Goleiro") return "GOL";
+  if (position === "Zagueiro") return "DEF";
+  if (position === "Atacante") return "ATA";
+  return "MEI";
+}
+
+function buildAutomaticLineup(creatures: any[], formation: typeof FORMATIONS[number]) {
+  const remaining = [...creatures]
+    .filter((creature) => (creature.injury_matches_remaining ?? 0) === 0)
+    .sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0));
+  const take = (role: SlotRole) => {
+    const matchingIndex = remaining.findIndex((creature) => roleForPosition(creature.suggested_position) === role);
+    const index = matchingIndex >= 0 ? matchingIndex : 0;
+    return remaining.splice(index, 1)[0] ?? null;
+  };
+  const starters = buildSlots(formation).map((slot) => ({
+    slot: slot.index,
+    role: slot.role,
+    creature_id: take(slot.role)?.id ?? null,
+  }));
+  return { starters, bench: remaining.slice(0, MAX_BENCH).map((creature) => creature.id) };
+}
+
+async function getTrainer(supabase: any, userId: string): Promise<{ id: string; current_team_id: string | null }> {
   const { data: trainer } = await supabase
     .from("trainers")
-    .select("id")
+    .select("id, current_team_id")
     .eq("user_id", userId)
     .maybeSingle();
   if (!trainer) throw new Error("Treinador não encontrado.");
-  return trainer.id;
+  return trainer;
+}
+
+async function getTrainerId(supabase: any, userId: string): Promise<string> {
+  return (await getTrainer(supabase, userId)).id;
 }
 
 export const getMyLineup = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    const trainerId = await getTrainerId(supabase, userId);
+    const trainer = await getTrainer(supabase, userId);
+    const trainerId = trainer.id;
+    // A escalação pode ser a primeira tela aberta após o onboarding. Garante
+    // aqui o mesmo reparo seguro do painel para nunca renderizar 11 slots vazios.
+    const playerTeam = await resolvePlayerCareerTeam(supabase, trainer);
+    await ensureStarterRoster(supabase, trainerId, playerTeam);
 
     const [{ data: lineup }, { data: creatures }, { data: membership }, { data: clubPreset }] = await Promise.all([
       supabase
@@ -63,8 +97,35 @@ export const getMyLineup = createServerFn({ method: "GET" })
       (supabase as any).from("club_lineup_presets").select("formation,strategy,starters,bench").eq("trainer_id", trainerId).maybeSingle(),
     ]);
 
+    const savedStarters = Array.isArray(lineup?.starters) ? lineup.starters : [];
+    const hasCompleteLineup = savedStarters.filter((slot: any) => slot?.creature_id).length === 11;
+    const formation = (lineup?.formation as typeof FORMATIONS[number] | undefined) ?? "4-4-2";
+    const automatic = !hasCompleteLineup && (creatures?.length ?? 0) >= 11
+      ? buildAutomaticLineup(creatures ?? [], formation)
+      : null;
+
+    // Todo clube novo entra em campo pronto. Persistimos uma única vez para que
+    // a escalação continue igual ao reabrir a página ou iniciar a partida.
+    if (automatic) {
+      const { error } = await supabase.from("team_lineups").upsert({
+        trainer_id: trainerId,
+        formation,
+        strategy: lineup?.strategy ?? "equilibrada",
+        starters: automatic.starters,
+        bench: automatic.bench,
+        default_tactics: lineup?.default_tactics ?? NEUTRAL_TACTICS,
+      }, { onConflict: "trainer_id" });
+      if (error) throw error;
+    }
+
     return {
-      lineup: lineup ?? {
+      lineup: automatic ? {
+        formation,
+        strategy: lineup?.strategy ?? "equilibrada",
+        starters: automatic.starters,
+        bench: automatic.bench,
+        default_tactics: lineup?.default_tactics ?? NEUTRAL_TACTICS,
+      } : lineup ?? {
         formation: "4-4-2",
         strategy: "equilibrada",
         starters: [],
