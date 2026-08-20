@@ -813,7 +813,7 @@ export const simulateWorldLeagueRound = createServerFn({ method: "POST" })
       supabase
         .from("teams").select("id").eq("trainer_id", trainer.id).eq("is_player", true)
         .not("division", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-      bestiaryPromise,
+      loadEngineBestiary(supabase),
     ]);
     const playerTeamId = playerRow?.id as string | undefined;
 

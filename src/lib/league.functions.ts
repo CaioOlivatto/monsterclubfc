@@ -1117,7 +1117,7 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
       .eq("trainer_id", trainer.id);
 
     // Mantém o campo legado sincronizado; a fonte canônica continua sendo o time atual.
-    await supabase.from("trainers").update({ division: newDivision }).eq("id", trainer.id);
+    await supabase.from("trainers").update({ division: newDivision } as any).eq("id", trainer.id);
 
     // XP de prestígio de fim de temporada
     if (playerIsChampion) await awardTrainerXp(supabase, trainer.id, "title", 1);
