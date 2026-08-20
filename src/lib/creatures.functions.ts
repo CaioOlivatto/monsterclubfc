@@ -347,6 +347,73 @@ async function createOnboardingSupabase(accessToken: string) {
   return { supabase, userId: data.user.id };
 }
 
+// Recursos mínimos de uma academia. Esta função é idempotente para corrigir
+// contas cuja criação foi interrompida entre o treinador e os recursos iniciais.
+async function ensureTrainerFoundation(supabase: any, trainerId: string) {
+  const { data: academy, error: academyError } = await supabase
+    .from("academies")
+    .select("id")
+    .eq("trainer_id", trainerId)
+    .maybeSingle();
+  if (academyError) throw academyError;
+  if (!academy) {
+    const { error } = await supabase.from("academies").insert({
+      trainer_id: trainerId,
+      money: 400000,
+      gems: 50,
+      builders: 1,
+      roster_slots: 26,
+    });
+    if (error) throw error;
+  }
+
+  const { data: buildings, error: buildingsError } = await supabase
+    .from("buildings")
+    .select("building_type")
+    .eq("trainer_id", trainerId);
+  if (buildingsError) throw buildingsError;
+  const existingTypes = new Set((buildings ?? []).map((building: any) => building.building_type));
+  const requiredTypes = ["estadio", "ct_treino", "centro_medico"];
+  const missingBuildings = requiredTypes
+    .filter((building_type) => !existingTypes.has(building_type))
+    .map((building_type) => ({ trainer_id: trainerId, building_type, level: 1 }));
+  if (missingBuildings.length) {
+    const { error } = await supabase.from("buildings").insert(missingBuildings as any);
+    if (error) throw error;
+  }
+}
+
+const repairCareerSchema = z.object({ access_token: z.string().min(20) });
+
+// Ponto único de recuperação usado logo após o login. Ele dá uma garantia
+// concreta para qualquer tela: academia existe e, se o clube já foi escolhido,
+// há 26 jogadores antes de o jogo liberar o painel.
+export const repairCurrentCareerWithSession = createServerFn({ method: "POST" })
+  .inputValidator((raw: unknown) => repairCareerSchema.parse(raw))
+  .handler(async ({ data }) => {
+    const { supabase, userId } = await createOnboardingSupabase(data.access_token);
+    const { data: trainer, error } = await supabase
+      .from("trainers")
+      .select("id, current_team_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!trainer) return { state: "needs_trainer" as const, rosterCount: 0 };
+
+    await ensureTrainerFoundation(supabase, trainer.id);
+    const team = await resolvePlayerCareerTeam(supabase, trainer);
+    if (!team) return { state: "needs_team" as const, rosterCount: 0 };
+    await ensureStarterRoster(supabase, trainer.id, team);
+
+    const { count, error: countError } = await supabase
+      .from("creatures")
+      .select("id", { count: "exact", head: true })
+      .eq("owner_trainer_id", trainer.id);
+    if (countError) throw countError;
+    if ((count ?? 0) < 26) throw new Error("Não foi possível concluir o elenco inicial. Tente entrar novamente.");
+    return { state: "ready" as const, rosterCount: count ?? 0 };
+  });
+
 export const createInitialTrainer = createServerFn({ method: "POST" })
   .inputValidator((raw: unknown) => createSchema.parse(raw))
   .handler(async ({ data }) => {
@@ -361,6 +428,7 @@ export const createInitialTrainer = createServerFn({ method: "POST" })
         .maybeSingle(),
     ]);
     if (existing) {
+      await ensureTrainerFoundation(supabase, existing.id);
       return { trainerId: existing.id };
     }
 
@@ -376,26 +444,12 @@ export const createInitialTrainer = createServerFn({ method: "POST" })
       .single();
     if (tErr) throw tErr;
 
-    const setupResults = await Promise.all([
-      supabase.from("academies").insert({
-        trainer_id: trainer.id,
-        money: 400000,
-        gems: 50,
-        builders: 1,
-        roster_slots: 26,
-      }),
-      supabase.from("buildings").insert([
-        { trainer_id: trainer.id, building_type: "estadio", level: 1 },
-        { trainer_id: trainer.id, building_type: "ct_treino", level: 1 },
-        { trainer_id: trainer.id, building_type: "centro_medico", level: 1 },
-      ]),
-      supabase.from("items").insert([
-        { trainer_id: trainer.id, item_key: "potion_individual", quantity: 3 },
-        { trainer_id: trainer.id, item_key: "potion_collective", quantity: 1 },
-      ]),
+    await ensureTrainerFoundation(supabase, trainer.id);
+    const { error: itemsError } = await supabase.from("items").insert([
+      { trainer_id: trainer.id, item_key: "potion_individual", quantity: 3 },
+      { trainer_id: trainer.id, item_key: "potion_collective", quantity: 1 },
     ]);
-    const setupError = setupResults.find((result) => result.error)?.error;
-    if (setupError) throw setupError;
+    if (itemsError) throw itemsError;
 
     // Elenco será criado quando o treinador escolher um dos 6 times iniciais.
     return { trainerId: trainer.id };

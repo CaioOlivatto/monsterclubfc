@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { syncServerSession } from "@/integrations/supabase/session.functions";
+import { repairCurrentCareerWithSession } from "@/lib/creatures.functions";
 import { BottomNav } from "@/components/BottomNav";
 import { GameLogo } from "@/components/GameLogo";
 
@@ -29,6 +30,7 @@ function AuthenticatedLayout() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const syncSession = useServerFn(syncServerSession);
+  const repairCareer = useServerFn(repairCurrentCareerWithSession);
   const [sessionReady, setSessionReady] = useState(false);
 
   // Todas as telas protegidas usam o mesmo JWT do navegador. Só liberamos o
@@ -44,6 +46,7 @@ function AuthenticatedLayout() {
       }
       try {
         await syncSession({ data: { accessToken: data.session.access_token } });
+        await repairCareer({ data: { access_token: data.session.access_token } });
         if (active) setSessionReady(true);
       } catch {
         if (active) navigate({ to: "/auth", replace: true });
@@ -51,7 +54,7 @@ function AuthenticatedLayout() {
     }
     void prepareSession();
     return () => { active = false; };
-  }, [navigate, syncSession]);
+  }, [navigate, repairCareer, syncSession]);
 
   if (!sessionReady) {
     return <div className="flex min-h-screen items-center justify-center bg-slate-950 text-sm text-slate-300">Preparando sua academia...</div>;
