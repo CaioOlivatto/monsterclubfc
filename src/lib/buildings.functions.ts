@@ -27,7 +27,7 @@ export const upgradeBuilding = createServerFn({ method: "POST" })
       .from("buildings")
       .select("*")
       .eq("trainer_id", trainer.id)
-      .eq("building_type", type as any)
+      .eq("building_type", type as "estadio" | "ct_treino" | "centro_medico")
       .maybeSingle();
 
     const currentLevel = existing?.level ?? 0;
@@ -84,7 +84,7 @@ export const finishNowWithGems = createServerFn({ method: "POST" })
       .from("buildings")
       .select("*")
       .eq("trainer_id", userId)
-      .eq("building_type", type as any)
+      .eq("building_type", type as "estadio" | "ct_treino" | "centro_medico")
       .maybeSingle();
 
     if (!b || !b.upgrade_completes_at) return { spent: 0 };
