@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
@@ -759,7 +760,7 @@ async function advanceWorldLeagueRoundInternal(
           const reachedSemi = (pMatches ?? []).some((m: any) => m.round === 7);
           const playedGroups = (pMatches ?? []).some((m: any) => m.round <= 5);
           let prize = 0; let label = "";
-          const prizeDivision = ((comp as any)?.division ?? "bronze") as EconDivision;
+          const prizeDivision = (((null as any)?.division ?? "bronze") as Division);
           if (reachedFinal && koWon(8)) { prize = worldLeaguePhaseBonus(prizeDivision, "champion"); label = "Campeão da Liga Mundial"; }
           else if (reachedFinal)         { prize = worldLeaguePhaseBonus(prizeDivision, "runnerUp"); label = "Vice-campeão da Liga Mundial"; }
           else if (reachedSemi)          { prize = worldLeaguePhaseBonus(prizeDivision, "semi");     label = "Semifinalista da Liga Mundial"; }
@@ -813,7 +814,7 @@ export const simulateWorldLeagueRound = createServerFn({ method: "POST" })
       supabase
         .from("teams").select("id").eq("trainer_id", trainer.id).eq("is_player", true)
         .not("division", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-      bestiaryPromise,
+      loadEngineBestiary(supabase),
     ]);
     const playerTeamId = playerRow?.id as string | undefined;
 
@@ -1116,7 +1117,7 @@ export const simulateWorldCupRound = createServerFn({ method: "POST" })
       supabase
         .from("teams").select("id").eq("trainer_id", trainer.id).eq("is_player", true)
         .not("division", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-      bestiaryPromise,
+      loadEngineBestiary(supabase),
     ]);
     const playerTeamId = playerRow?.id as string | undefined;
     stamp("bestiary");

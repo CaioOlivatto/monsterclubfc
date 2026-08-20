@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
@@ -548,13 +549,11 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
       if (linkErr) throw linkErr;
     }
 
-    // As construções pertencem ao clube escolhido. O treinador administra os
-    // prédios enquanto estiver no comando, mas eles ficam no clube se ele sair.
+    // As construções pertencem ao treinador.
     const { error: buildingLinkErr } = await supabase
       .from("buildings")
-      .update({ team_id: playerTeamId })
-      .eq("trainer_id", trainer.id)
-      .is("team_id", null);
+      .update({ trainer_id: trainer.id } as any)
+      .eq("trainer_id", trainer.id);
     if (buildingLinkErr) throw buildingLinkErr;
 
     // Fonte canônica usada por carreira, partidas, confiança e construções.

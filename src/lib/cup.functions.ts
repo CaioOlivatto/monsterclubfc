@@ -377,7 +377,7 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
         .from("teams")
         .select("id, name, is_player, cpu_strength")
         .in("id", [next.home_team_id, next.away_team_id]),
-      bestiaryPromise,
+      loadEngineBestiary(supabase),
     ]);
     const home = teams!.find((t: any) => t.id === next.home_team_id) as any;
     const away = teams!.find((t: any) => t.id === next.away_team_id) as any;

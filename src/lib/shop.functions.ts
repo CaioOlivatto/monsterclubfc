@@ -147,7 +147,7 @@ export const buyItem = createServerFn({ method: "POST" })
     if (unit == null) throw new Error("Este item não aceita essa forma de pagamento.");
     const total = unit * data.quantity;
 
-    const { error } = await context.supabase.rpc("buy_shop_item_atomic", {
+    const { error } = await context.supabase.rpc("buy_shop_item_atomic" as any, {
       p_trainer_id: trainer.id,
       p_item_key: data.itemKey,
       p_currency: data.currency,
