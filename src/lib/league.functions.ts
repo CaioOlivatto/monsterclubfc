@@ -356,12 +356,12 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         return side;
       }
       const seed = hashSeed(team.id);
-      .eq("id", (competition.division as any) || "bronze") as DivisionSlug;
+      const division = ((competition as any).division ?? "bronze") as DivisionSlug;
       return generateCpuSideFor(
         seed,
         team.id,
         team.name,
-        team.cpu_strength ?? DIVISION_STRENGTH[division],
+        team.cpu_strength ?? (DIVISION_STRENGTH as any)[division],
         bestiary,
       );
     }
