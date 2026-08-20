@@ -1194,7 +1194,7 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
         trainer_id: trainer.id,
         season_number: currentSeason.season_number + 1,
         is_current: true,
-        balance_version: (BALANCE_VERSION as any),
+        balance_version: (BALANCE_VERSION as string),
       })
       .select("id")
       .single();

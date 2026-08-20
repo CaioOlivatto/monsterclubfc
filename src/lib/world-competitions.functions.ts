@@ -759,7 +759,7 @@ async function advanceWorldLeagueRoundInternal(
           const reachedSemi = (pMatches ?? []).some((m: any) => m.round === 7);
           const playedGroups = (pMatches ?? []).some((m: any) => m.round <= 5);
           let prize = 0; let label = "";
-          const prizeDivision = (((comp as any)?.division ?? "bronze") as EconDivision);
+          const prizeDivision = (((comp as any)?.division ?? "bronze") as Division);
           if (reachedFinal && koWon(8)) { prize = worldLeaguePhaseBonus(prizeDivision, "champion"); label = "Campeão da Liga Mundial"; }
           else if (reachedFinal)         { prize = worldLeaguePhaseBonus(prizeDivision, "runnerUp"); label = "Vice-campeão da Liga Mundial"; }
           else if (reachedSemi)          { prize = worldLeaguePhaseBonus(prizeDivision, "semi");     label = "Semifinalista da Liga Mundial"; }
