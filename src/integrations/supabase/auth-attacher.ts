@@ -7,7 +7,7 @@ let syncingSession = false
 let lastSyncedToken: string | null = null
 let lastSyncedAt = 0
 
-async function ensureServerSession(token: string) {
+export async function ensureServerSession(token: string) {
   const isFresh =
     token === lastSyncedToken && Date.now() - lastSyncedAt < 10 * 60 * 1000
   if (isFresh || syncingSession) return
