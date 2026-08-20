@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { Star, Shield, Swords, Scale, Trophy } from "lucide-react";
 import { TeamCrest } from "@/components/TeamCrest";
 import { GameLogo } from "@/components/GameLogo";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/onboarding")({
   head: () => ({
@@ -161,16 +162,27 @@ function Onboarding() {
 
     setSubmitting(true);
     try {
+      // Lovable executa as Server Functions atrás de um proxy. Enviamos a
+      // sessão explicitamente nesta ação crítica para a confirmação do time
+      // não depender apenas do middleware global do navegador.
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+        throw new Error("Sua sessão expirou. Entre novamente para iniciar sua carreira.");
+      }
+      const authHeaders = { Authorization: `Bearer ${accessToken}` };
+
       if (!trainer) {
         await createFn({
           data: {
             trainer_name: trainerName.trim(),
             academy_name: teamName,
           },
+          headers: authHeaders,
         });
       }
 
-      await choose({ data: { key: openKey } });
+      await choose({ data: { key: openKey }, headers: authHeaders });
       setSetupProgress(100);
       setSetupStep("Tudo pronto! Entrando no clube...");
       toast.success("Time escolhido! Liga Bronze iniciada.");
