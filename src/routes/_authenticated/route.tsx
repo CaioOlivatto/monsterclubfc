@@ -1,5 +1,8 @@
-import { createFileRoute, Outlet, redirect, useLocation } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect, useLocation, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { syncServerSession } from "@/integrations/supabase/session.functions";
 import { BottomNav } from "@/components/BottomNav";
 import { GameLogo } from "@/components/GameLogo";
 
@@ -24,6 +27,36 @@ export const Route = createFileRoute("/_authenticated")({
 
 function AuthenticatedLayout() {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const syncSession = useServerFn(syncServerSession);
+  const [sessionReady, setSessionReady] = useState(false);
+
+  // Todas as telas protegidas usam o mesmo JWT do navegador. Só liberamos o
+  // conteúdo após gravá-lo na sessão HttpOnly do jogo; isso elimina a corrida
+  // em que painel, elenco e escalação podiam consultar usuários diferentes.
+  useEffect(() => {
+    let active = true;
+    async function prepareSession() {
+      const { data, error } = await supabase.auth.getSession();
+      if (error || !data.session?.access_token) {
+        navigate({ to: "/auth", replace: true });
+        return;
+      }
+      try {
+        await syncSession({ data: { accessToken: data.session.access_token } });
+        if (active) setSessionReady(true);
+      } catch {
+        if (active) navigate({ to: "/auth", replace: true });
+      }
+    }
+    void prepareSession();
+    return () => { active = false; };
+  }, [navigate, syncSession]);
+
+  if (!sessionReady) {
+    return <div className="flex min-h-screen items-center justify-center bg-slate-950 text-sm text-slate-300">Preparando sua academia...</div>;
+  }
+
   const pageOwnsBranding = pathname === "/dashboard" || pathname === "/onboarding" || pathname === "/roster" || pathname === "/lineup" || pathname === "/buildings" || pathname.startsWith("/match/");
   return (
     <div className="flex min-h-screen flex-col bg-background pb-[env(safe-area-inset-bottom)]">
