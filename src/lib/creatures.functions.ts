@@ -507,18 +507,59 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
 
     const { data: trainer } = await supabase
       .from("trainers")
-      .select("id, academy_name")
+      .select("id, academy_name, current_team_id")
       .eq("user_id", userId)
       .maybeSingle();
     if (!trainer) throw new Error("Crie o treinador antes de escolher o time.");
 
-    // Não permite escolher duas vezes
+    // Retomada idempotente: uma tentativa anterior pode ter concluído a
+    // criação do clube e perdido apenas a resposta ao navegador. Nesse caso,
+    // devolvemos a carreira existente em vez de bloquear o jogador.
     const { count: creatureCount } = await supabase
       .from("creatures")
       .select("id", { count: "exact", head: true })
       .eq("owner_trainer_id", trainer.id);
     if ((creatureCount ?? 0) > 0) {
-      throw new Error("Você já escolheu um time inicial.");
+      let existingTeamId = trainer.current_team_id ?? null;
+      let existingCompetitionId: string | null = null;
+
+      if (existingTeamId) {
+        const { data: linkedTeam } = await supabase
+          .from("teams")
+          .select("id, competition_id")
+          .eq("id", existingTeamId)
+          .maybeSingle();
+        existingCompetitionId = linkedTeam?.competition_id ?? null;
+      }
+
+      if (!existingTeamId || !existingCompetitionId) {
+        const { data: playerTeam } = await supabase
+          .from("teams")
+          .select("id, competition_id")
+          .eq("trainer_id", trainer.id)
+          .eq("is_player", true)
+          .maybeSingle();
+        existingTeamId = playerTeam?.id ?? existingTeamId;
+        existingCompetitionId = playerTeam?.competition_id ?? existingCompetitionId;
+      }
+
+      if (existingTeamId && existingCompetitionId) {
+        if (trainer.current_team_id !== existingTeamId) {
+          const { error: relinkError } = await supabase
+            .from("trainers")
+            .update({ current_team_id: existingTeamId, status: "employed" })
+            .eq("id", trainer.id);
+          if (relinkError) throw relinkError;
+        }
+        return {
+          trainerId: trainer.id,
+          competitionId: existingCompetitionId,
+          teamKey: data.key,
+          resumed: true,
+        };
+      }
+
+      throw new Error("Seu clube está sendo finalizado. Aguarde alguns segundos e tente novamente.");
     }
 
     // 1. Elenco do jogador (26 criaturas, via Bestiário)
