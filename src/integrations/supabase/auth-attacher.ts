@@ -9,6 +9,9 @@ export const attachSupabaseAuth = createMiddleware({ type: 'function' }).client(
     const { data } = await supabase.auth.getSession()
     const token = data.session?.access_token
     return next({
+      // Transporte oficial das Server Functions: segue no corpo da chamada e
+      // não pode ser substituído pelo proxy de hospedagem.
+      sendContext: token ? { supabaseAccessToken: token } : {},
       // Lovable pode usar/substituir `Authorization` no proxy das Server
       // Functions. O cabeçalho próprio preserva a sessão real do jogo.
       headers: token

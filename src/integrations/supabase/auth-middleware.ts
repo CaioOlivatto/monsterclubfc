@@ -36,7 +36,7 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 }
 
 export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server(
-  async ({ next }) => {
+  async ({ next, context }) => {
     
     const SUPABASE_URL = process.env.SUPABASE_URL || PUBLIC_SUPABASE_URL;
     const SUPABASE_PUBLISHABLE_KEY =
@@ -58,20 +58,23 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       throw new Error('Unauthorized: No request headers available');
     }
 
+    const contextToken = (context as { supabaseAccessToken?: unknown } | undefined)
+      ?.supabaseAccessToken;
+    const transportedToken = typeof contextToken === 'string' ? contextToken : null;
     const forwardedToken = request.headers.get('x-supabase-access-token');
     const authHeader = request.headers.get('authorization');
 
-    if (!forwardedToken && !authHeader) {
+    if (!transportedToken && !forwardedToken && !authHeader) {
       throw new Error('Unauthorized: No authorization header provided');
     }
 
-    if (!forwardedToken && !authHeader!.startsWith('Bearer ')) {
+    if (!transportedToken && !forwardedToken && !authHeader!.startsWith('Bearer ')) {
       throw new Error('Unauthorized: Only Bearer tokens are supported');
     }
 
-    // Preferimos o cabeçalho dedicado porque o proxy do host pode reservar ou
-    // reescrever `Authorization` com uma credencial da própria plataforma.
-    const token = forwardedToken || authHeader!.replace('Bearer ', '');
+    // O contexto serializado é o transporte oficial do TanStack Start. Os
+    // cabeçalhos permanecem como compatibilidade para desenvolvimento local.
+    const token = transportedToken || forwardedToken || authHeader!.replace('Bearer ', '');
     if (!token) {
       throw new Error('Unauthorized: No token provided');
     }

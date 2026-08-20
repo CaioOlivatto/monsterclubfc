@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { GameRecovery } from "@/components/GameRecovery";
 import { getDashboard } from "@/lib/creatures.functions";
 import { createFriendlyMatch } from "@/lib/match.functions";
 import { claimWeeklyGems } from "@/lib/progression.functions";
@@ -86,10 +87,19 @@ function Dashboard() {
   const fetchLeague = useServerFn(getLeague);
   const qc = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["dashboard"],
-    queryFn: () => fetchDashboard(),
+    queryFn: async () => {
+      try {
+        return await fetchDashboard();
+      } catch (firstError) {
+        const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError || !refreshed.session) throw firstError;
+        return fetchDashboard();
+      }
+    },
     staleTime: 20_000,
+    retry: 1,
   });
   const rosterList = data?.rosterList ?? [];
   const lineupData = data?.lineupData;
@@ -215,12 +225,16 @@ function Dashboard() {
     nav({ to: "/auth", replace: true });
   }
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
         Carregando painel...
       </div>
     );
+  }
+
+  if (isError || !data) {
+    return <GameRecovery area="o painel" />;
   }
 
   const { trainer, academy, roster, standing, nextMatch, hasLeague } = data;
