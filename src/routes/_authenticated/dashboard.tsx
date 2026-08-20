@@ -283,9 +283,9 @@ function Dashboard() {
           hasLeague={hasLeague}
           onPlay={() => nav({
             to: "/lineup",
-            search: nextMatch?.competition
+            search: (nextMatch?.competition
               ? { competition: nextMatch.competition }
-              : {},
+              : {}) as any,
           })}
           onStartSeason={() => startSeasonMut.mutate()}
           startSeasonPending={startSeasonMut.isPending}

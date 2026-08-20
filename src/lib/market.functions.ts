@@ -106,7 +106,7 @@ export const getMarket = createServerFn({ method: "GET" })
         .eq("season_number", seasonNumber)
         .eq("division", division),
       supabase
-        .from("premium_signings")
+        .from("premium_signings" as any)
         .select("id")
         .eq("trainer_id", trainer.id)
         .maybeSingle(),
@@ -350,7 +350,7 @@ export const sellCreature = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const trainer = await getTrainerWithAcademy(supabase, userId);
 
-    const { data: result, error } = await supabase.rpc("sell_creature_atomic", {
+    const { data: result, error } = await supabase.rpc("sell_creature_atomic" as any, {
       p_trainer_id: trainer.id,
       p_creature_id: data.creature_id,
     });

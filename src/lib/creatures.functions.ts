@@ -376,9 +376,9 @@ export const createInitialTrainer = createServerFn({ method: "POST" })
         roster_slots: 26,
       }),
       supabase.from("buildings").insert([
-        { trainer_id: trainer.id, building_type: "estadio", level: 1 },
-        { trainer_id: trainer.id, building_type: "ct_treino", level: 1 },
-        { trainer_id: trainer.id, building_type: "centro_medico", level: 1 },
+        { trainer_id: trainer.id, building_type: "estadio", level: 1, team_id: null } as any,
+        { trainer_id: trainer.id, building_type: "ct_treino", level: 1, team_id: null } as any,
+        { trainer_id: trainer.id, building_type: "centro_medico", level: 1, team_id: null } as any,
       ]),
       supabase.from("items").insert([
         { trainer_id: trainer.id, item_key: "potion_individual", quantity: 3 },

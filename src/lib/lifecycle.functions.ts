@@ -29,7 +29,7 @@ export const retireCreature = createServerFn({ method: "POST" })
       .from("trainers").select("id").eq("user_id", userId).maybeSingle();
     if (!trainer) throw new Error("Treinador não encontrado.");
 
-    const { data: result, error } = await supabase.rpc("retire_creature_atomic", {
+    const { data: result, error } = await supabase.rpc("retire_creature_atomic" as any, {
       p_trainer_id: trainer.id,
       p_creature_id: data.creature_id,
     });

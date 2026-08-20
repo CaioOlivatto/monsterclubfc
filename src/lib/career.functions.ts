@@ -444,8 +444,8 @@ export const acceptOffer = createServerFn({ method: "POST" })
       // A infraestrutura permanece fisicamente no clube antigo.
       await supabase
         .from("buildings")
-        .update({ trainer_id: null })
-        .eq("team_id", trainer.current_team_id)
+        .update({ trainer_id: null as any })
+        .eq("team_id", trainer.current_team_id || "")
         .eq("trainer_id", trainer.id);
     }
 
@@ -493,12 +493,12 @@ export const acceptOffer = createServerFn({ method: "POST" })
     const { data: newClubBuildings } = await supabase
       .from("buildings")
       .select("id")
-      .eq("team_id", newTeam.id);
+      .eq("team_id", newTeam.id || "");
     if (newClubBuildings && newClubBuildings.length > 0) {
       const { error: claimBuildingsError } = await supabase
         .from("buildings")
         .update({ trainer_id: trainer.id })
-        .eq("team_id", newTeam.id);
+        .eq("team_id", newTeam.id || "");
       if (claimBuildingsError) throw claimBuildingsError;
     } else {
       const baseline = CLUB_INFRASTRUCTURE_BASELINE[newTeam.division ?? "bronze"] ?? CLUB_INFRASTRUCTURE_BASELINE.bronze;

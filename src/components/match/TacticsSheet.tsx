@@ -108,8 +108,8 @@ export function TacticsSheet({ substitutionsUsed = 0, autoOpenSubstitutions = fa
 
   useEffect(() => {
     if (!lineupData?.lineup) return;
-    setVisualStarters((current) => current.length ? current : (lineupData.lineup.starters ?? []).map((item: any) => item.creature_id).filter(Boolean));
-    setVisualBench((current) => current.length ? current : (lineupData.lineup.bench ?? []));
+    setVisualStarters((current) => current.length ? current : (lineupData.lineup.starters ?? []).map((item: any) => String(item.creature_id)).filter(Boolean));
+    setVisualBench((current) => current.length ? current : (lineupData.lineup.bench ?? []).map((id: any) => String(id)).filter(Boolean));
   }, [lineupData?.lineup]);
 
   const confirmSubstitution = () => {

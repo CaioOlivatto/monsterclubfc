@@ -298,8 +298,8 @@ export async function seedWorldForTrainer({
     WORLD_TEAMS[div].forEach((team, index) => {
       const inserted = insertedTeamByName.get(`${div}:${team.name}`);
       if (!inserted) throw new Error(`Time não criado: ${div}/${team.name}`);
-      teamIdByKey.set(`${div}:${index}`, inserted.id);
-      if (inserted.is_player) playerTeamId = inserted.id;
+      teamIdByKey.set(`${div}:${index}`, (inserted as any).id);
+      if ((inserted as any).is_player) playerTeamId = (inserted as any).id;
     });
   }
 
