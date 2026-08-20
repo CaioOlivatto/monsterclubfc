@@ -34,8 +34,8 @@ export async function resolvePlayerCareerTeam(supabase: any, trainer: any): Prom
   return (data as PlayerCareerTeam | null) ?? null;
 }
 
-// Garante que uma carreira já criada sempre possua o elenco inicial. Não altera
-// elencos existentes, jogos, saldo, liga ou construções.
+// Garante que uma carreira já criada sempre possua o elenco inicial completo.
+// Não altera jogadores existentes, jogos, saldo, liga ou construções.
 export async function ensureStarterRoster(supabase: any, trainerId: string, team: PlayerCareerTeam | null) {
   if (!team?.starter_key || !getStarterTeam(team.starter_key)) return false;
 
@@ -44,12 +44,15 @@ export async function ensureStarterRoster(supabase: any, trainerId: string, team
     .select("id", { count: "exact", head: true })
     .eq("owner_trainer_id", trainerId);
   if (countError) throw countError;
-  if ((count ?? 0) > 0) return false;
+  const currentCount = count ?? 0;
+  if (currentCount >= 26) return false;
 
   const { loadBestiary } = await import("./bestiary.server");
   const bestiary = await loadBestiary(supabase);
   const roster = generateStarterRoster(team.starter_key as StarterKey, bestiary);
-  const rows = rosterToDbRows(trainerId, roster).map((row) => ({
+  // Se uma falha rara gravou apenas parte do elenco, completamos somente o que
+  // falta. Assim nunca removemos progresso nem duplicamos um elenco completo.
+  const rows = rosterToDbRows(trainerId, roster).slice(currentCount).map((row) => ({
     ...row,
     owner_team_id: team.id,
   }));

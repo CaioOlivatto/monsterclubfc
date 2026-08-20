@@ -509,6 +509,14 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
     const existingCareerTeam = await resolvePlayerCareerTeam(supabase, trainer);
     if (existingCareerTeam?.competition_id) {
       await ensureStarterRoster(supabase, trainer.id, existingCareerTeam);
+      const { count: restoredCount, error: restoredCountError } = await supabase
+        .from("creatures")
+        .select("id", { count: "exact", head: true })
+        .eq("owner_trainer_id", trainer.id);
+      if (restoredCountError) throw restoredCountError;
+      if ((restoredCount ?? 0) < 26) {
+        throw new Error("Estamos concluindo seu elenco. Tente novamente em alguns instantes.");
+      }
       if (trainer.current_team_id !== existingCareerTeam.id) {
         const { error: relinkError } = await supabase
           .from("trainers")
@@ -632,6 +640,18 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
         .update({ owner_team_id: playerTeamId })
         .in("id", ids);
       if (linkErr) throw linkErr;
+    }
+
+    // Trava de ativação: o cliente não recebe uma carreira utilizável antes de
+    // o servidor confirmar os 26 jogadores e o vínculo com o clube.
+    const { count: readyRosterCount, error: readyRosterError } = await supabase
+      .from("creatures")
+      .select("id", { count: "exact", head: true })
+      .eq("owner_trainer_id", trainer.id)
+      .eq("owner_team_id", playerTeamId);
+    if (readyRosterError) throw readyRosterError;
+    if ((readyRosterCount ?? 0) !== 26) {
+      throw new Error("A criação do elenco não foi concluída. Tente novamente para finalizar seu clube.");
     }
 
     // As construções pertencem ao treinador.
