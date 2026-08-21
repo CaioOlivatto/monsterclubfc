@@ -3,7 +3,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { getMarket, buyCreature, sellCreature } from "@/lib/market.functions";
+import { getMarketWithSession, buyCreatureWithSession, sellCreatureWithSession } from "@/lib/market.functions";
+import { supabase } from "@/integrations/supabase/client";
+import { GameLogo } from "@/components/GameLogo";
+import { TeamCrest } from "@/components/TeamCrest";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Coins, Store, Users, Star, Sparkles } from "lucide-react";
+import { ArrowLeft, Coins, Store, Users, Star, Sparkles, Gem } from "lucide-react";
 import { StarRating, overallToStars, halfStarsToStars } from "@/components/StarRating";
 
 export const Route = createFileRoute("/_authenticated/market")({
@@ -70,14 +73,20 @@ function Stars({ overall }: { overall: number }) {
 
 function MarketPage() {
   const qc = useQueryClient();
-  const fetchMarket = useServerFn(getMarket);
-  const buyFn = useServerFn(buyCreature);
-  const sellFn = useServerFn(sellCreature);
+  const fetchMarket = useServerFn(getMarketWithSession);
+  const buyFn = useServerFn(buyCreatureWithSession);
+  const sellFn = useServerFn(sellCreatureWithSession);
 
-  const { data, isLoading } = useQuery({
+  const getAccessToken = async () => {
+    const { data, error } = await supabase.auth.getSession();
+    if (error || !data.session?.access_token) throw new Error("Sua sessão expirou. Entre novamente para continuar.");
+    return data.session.access_token;
+  };
+
+  const { data, isLoading, error: marketError, refetch } = useQuery({
     queryKey: ["market"],
-    queryFn: () => fetchMarket(),
-    staleTime: 5 * 60_000,
+    queryFn: async () => fetchMarket({ data: { access_token: await getAccessToken() } }),
+    staleTime: 30_000,
   });
 
   const [tab, setTab] = useState<"buy" | "sell">("buy");
@@ -89,8 +98,8 @@ function MarketPage() {
   const [counter, setCounter] = useState<any | null>(null);
 
   const buyMut = useMutation({
-    mutationFn: (vars: { listing_id: string; accept_counter?: boolean }) =>
-      buyFn({ data: vars }),
+    mutationFn: async (vars: { listing_id: string; accept_counter?: boolean }) =>
+      buyFn({ data: { ...vars, access_token: await getAccessToken() } }),
     onSuccess: (res: any) => {
       if (res.refused) {
         if (res.counter_offer) {
@@ -142,7 +151,7 @@ function MarketPage() {
   });
 
   const sellMut = useMutation({
-    mutationFn: (creature_id: string) => sellFn({ data: { creature_id } }),
+    mutationFn: async (creature_id: string) => sellFn({ data: { creature_id, access_token: await getAccessToken() } }),
     onSuccess: (res) => {
       toast.success(`Vendido: ${res.sold}`, {
         description: `Você recebeu ${formatMoney(res.amount)}`,
@@ -188,9 +197,40 @@ function MarketPage() {
   }, [data, elementFilter, posFilter, sortBy, search]);
 
   return (
-    <div className="min-h-screen bg-background pb-8">
-      <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
+    <div className="min-h-screen bg-[#020617] pb-24 text-white">
+      <div className="fixed inset-0 -z-0 bg-[url('/assets/monster-stadium.webp')] bg-cover bg-center bg-fixed opacity-25" />
+      <div className="fixed inset-0 -z-0 bg-gradient-to-b from-[#020617] via-[#020617]/90 to-[#020617]/75" />
+      <header className="sticky top-0 z-20 border-b border-violet-500/35 bg-slate-950/90 shadow-[0_4px_24px_rgba(76,29,149,0.28)] backdrop-blur-md">
+        <div className="mx-auto flex max-w-5xl items-center gap-2 px-3 py-3 sm:px-4">
+          <GameLogo size="xs" className="shrink-0" />
+          <TeamCrest teamName={(data as any)?.trainer?.academyName ?? null} size="md" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] uppercase tracking-wider text-slate-400">Academia</p>
+            <h1 className="truncate text-base font-bold sm:text-lg">{(data as any)?.trainer?.academyName ?? "Mercado"}</h1>
+            <p className="truncate text-[11px] text-slate-400">{(data as any)?.trainer ? `${(data as any).trainer.name} · Nível ${(data as any).trainer.level}` : "Ofertas rotativas"}</p>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <div className="flex h-10 items-center gap-2 rounded-lg border border-violet-400/25 bg-slate-900/80 px-3 text-sm font-bold"><Gem className="h-4 w-4 fill-violet-400/25 text-violet-300" />{(data?.gems ?? 0).toLocaleString("pt-BR")}</div>
+            <div className="hidden h-10 items-center gap-2 rounded-lg border border-amber-400/25 bg-slate-900/80 px-3 text-sm font-bold sm:flex"><Coins className="h-4 w-4 text-amber-400" />{formatMoney(data?.money ?? 0)}</div>
+          </div>
+        </div>
+      </header>
+
+      <main className="relative z-10 mx-auto w-full max-w-5xl space-y-3 p-2.5 sm:space-y-4 sm:p-4">
+        {marketError && (
+          <Card className="border-red-500/50 bg-red-950/80 text-white">
+            <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-bold text-red-200">Não foi possível carregar o Mercado.</p>
+                <p className="text-xs text-red-100/80">{marketError instanceof Error ? marketError.message : "Falha inesperada ao consultar os dados."}</p>
+              </div>
+              <Button variant="outline" onClick={() => refetch()} className="border-red-300/40 bg-slate-950 text-white hover:bg-red-900">
+                Tentar novamente
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-violet-500/25 bg-slate-950/72 px-4 py-3 shadow-xl backdrop-blur-sm">
           <div className="flex items-center gap-3">
             <Button asChild size="icon" variant="ghost">
               <Link to="/dashboard">
@@ -198,21 +238,12 @@ function MarketPage() {
               </Link>
             </Button>
             <div>
-              <h1 className="text-lg font-bold leading-tight">Mercado</h1>
-              <p className="text-xs text-muted-foreground">Ofertas rotativas</p>
+              <h2 className="text-lg font-black leading-tight text-white">Mercado</h2>
+              <p className="text-xs text-slate-400">Ofertas rotativas e negociações</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 rounded-md border bg-card px-3 py-1.5">
-            <Coins className="h-4 w-4 text-amber-400" />
-            <span className="text-sm font-semibold">
-              {isLoading ? "…" : formatMoney(data?.money ?? 0)}
-            </span>
-          </div>
         </div>
-      </header>
-
-      <main className="mx-auto max-w-3xl space-y-4 px-4 py-4">
-        <Card>
+        <Card className="border-violet-400/30 bg-slate-950/85 text-white shadow-xl backdrop-blur-sm">
           <CardContent className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-muted-foreground" />
@@ -244,7 +275,7 @@ function MarketPage() {
           <Button
             variant={tab === "buy" ? "default" : "outline"}
             onClick={() => setTab("buy")}
-            className="h-11"
+            className="h-11 border border-violet-400/30 bg-violet-700 text-white hover:bg-violet-600"
           >
             <Store className="mr-2 h-4 w-4" />
             Comprar
@@ -252,7 +283,7 @@ function MarketPage() {
           <Button
             variant={tab === "sell" ? "default" : "outline"}
             onClick={() => setTab("sell")}
-            className="h-11"
+            className="h-11 border border-slate-600 bg-slate-900/90 text-slate-100 hover:bg-slate-800"
           >
             <Coins className="mr-2 h-4 w-4" />
             Vender
@@ -260,7 +291,7 @@ function MarketPage() {
         </div>
 
         {tab === "buy" && data?.premium_offer && (
-          <Card className="overflow-hidden border-amber-400/40 bg-gradient-to-br from-amber-500/15 via-card to-violet-500/10">
+          <Card className="overflow-hidden border-amber-400/40 bg-gradient-to-br from-amber-500/15 via-slate-950/95 to-violet-500/10 text-white shadow-xl">
             <CardHeader className="space-y-2 pb-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <Badge className="gap-1 bg-amber-400 text-amber-950 hover:bg-amber-400">
@@ -294,7 +325,7 @@ function MarketPage() {
         )}
 
         {tab === "buy" && data?.premium_offer_used && (
-          <Card className="border-dashed">
+          <Card className="border-dashed border-slate-600 bg-slate-950/85 text-slate-200">
             <CardContent className="flex items-center gap-2 py-3 text-sm text-muted-foreground">
               <Star className="h-4 w-4 text-amber-400" />
               Sua contratação premium única já foi utilizada.
@@ -302,19 +333,20 @@ function MarketPage() {
           </Card>
         )}
 
-        <Card>
+        <Card className="border-violet-400/30 bg-slate-950/85 text-white shadow-xl backdrop-blur-sm">
           <CardContent className="space-y-3 py-4">
             <Input
               placeholder="Buscar por nome..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              className="border-slate-600 bg-slate-900/90 text-white placeholder:text-slate-500"
             />
             <div className="grid grid-cols-3 gap-2">
               <Select value={elementFilter} onValueChange={setElementFilter}>
-                <SelectTrigger>
+                <SelectTrigger className="border-slate-600 bg-slate-900/90 text-white">
                   <SelectValue placeholder="Elemento" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="border-slate-700 bg-slate-950 text-white">
                   <SelectItem value="all">Todos elementos</SelectItem>
                   {Object.entries(ELEMENT_LABEL).map(([k, v]) => (
                     <SelectItem key={k} value={k}>
@@ -324,10 +356,10 @@ function MarketPage() {
                 </SelectContent>
               </Select>
               <Select value={posFilter} onValueChange={setPosFilter}>
-                <SelectTrigger>
+                <SelectTrigger className="border-slate-600 bg-slate-900/90 text-white">
                   <SelectValue placeholder="Posição" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="border-slate-700 bg-slate-950 text-white">
                   <SelectItem value="all">Todas posições</SelectItem>
                   <SelectItem value="Goleiro">Goleiro</SelectItem>
                   <SelectItem value="Zagueiro">Zagueiro</SelectItem>
@@ -336,10 +368,10 @@ function MarketPage() {
                 </SelectContent>
               </Select>
               <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger>
+                <SelectTrigger className="border-slate-600 bg-slate-900/90 text-white">
                   <SelectValue placeholder="Ordenar" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="border-slate-700 bg-slate-950 text-white">
                   <SelectItem value="price">Preço</SelectItem>
                   <SelectItem value="overall">Overall</SelectItem>
                   <SelectItem value="name">Nome</SelectItem>
@@ -353,7 +385,7 @@ function MarketPage() {
           <div className="space-y-3">
             {isLoading && <p className="text-sm text-muted-foreground">Carregando ofertas...</p>}
             {!isLoading && filteredListings.length === 0 && (
-              <Card>
+              <Card className="border-slate-700 bg-slate-950/85 text-slate-300">
                 <CardContent className="py-8 text-center text-sm text-muted-foreground">
                   Nenhuma oferta corresponde aos filtros.
                 </CardContent>
@@ -379,7 +411,7 @@ function MarketPage() {
                 ? "Sem $"
                 : "Comprar";
               return (
-                <Card key={l.id}>
+                <Card key={l.id} className="border-violet-400/25 bg-slate-950/90 text-white shadow-lg">
                   <CardContent className="space-y-2 py-3">
                     <div className="flex items-center gap-3">
                       <div className="flex-1 min-w-0">
@@ -445,7 +477,7 @@ function MarketPage() {
           <div className="space-y-3">
             {isLoading && <p className="text-sm text-muted-foreground">Carregando elenco...</p>}
             {!isLoading && filteredMine.length === 0 && (
-              <Card>
+              <Card className="border-slate-700 bg-slate-950/85 text-slate-300">
                 <CardContent className="py-8 text-center text-sm text-muted-foreground">
                   Nenhuma criatura corresponde aos filtros.
                 </CardContent>
@@ -455,7 +487,7 @@ function MarketPage() {
               const sellPrice = (c as any).sell_price ?? Math.round((c.market_value * 0.9) / 100) * 100;
               const canSell = (data?.roster_count ?? 0) > 11;
               return (
-                <Card key={c.id}>
+                <Card key={c.id} className="border-violet-400/25 bg-slate-950/90 text-white shadow-lg">
                   <CardContent className="flex items-center gap-3 py-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -506,7 +538,7 @@ function MarketPage() {
       </main>
 
       <Dialog open={!!counter} onOpenChange={(o) => !o && setCounter(null)}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm border-violet-400/30 bg-slate-950 text-white">
           <DialogHeader>
             <DialogTitle>{counter?.name}</DialogTitle>
             <DialogDescription>{counter?.message}</DialogDescription>

@@ -1,20 +1,49 @@
 import { createClient } from "@supabase/supabase-js";
 
+export const PUBLIC_SUPABASE_URL = "https://gwqvninbrmrsabuseqbx.supabase.co";
+export const PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_ycTtamLVwKvO3G89F5dAfw_W6ozxpo9";
+
+function normalizeAccessToken(accessToken: string) {
+  const token = accessToken.trim().replace(/^Bearer\s+/i, "");
+  if (token.split(".").length !== 3) throw new Error("Sua sessão expirou. Entre novamente.");
+  return token;
+}
+
 /**
  * O host publicado pode não encaminhar cookies/cabeçalhos de funções internas.
  * Para ações essenciais do jogo, validamos o JWT que o próprio cliente do
  * Supabase possui e criamos um cliente RLS equivalente à sessão do jogador.
  */
 export async function getDirectSession(accessToken: string) {
+  const token = normalizeAccessToken(accessToken);
+  const supabaseUrl = process.env.SUPABASE_URL || PUBLIC_SUPABASE_URL;
+  const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY || PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+  // Valide o JWT diretamente no Auth. Isto evita que clientes criados com as
+  // novas chaves opacas `sb_publishable_*` confundam a chave pública do projeto
+  // com o bearer token da sessão recém-criada.
+  const userResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    headers: {
+      apikey: publishableKey,
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!userResponse.ok) {
+    console.error(`[direct-session] Auth recusou a sessão (${userResponse.status}).`);
+    throw new Error("Sua sessão expirou. Entre novamente.");
+  }
+  const authenticatedUser = (await userResponse.json()) as { id?: unknown };
+  if (typeof authenticatedUser.id !== "string" || !authenticatedUser.id) {
+    throw new Error("Sua sessão expirou. Entre novamente.");
+  }
+
   const supabase = createClient(
-    "https://gwqvninbrmrsabuseqbx.supabase.co",
-    "sb_publishable_ycTtamLVwKvO3G89F5dAfw_W6ozxpo9",
+    supabaseUrl,
+    publishableKey,
     {
-      global: { headers: { Authorization: `Bearer ${accessToken}` } },
+      global: { headers: { Authorization: `Bearer ${token}` } },
       auth: { persistSession: false, autoRefreshToken: false },
     },
   );
-  const { data, error } = await supabase.auth.getUser(accessToken);
-  if (error || !data.user?.id) throw new Error("Sua sessão expirou. Entre novamente.");
-  return { supabase, userId: data.user.id };
+  return { supabase, userId: authenticatedUser.id };
 }

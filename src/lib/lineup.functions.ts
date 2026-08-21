@@ -148,15 +148,8 @@ const lineupSessionSchema = z.object({ access_token: z.string().min(20) });
 export const getMyLineupWithSession = createServerFn({ method: "POST" })
   .inputValidator((raw: unknown) => lineupSessionSchema.parse(raw))
   .handler(async ({ data }) => {
-    const { createClient } = await import("@supabase/supabase-js");
-    const supabase = createClient(
-      "https://gwqvninbrmrsabuseqbx.supabase.co",
-      "sb_publishable_ycTtamLVwKvO3G89F5dAfw_W6ozxpo9",
-      { global: { headers: { Authorization: `Bearer ${data.access_token}` } }, auth: { persistSession: false, autoRefreshToken: false } },
-    );
-    const { data: auth, error } = await supabase.auth.getUser(data.access_token);
-    if (error || !auth.user?.id) throw new Error("Sua sessão expirou. Entre novamente.");
-    return loadMyLineup(supabase, auth.user.id);
+    const { supabase, userId } = await getDirectSession(data.access_token);
+    return loadMyLineup(supabase, userId);
   });
 
 export const saveClubLineupPreset = createServerFn({ method: "POST" })

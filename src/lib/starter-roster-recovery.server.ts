@@ -39,13 +39,21 @@ export async function resolvePlayerCareerTeam(supabase: any, trainer: any): Prom
 export async function ensureStarterRoster(supabase: any, trainerId: string, team: PlayerCareerTeam | null) {
   if (!team?.starter_key || !getStarterTeam(team.starter_key)) return false;
 
-  const { count, error: countError } = await supabase
+  const { data: currentCreatures, error: countError } = await supabase
     .from("creatures")
-    .select("id", { count: "exact", head: true })
+    .select("id, owner_team_id")
     .eq("owner_trainer_id", trainerId);
   if (countError) throw countError;
-  const currentCount = count ?? 0;
-  if (currentCount >= 26) return false;
+  const currentCount = currentCreatures?.length ?? 0;
+  const unlinkedIds = (currentCreatures ?? [])
+    .filter((creature: any) => !creature.owner_team_id)
+    .map((creature: any) => creature.id);
+  if (unlinkedIds.length) {
+    const { error: linkError } = await supabase.from("creatures")
+      .update({ owner_team_id: team.id }).in("id", unlinkedIds);
+    if (linkError) throw linkError;
+  }
+  if (currentCount >= 26) return unlinkedIds.length > 0;
 
   const { loadBestiary } = await import("./bestiary.server");
   const bestiary = await loadBestiary(supabase);

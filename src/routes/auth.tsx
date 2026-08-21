@@ -69,18 +69,28 @@ function AuthPage() {
     }
     setMessage(null);
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    setLoading(false);
     if (error) {
+      setLoading(false);
       const text = formatAuthError(error.message);
       setMessage({ type: "error", text });
       toast.error(text);
       return;
     }
+    if (!data.session?.access_token) {
+      setLoading(false);
+      setMessage({ type: "error", text: "Não foi possível validar sua sessão. Tente novamente." });
+      return;
+    }
+    // A sessão persistida pelo Supabase é a fonte única de autenticação. As
+    // funções do jogo recebem este JWT automaticamente e o validam no Auth.
+    // Não duplicamos a sessão em cookie do host, pois localhost e Lovable têm
+    // comportamentos de proxy diferentes.
     setMessage({ type: "success", text: "Login feito. Carregando sua academia..." });
+    setLoading(false);
     nav({ to: "/", replace: true });
   }
 
@@ -92,21 +102,32 @@ function AuthPage() {
     }
     setMessage(null);
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { emailRedirectTo: window.location.origin },
     });
-    setLoading(false);
     if (error) {
+      setLoading(false);
       const text = formatAuthError(error.message);
       setMessage({ type: "error", text });
       toast.error(text);
       return;
     }
+    if (!data.session?.access_token) {
+      setLoading(false);
+      const alreadyRegistered = data.user?.identities?.length === 0;
+      const text = alreadyRegistered
+        ? "Este email já possui uma conta. Use a aba Entrar."
+        : "Conta criada. Confirme seu email e depois entre no jogo.";
+      setMessage({ type: alreadyRegistered ? "error" : "success", text });
+      alreadyRegistered ? toast.error(text) : toast.success(text);
+      return;
+    }
     const text = "Conta criada. Carregando sua academia...";
     setMessage({ type: "success", text });
     toast.success(text);
+    setLoading(false);
     nav({ to: "/", replace: true });
   }
 

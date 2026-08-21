@@ -1,10 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { getDirectSession } from "./direct-session.server";
+import { z } from "zod";
 
-export const getFinances = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { supabase, userId } = context;
+async function loadFinances(supabase: any, userId: string) {
     const { data: trainer } = await supabase
       .from("trainers")
       .select("id, academies(money, gems, builders, roster_slots)")
@@ -28,11 +27,22 @@ export const getFinances = createServerFn({ method: "GET" })
       .filter((t: any) => t.transaction_type === "expense")
       .reduce((a: number, t: any) => a + Number(t.amount), 0);
 
-    return {
+  return {
       money: Number(academy?.money ?? 0),
       gems: academy?.gems ?? 0,
       builders: academy?.builders ?? 0,
       transactions: list,
       totals: { income, expense, net: income - expense },
-    };
+  };
+}
+
+export const getFinancesWithSession = createServerFn({ method: "POST" })
+  .validator((raw: unknown) => z.object({ access_token: z.string().min(20) }).parse(raw))
+  .handler(async ({ data }) => {
+    const { supabase, userId } = await getDirectSession(data.access_token);
+    return loadFinances(supabase, userId);
   });
+
+export const getFinances = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => loadFinances(context.supabase, context.userId));

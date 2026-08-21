@@ -76,3 +76,51 @@ export const supabase = new Proxy({} as ReturnType<typeof createSupabaseClient>,
     return Reflect.get(_supabase, prop, receiver);
   },
 });
+
+let authTransportInstalled = false;
+let currentAccessToken: string | null = null;
+
+/**
+ * Instala o transporte da sessao antes que qualquer rota protegida carregue.
+ *
+ * O Lovable pode manter um cookie antigo no proxy. Por isso toda chamada a uma
+ * Server Function do proprio jogo recebe o JWT atual do Supabase diretamente
+ * no cabecalho. A instalacao acontece neste modulo (importado pelas rotas), e
+ * nao em um useEffect tardio do layout.
+ */
+export function installServerFunctionAuthTransport() {
+  if (typeof window === 'undefined' || authTransportInstalled) return;
+  authTransportInstalled = true;
+
+  const originalFetch = window.fetch.bind(window);
+  const refreshToken = async () => {
+    const { data } = await supabase.auth.getSession();
+    currentAccessToken = data.session?.access_token ?? null;
+    return currentAccessToken;
+  };
+
+  void refreshToken();
+  supabase.auth.onAuthStateChange((_event, session) => {
+    currentAccessToken = session?.access_token ?? null;
+  });
+
+  window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const requestUrl = input instanceof Request ? input.url : String(input);
+    const url = new URL(requestUrl, window.location.origin);
+    if (url.origin !== window.location.origin) return originalFetch(input, init);
+
+    const token = currentAccessToken ?? await refreshToken();
+    if (!token) return originalFetch(input, init);
+
+    const headers = new Headers(input instanceof Request ? input.headers : undefined);
+    if (init?.headers) new Headers(init.headers).forEach((value, key) => headers.set(key, value));
+    headers.set('x-supabase-access-token', token);
+
+    if (input instanceof Request) {
+      return originalFetch(new Request(input, { ...init, headers }));
+    }
+    return originalFetch(input, { ...init, headers });
+  }) as typeof window.fetch;
+}
+
+installServerFunctionAuthTransport();

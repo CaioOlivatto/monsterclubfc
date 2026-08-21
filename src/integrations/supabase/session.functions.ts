@@ -1,11 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
-import { setCookie } from "@tanstack/react-start/server";
-import { createClient } from "@supabase/supabase-js";
+import { getRequest, setCookie } from "@tanstack/react-start/server";
 import { z } from "zod";
-
-const PUBLIC_SUPABASE_URL = "https://gwqvninbrmrsabuseqbx.supabase.co";
-const PUBLIC_SUPABASE_PUBLISHABLE_KEY =
-  "sb_publishable_ycTtamLVwKvO3G89F5dAfw_W6ozxpo9";
+import { getDirectSession } from "@/lib/direct-session.server";
 
 export const GAME_SESSION_COOKIE = "monster_club_session";
 
@@ -21,28 +17,14 @@ const sessionSchema = z.object({
 export const syncServerSession = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => sessionSchema.parse(input))
   .handler(async ({ data }) => {
-    const supabase = createClient(
-      PUBLIC_SUPABASE_URL,
-      PUBLIC_SUPABASE_PUBLISHABLE_KEY,
-      {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-        },
-      },
-    );
+    await getDirectSession(data.accessToken);
 
-    const { data: authData, error } = await supabase.auth.getUser(
-      data.accessToken,
-    );
-    if (error || !authData.user?.id) {
-      throw new Error("Sua sessão expirou. Entre novamente para continuar.");
-    }
-
+    const request = getRequest();
+    const isHttps = new URL(request.url).protocol === "https:";
     setCookie(GAME_SESSION_COOKIE, data.accessToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: "strict",
+      secure: isHttps,
+      sameSite: "lax",
       path: "/",
       maxAge: 50 * 60,
     });

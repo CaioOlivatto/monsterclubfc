@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { getFinances } from "@/lib/finances.functions";
+import { getFinancesWithSession } from "@/lib/finances.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Coins, Gem, TrendingDown, TrendingUp, Wallet } from "lucide-react";
@@ -28,10 +29,14 @@ function money(n: number) {
 }
 
 function FinancesPage() {
-  const fetchFn = useServerFn(getFinances);
+  const fetchFn = useServerFn(getFinancesWithSession);
   const { data, isLoading } = useQuery({
     queryKey: ["finances"],
-    queryFn: () => fetchFn({}),
+    queryFn: async () => {
+      const { data: sessionData, error } = await supabase.auth.getSession();
+      if (error || !sessionData.session?.access_token) throw new Error("Sua sessão expirou. Entre novamente.");
+      return fetchFn({ data: { access_token: sessionData.session.access_token } });
+    },
   });
 
   if (isLoading || !data) {

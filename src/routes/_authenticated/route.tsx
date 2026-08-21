@@ -1,8 +1,7 @@
 import { createFileRoute, Outlet, redirect, useLocation, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { syncServerSession } from "@/integrations/supabase/session.functions";
 import { repairCurrentCareerWithSession } from "@/lib/creatures.functions";
 import { BottomNav } from "@/components/BottomNav";
 import { GameLogo } from "@/components/GameLogo";
@@ -29,77 +28,54 @@ export const Route = createFileRoute("/_authenticated")({
 function AuthenticatedLayout() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const syncSession = useServerFn(syncServerSession);
   const repairCareer = useServerFn(repairCurrentCareerWithSession);
   const [sessionReady, setSessionReady] = useState(false);
-  const accessTokenRef = useRef<string | null>(null);
+  const [preparationFailed, setPreparationFailed] = useState(false);
+  const [preparationAttempt, setPreparationAttempt] = useState(0);
 
-  // Correção global para o host: toda server function do jogo (Mercado,
-  // Construções, Liga, Ranking, etc.) recebe o JWT atual diretamente. Isso
-  // evita que cada página dependa de cookies que o proxy do Lovable pode
-  // reaproveitar de uma sessão antiga. Chamadas ao Supabase continuam indo
-  // direto ao domínio do Supabase e não são alteradas.
-  useEffect(() => {
-    const originalFetch = window.fetch.bind(window);
-    const addCurrentSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      accessTokenRef.current = data.session?.access_token ?? null;
-    };
-    void addCurrentSession();
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      accessTokenRef.current = session?.access_token ?? null;
-    });
-
-    window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-      const requestUrl = input instanceof Request ? input.url : String(input);
-      const url = new URL(requestUrl, window.location.origin);
-      const token = accessTokenRef.current;
-      if (url.origin !== window.location.origin || !token) {
-        return originalFetch(input, init);
-      }
-
-      const headers = new Headers(input instanceof Request ? input.headers : undefined);
-      if (init?.headers) new Headers(init.headers).forEach((value, key) => headers.set(key, value));
-      if (!headers.has("x-supabase-access-token")) headers.set("x-supabase-access-token", token);
-
-      if (input instanceof Request) {
-        return originalFetch(new Request(input, { ...init, headers }));
-      }
-      return originalFetch(input, { ...init, headers });
-    }) as typeof window.fetch;
-
-    return () => {
-      listener.subscription.unsubscribe();
-      window.fetch = originalFetch;
-    };
-  }, []);
-
-  // Todas as telas protegidas usam o mesmo JWT do navegador. Só liberamos o
-  // conteúdo após gravá-lo na sessão HttpOnly do jogo; isso elimina a corrida
-  // em que painel, elenco e escalação podiam consultar usuários diferentes.
+  // O Supabase já gravou a sessão no navegador no instante em que o login
+  // terminou. Não bloqueamos a entrada do jogo aguardando um cookie do host:
+  // localhost e Lovable tratam cookies de formas diferentes. Cada função que
+  // toca no banco valida o JWT diretamente.
   useEffect(() => {
     let active = true;
     async function prepareSession() {
+      setPreparationFailed(false);
       const { data, error } = await supabase.auth.getSession();
       if (error || !data.session?.access_token) {
         navigate({ to: "/auth", replace: true });
         return;
       }
-      try {
-        await syncSession({ data: { accessToken: data.session.access_token } });
-        await repairCareer({ data: { access_token: data.session.access_token } });
-        if (active) setSessionReady(true);
-      } catch {
-        if (active) navigate({ to: "/auth", replace: true });
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          await repairCareer({ data: { access_token: data.session.access_token } });
+          if (active) setSessionReady(true);
+          return;
+        } catch (error) {
+          console.error(`[career-gate:${attempt + 1}]`, error);
+          if (attempt < 2) await new Promise((resolve) => window.setTimeout(resolve, 400 * (attempt + 1)));
+        }
       }
+      if (active) setPreparationFailed(true);
     }
     void prepareSession();
     return () => { active = false; };
-  }, [navigate, repairCareer, syncSession]);
+  }, [navigate, preparationAttempt, repairCareer]);
 
   if (!sessionReady) {
-    return <div className="flex min-h-screen items-center justify-center bg-slate-950 text-sm text-slate-300">Preparando sua academia...</div>;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 text-slate-200">
+        <div className="w-full max-w-sm rounded-2xl border border-violet-500/30 bg-slate-900/90 p-6 text-center shadow-2xl">
+          <p className="font-semibold">{preparationFailed ? "Vamos concluir a preparação" : "Preparando sua academia..."}</p>
+          <p className="mt-2 text-sm text-slate-400">Seu progresso está preservado e o jogo só abrirá quando toda a carreira estiver pronta.</p>
+          {preparationFailed && (
+            <button className="mt-4 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-500" onClick={() => setPreparationAttempt((value) => value + 1)}>
+              Continuar preparação
+            </button>
+          )}
+        </div>
+      </div>
+    );
   }
 
   const pageOwnsBranding = pathname === "/dashboard" || pathname === "/onboarding" || pathname === "/roster" || pathname === "/lineup" || pathname === "/buildings" || pathname.startsWith("/match/");

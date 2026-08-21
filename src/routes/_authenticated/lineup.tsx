@@ -151,6 +151,9 @@ function LineupPage() {
     },
     staleTime: 20_000,
   });
+  const dashboardAcademy = Array.isArray(dashboardData?.academy)
+    ? dashboardData.academy[0]
+    : dashboardData?.academy;
   const { data: upcomingMatch } = useQuery<OfficialMatchContext | null>({
     queryKey: ["upcoming-official-match", search.competition ?? "auto"],
     queryFn: async () => {
@@ -594,15 +597,15 @@ function LineupPage() {
       <header className="relative z-10 border-b border-violet-500/35 bg-slate-950/90 shadow-[0_4px_24px_rgba(76,29,149,0.28)] backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center gap-2 px-3 py-3 sm:px-4">
           <GameLogo size="xs" className="shrink-0" />
-          <TeamCrest teamName={dashboardData?.academy ? dashboardData.trainer.academy_name : null} size="md" />
+          <TeamCrest teamName={dashboardData?.trainer?.academy_name ?? null} size="md" />
           <div className="min-w-0 flex-1">
             <p className="text-[10px] uppercase tracking-wider text-slate-400">Preparação da partida</p>
             <h1 className="truncate text-base font-bold sm:text-lg">Escalação</h1>
             <p className="truncate text-[11px] text-slate-400">{dashboardData?.trainer?.academy_name ?? "Meu clube"} · Nível {dashboardData?.trainer?.level ?? 0}</p>
           </div>
           <div className="ml-auto hidden items-center gap-2 sm:flex">
-            <div className="flex h-9 items-center gap-2 rounded-lg border border-violet-400/25 bg-slate-900/80 px-3 text-sm font-bold">💎 {(dashboardData?.academy?.gems ?? 0).toLocaleString("pt-BR")}</div>
-            <div className="flex h-9 items-center gap-2 rounded-lg border border-amber-400/25 bg-slate-900/80 px-3 text-sm font-bold">🪙 {(dashboardData?.academy?.money ?? 0).toLocaleString("pt-BR")}</div>
+            <div className="flex h-9 items-center gap-2 rounded-lg border border-violet-400/25 bg-slate-900/80 px-3 text-sm font-bold">💎 {(dashboardAcademy?.gems ?? 0).toLocaleString("pt-BR")}</div>
+            <div className="flex h-9 items-center gap-2 rounded-lg border border-amber-400/25 bg-slate-900/80 px-3 text-sm font-bold">🪙 {(dashboardAcademy?.money ?? 0).toLocaleString("pt-BR")}</div>
           </div>
         </div>
       </header>

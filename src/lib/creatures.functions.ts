@@ -15,6 +15,8 @@ import { generateSchedule } from "./league.server";
 import { getNextOfficialMatchForTrainer } from "./official-match.server";
 import { buildConfidence } from "./career.functions";
 import { divisionalMatchSalary, totalMaintenancePerMatch, type Division } from "./economy";
+import { buildSlots, type SlotRole } from "./lineup.server";
+import { getDirectSession } from "./direct-session.server";
 
 
 // ---------- gerador de criatura inicial ----------
@@ -84,6 +86,60 @@ function genCreature(trainerId: string) {
     energy: 100,
     market_value,
   };
+}
+
+function starterRole(position: string | null | undefined): SlotRole {
+  if (position === "Goleiro") return "GOL";
+  if (position === "Zagueiro") return "DEF";
+  if (position === "Atacante") return "ATA";
+  return "MEI";
+}
+
+function buildInitialLineup(creatures: any[]) {
+  const remaining = [...creatures].sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0));
+  const take = (role: SlotRole) => {
+    const preferred = remaining.findIndex((creature) => starterRole(creature.suggested_position) === role);
+    return remaining.splice(preferred >= 0 ? preferred : 0, 1)[0] ?? null;
+  };
+  const starters = buildSlots("4-4-2").map((slot) => ({
+    slot: slot.index,
+    role: slot.role,
+    creature_id: take(slot.role)?.id ?? null,
+  }));
+  const bench = remaining.slice(0, 7).map((creature) => creature.id);
+  if (starters.some((slot) => !slot.creature_id) || bench.length !== 7) {
+    throw new Error("Nao foi possivel montar a escalacao inicial completa.");
+  }
+  return { starters, bench };
+}
+
+async function activateCareer(
+  supabase: any,
+  trainerId: string,
+  team: { id: string; name: string; competition_id: string | null },
+) {
+  if (!team.competition_id) throw new Error("O campeonato inicial ainda nao foi criado.");
+  const [{ data: competition, error: competitionError }, { data: creatures, error: creaturesError }] = await Promise.all([
+    supabase.from("competitions").select("season_id").eq("id", team.competition_id).single(),
+    supabase.from("creatures").select("id, suggested_position, overall")
+      .eq("owner_trainer_id", trainerId).eq("owner_team_id", team.id),
+  ]);
+  if (competitionError) throw competitionError;
+  if (creaturesError) throw creaturesError;
+  if ((creatures?.length ?? 0) !== 26) {
+    throw new Error(`Elenco incompleto: esperado 26, encontrado ${creatures?.length ?? 0}.`);
+  }
+  const lineup = buildInitialLineup(creatures ?? []);
+  const { data, error } = await supabase.rpc("activate_starter_career", {
+    p_team_id: team.id,
+    p_season_id: competition.season_id,
+    p_team_name: team.name,
+    p_starters: lineup.starters,
+    p_bench: lineup.bench,
+  });
+  if (error) throw error;
+  if (!data?.ready) throw new Error("A carreira nao passou pela validacao final.");
+  return data;
 }
 
 // ---------- server functions ----------
@@ -331,63 +387,14 @@ const createSchema = z.object({
 });
 
 async function createOnboardingSupabase(accessToken: string) {
-  const { createClient } = await import("@supabase/supabase-js");
-  const supabase = createClient(
-    "https://gwqvninbrmrsabuseqbx.supabase.co",
-    "sb_publishable_ycTtamLVwKvO3G89F5dAfw_W6ozxpo9",
-    {
-      global: { headers: { Authorization: `Bearer ${accessToken}` } },
-      auth: { persistSession: false, autoRefreshToken: false },
-    },
-  );
-  const { data, error } = await supabase.auth.getUser(accessToken);
-  if (error || !data.user?.id) {
-    throw new Error("Sua sessão expirou. Entre novamente para iniciar sua carreira.");
-  }
-  return { supabase, userId: data.user.id };
-}
-
-// Recursos mínimos de uma academia. Esta função é idempotente para corrigir
-// contas cuja criação foi interrompida entre o treinador e os recursos iniciais.
-async function ensureTrainerFoundation(supabase: any, trainerId: string) {
-  const { data: academy, error: academyError } = await supabase
-    .from("academies")
-    .select("id")
-    .eq("trainer_id", trainerId)
-    .maybeSingle();
-  if (academyError) throw academyError;
-  if (!academy) {
-    const { error } = await supabase.from("academies").insert({
-      trainer_id: trainerId,
-      money: 400000,
-      gems: 50,
-      builders: 1,
-      roster_slots: 26,
-    });
-    if (error) throw error;
-  }
-
-  const { data: buildings, error: buildingsError } = await supabase
-    .from("buildings")
-    .select("building_type")
-    .eq("trainer_id", trainerId);
-  if (buildingsError) throw buildingsError;
-  const existingTypes = new Set((buildings ?? []).map((building: any) => building.building_type));
-  const requiredTypes = ["estadio", "ct_treino", "centro_medico"];
-  const missingBuildings = requiredTypes
-    .filter((building_type) => !existingTypes.has(building_type))
-    .map((building_type) => ({ trainer_id: trainerId, building_type, level: 1 }));
-  if (missingBuildings.length) {
-    const { error } = await supabase.from("buildings").insert(missingBuildings as any);
-    if (error) throw error;
-  }
+  return getDirectSession(accessToken);
 }
 
 const repairCareerSchema = z.object({ access_token: z.string().min(20) });
 
 // Ponto único de recuperação usado logo após o login. Ele dá uma garantia
-// concreta para qualquer tela: academia existe e, se o clube já foi escolhido,
-// há 26 jogadores antes de o jogo liberar o painel.
+// concreta para qualquer tela: se o clube já foi escolhido, toda a carreira
+// (academia, recursos, elenco, escalação, temporada e construções) está ativa.
 export const repairCurrentCareerWithSession = createServerFn({ method: "POST" })
   .inputValidator((raw: unknown) => repairCareerSchema.parse(raw))
   .handler(async ({ data }) => {
@@ -400,7 +407,6 @@ export const repairCurrentCareerWithSession = createServerFn({ method: "POST" })
     if (error) throw error;
     if (!trainer) return { state: "needs_trainer" as const, rosterCount: 0 };
 
-    await ensureTrainerFoundation(supabase, trainer.id);
     const team = await resolvePlayerCareerTeam(supabase, trainer);
     if (!team) return { state: "needs_team" as const, rosterCount: 0 };
     await ensureStarterRoster(supabase, trainer.id, team);
@@ -411,6 +417,7 @@ export const repairCurrentCareerWithSession = createServerFn({ method: "POST" })
       .eq("owner_trainer_id", trainer.id);
     if (countError) throw countError;
     if ((count ?? 0) < 26) throw new Error("Não foi possível concluir o elenco inicial. Tente entrar novamente.");
+    await activateCareer(supabase, trainer.id, team);
     return { state: "ready" as const, rosterCount: count ?? 0 };
   });
 
@@ -428,7 +435,6 @@ export const createInitialTrainer = createServerFn({ method: "POST" })
         .maybeSingle(),
     ]);
     if (existing) {
-      await ensureTrainerFoundation(supabase, existing.id);
       return { trainerId: existing.id };
     }
 
@@ -444,14 +450,8 @@ export const createInitialTrainer = createServerFn({ method: "POST" })
       .single();
     if (tErr) throw tErr;
 
-    await ensureTrainerFoundation(supabase, trainer.id);
-    const { error: itemsError } = await supabase.from("items").insert([
-      { trainer_id: trainer.id, item_key: "potion_individual", quantity: 3 },
-      { trainer_id: trainer.id, item_key: "potion_collective", quantity: 1 },
-    ]);
-    if (itemsError) throw itemsError;
-
-    // Elenco será criado quando o treinador escolher um dos 6 times iniciais.
+    // Nenhum recurso nasce parcialmente aqui. A ativação transacional ocorre
+    // somente quando o treinador confirma um dos seis clubes iniciais.
     return { trainerId: trainer.id };
   });
 
@@ -571,13 +571,7 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
       if ((restoredCount ?? 0) < 26) {
         throw new Error("Estamos concluindo seu elenco. Tente novamente em alguns instantes.");
       }
-      if (trainer.current_team_id !== existingCareerTeam.id) {
-        const { error: relinkError } = await supabase
-          .from("trainers")
-          .update({ current_team_id: existingCareerTeam.id, status: "employed" })
-          .eq("id", trainer.id);
-        if (relinkError) throw relinkError;
-      }
+      await activateCareer(supabase, trainer.id, existingCareerTeam);
       return {
         trainerId: trainer.id,
         competitionId: existingCareerTeam.competition_id,
@@ -609,7 +603,7 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
       if (!existingTeamId || !existingCompetitionId) {
         const { data: playerTeam } = await supabase
           .from("teams")
-          .select("id, competition_id")
+          .select("id, name, competition_id, starter_key")
           .eq("trainer_id", trainer.id)
           .eq("is_player", true)
           .maybeSingle();
@@ -618,13 +612,14 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
       }
 
       if (existingTeamId && existingCompetitionId) {
-        if (trainer.current_team_id !== existingTeamId) {
-          const { error: relinkError } = await supabase
-            .from("trainers")
-            .update({ current_team_id: existingTeamId, status: "employed" })
-            .eq("id", trainer.id);
-          if (relinkError) throw relinkError;
-        }
+        const { data: resumableTeam, error: resumableTeamError } = await supabase
+          .from("teams")
+          .select("id, name, competition_id, starter_key")
+          .eq("id", existingTeamId)
+          .single();
+        if (resumableTeamError) throw resumableTeamError;
+        await ensureStarterRoster(supabase, trainer.id, resumableTeam);
+        await activateCareer(supabase, trainer.id, resumableTeam);
         return {
           trainerId: trainer.id,
           competitionId: existingCompetitionId,
@@ -708,31 +703,13 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
       throw new Error("A criação do elenco não foi concluída. Tente novamente para finalizar seu clube.");
     }
 
-    // As construções pertencem ao treinador.
-    const { error: buildingLinkErr } = await supabase
-      .from("buildings")
-      .update({ trainer_id: trainer.id } as any)
-      .eq("trainer_id", trainer.id);
-    if (buildingLinkErr) throw buildingLinkErr;
-
-    // Fonte canônica usada por carreira, partidas, confiança e construções.
-    // O time já era marcado como pertencente ao treinador pelo seeder, mas o
-    // vínculo direto no treinador também precisa existir desde o onboarding.
-    const { error: trainerTeamErr } = await supabase
-      .from("trainers")
-      .update({ current_team_id: playerTeamId, status: "employed" })
-      .eq("id", trainer.id);
-    if (trainerTeamErr) throw trainerTeamErr;
-
-    const { error: careerStartErr } = await supabase.from("trainer_career").insert({
-      trainer_id: trainer.id,
-      team_id: playerTeamId,
-      team_name: teamDef.name,
-      division: "bronze",
-      season_start: 1,
-      event: "arrived",
+    // Ultimo passo e uma unica transacao no banco. Clube, recursos,
+    // construcoes, escalacao e carreira so ficam ativos juntos.
+    await activateCareer(supabase, trainer.id, {
+      id: playerTeamId,
+      name: teamDef.name,
+      competition_id: competitionsByDiv.bronze,
     });
-    if (careerStartErr) throw careerStartErr;
 
     return {
       trainerId: trainer.id,
