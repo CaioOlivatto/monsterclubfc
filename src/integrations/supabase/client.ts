@@ -73,9 +73,64 @@ let _supabase: ReturnType<typeof createSupabaseClient> | undefined;
 export const supabase = new Proxy({} as ReturnType<typeof createSupabaseClient>, {
   get(_, prop, receiver) {
     if (!_supabase) _supabase = createSupabaseClient();
-    return Reflect.get(_supabase, prop, receiver);
+    return Reflect.get(_supabase, prop, _supabase);
   },
 });
+
+let sessionRefreshPromise: Promise<string> | null = null;
+
+function sessionNeedsRefresh(expiresAt?: number | null) {
+  if (!expiresAt) return true;
+  return expiresAt * 1000 <= Date.now() + 90_000;
+}
+
+/**
+ * Entrega um JWT realmente utilizavel pelas funcoes do jogo.
+ *
+ * `getSession()` pode devolver por alguns instantes um token prestes a vencer.
+ * Isso era suficiente para liberar a tela, mas o Auth o recusava quando o
+ * jogador confirmava o time ou iniciava uma partida. A renovacao fica
+ * centralizada e deduplicada para todas as telas compartilharem a mesma sessao.
+ */
+export async function getValidAccessToken(options?: { forceRefresh?: boolean }) {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+
+  const session = data.session;
+  const shouldRefresh = options?.forceRefresh || !session || sessionNeedsRefresh(session.expires_at);
+  if (!shouldRefresh && session.access_token) return session.access_token;
+
+  if (!sessionRefreshPromise) {
+    sessionRefreshPromise = supabase.auth.refreshSession()
+      .then(({ data: refreshed, error: refreshError }) => {
+        if (refreshError) throw refreshError;
+        if (!refreshed.session?.access_token) {
+          throw new Error('Sua sessao expirou. Entre novamente.');
+        }
+        return refreshed.session.access_token;
+      })
+      .finally(() => {
+        sessionRefreshPromise = null;
+      });
+  }
+
+  return sessionRefreshPromise;
+}
+
+export function isExpiredSessionError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return /sess[aã]o expirou|invalid token|jwt expired|unauthorized/i.test(message);
+}
+
+/** Executa uma acao autenticada e, se o servidor rejeitar o JWT, renova uma vez. */
+export async function withValidAccessToken<T>(action: (accessToken: string) => Promise<T>) {
+  try {
+    return await action(await getValidAccessToken());
+  } catch (error) {
+    if (!isExpiredSessionError(error)) throw error;
+    return action(await getValidAccessToken({ forceRefresh: true }));
+  }
+}
 
 let authTransportInstalled = false;
 let currentAccessToken: string | null = null;
@@ -94,8 +149,11 @@ export function installServerFunctionAuthTransport() {
 
   const originalFetch = window.fetch.bind(window);
   const refreshToken = async () => {
-    const { data } = await supabase.auth.getSession();
-    currentAccessToken = data.session?.access_token ?? null;
+    try {
+      currentAccessToken = await getValidAccessToken();
+    } catch {
+      currentAccessToken = null;
+    }
     return currentAccessToken;
   };
 

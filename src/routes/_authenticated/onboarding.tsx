@@ -27,7 +27,7 @@ import { toast } from "sonner";
 import { Star, Shield, Swords, Scale, Trophy } from "lucide-react";
 import { TeamCrest } from "@/components/TeamCrest";
 import { GameLogo } from "@/components/GameLogo";
-import { supabase } from "@/integrations/supabase/client";
+import { withValidAccessToken } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/onboarding")({
   head: () => ({
@@ -165,30 +165,20 @@ function Onboarding() {
       // Lovable executa as Server Functions atrás de um proxy. Enviamos a
       // sessão explicitamente nesta ação crítica para a confirmação do time
       // não depender apenas do middleware global do navegador.
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-      if (!accessToken) {
-        throw new Error("Sua sessão expirou. Entre novamente para iniciar sua carreira.");
-      }
-      const authHeaders = {
-        Authorization: `Bearer ${accessToken}`,
-        "x-supabase-access-token": accessToken,
-      };
+      await withValidAccessToken(async (accessToken) => {
+        if (!trainer) {
+          await createFn({
+            data: {
+              trainer_name: trainerName.trim(),
+              academy_name: teamName,
+              access_token: accessToken,
+            },
+          });
+        }
 
-      if (!trainer) {
-        await createFn({
-          data: {
-            trainer_name: trainerName.trim(),
-            academy_name: teamName,
-            access_token: accessToken,
-          },
-          headers: authHeaders,
+        await choose({
+          data: { key: openKey, access_token: accessToken },
         });
-      }
-
-      await choose({
-        data: { key: openKey, access_token: accessToken },
-        headers: authHeaders,
       });
       setSetupProgress(100);
       setSetupStep("Tudo pronto! Entrando no clube...");
