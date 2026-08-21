@@ -417,6 +417,16 @@ export const repairCurrentCareerWithSession = createServerFn({ method: "POST" })
       .eq("owner_trainer_id", trainer.id);
     if (countError) throw countError;
     if ((count ?? 0) < 26) throw new Error("Não foi possível concluir o elenco inicial. Tente entrar novamente.");
+
+    // Uma carreira que já possui clube ativo e elenco completo não deve passar
+    // novamente pelo ritual de ativação. Carreiras criadas antes da migração
+    // atômica podem não possuir marcadores novos (como world_state.seeded), mas
+    // continuam perfeitamente válidas. Reexecutar a ativação nesse caso fazia
+    // o login ser bloqueado mesmo com todo o progresso do jogador preservado.
+    if (trainer.current_team_id === team.id) {
+      return { state: "ready" as const, rosterCount: count ?? 0 };
+    }
+
     await activateCareer(supabase, trainer.id, team);
     return { state: "ready" as const, rosterCount: count ?? 0 };
   });

@@ -30,8 +30,6 @@ function AuthenticatedLayout() {
   const navigate = useNavigate();
   const repairCareer = useServerFn(repairCurrentCareerWithSession);
   const [sessionReady, setSessionReady] = useState(false);
-  const [preparationFailed, setPreparationFailed] = useState(false);
-  const [preparationAttempt, setPreparationAttempt] = useState(0);
 
   // O Supabase já gravou a sessão no navegador no instante em que o login
   // terminou. Não bloqueamos a entrada do jogo aguardando um cookie do host:
@@ -40,39 +38,29 @@ function AuthenticatedLayout() {
   useEffect(() => {
     let active = true;
     async function prepareSession() {
-      setPreparationFailed(false);
       const { data, error } = await supabase.auth.getSession();
       if (error || !data.session?.access_token) {
         navigate({ to: "/auth", replace: true });
         return;
       }
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        try {
-          await repairCareer({ data: { access_token: data.session.access_token } });
-          if (active) setSessionReady(true);
-          return;
-        } catch (error) {
-          console.error(`[career-gate:${attempt + 1}]`, error);
-          if (attempt < 2) await new Promise((resolve) => window.setTimeout(resolve, 400 * (attempt + 1)));
-        }
-      }
-      if (active) setPreparationFailed(true);
+
+      // Sessão válida libera a navegação imediatamente. A recuperação de uma
+      // carreira interrompida é manutenção em segundo plano e jamais deve
+      // transformar uma falha secundária em bloqueio global do jogo.
+      if (active) setSessionReady(true);
+      void repairCareer({ data: { access_token: data.session.access_token } })
+        .catch((repairError) => console.error("[career-repair]", repairError));
     }
     void prepareSession();
     return () => { active = false; };
-  }, [navigate, preparationAttempt, repairCareer]);
+  }, [navigate, repairCareer]);
 
   if (!sessionReady) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 text-slate-200">
         <div className="w-full max-w-sm rounded-2xl border border-violet-500/30 bg-slate-900/90 p-6 text-center shadow-2xl">
-          <p className="font-semibold">{preparationFailed ? "Vamos concluir a preparação" : "Preparando sua academia..."}</p>
-          <p className="mt-2 text-sm text-slate-400">Seu progresso está preservado e o jogo só abrirá quando toda a carreira estiver pronta.</p>
-          {preparationFailed && (
-            <button className="mt-4 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-500" onClick={() => setPreparationAttempt((value) => value + 1)}>
-              Continuar preparação
-            </button>
-          )}
+          <p className="font-semibold">Entrando na sua academia...</p>
+          <p className="mt-2 text-sm text-slate-400">Validando sua sessão.</p>
         </div>
       </div>
     );

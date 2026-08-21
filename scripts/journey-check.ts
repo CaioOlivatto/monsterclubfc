@@ -64,10 +64,11 @@ for (const path of [
 }
 
 const gate = read("src/routes/_authenticated/route.tsx");
-const repairIndex = gate.indexOf("await repairCareer");
-const readyIndex = gate.indexOf("setSessionReady(true)", repairIndex);
-assert.ok(repairIndex >= 0 && readyIndex > repairIndex, "As telas abrem antes da carreira ser validada.");
-assert.ok(gate.includes("attempt < 3"), "A preparação não possui recuperação automática.");
+const readyIndex = gate.indexOf("setSessionReady(true)");
+const repairIndex = gate.indexOf("repairCareer", readyIndex);
+assert.ok(readyIndex >= 0 && repairIndex > readyIndex, "Uma manutenção secundária ainda bloqueia uma sessão válida.");
+assert.ok(gate.includes("[career-repair]"), "A recuperação automática da carreira deixou de ser monitorada.");
+assert.ok(!gate.includes("preparationFailed"), "A tela de preparação manual ainda pode bloquear o jogador.");
 
 const creatures = read("src/lib/creatures.functions.ts");
 const trainerCreation = creatures.slice(
