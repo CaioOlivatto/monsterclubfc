@@ -16,8 +16,13 @@ function normalizeAccessToken(accessToken: string) {
  */
 export async function getDirectSession(accessToken: string) {
   const token = normalizeAccessToken(accessToken);
-  const supabaseUrl = process.env.SUPABASE_URL || PUBLIC_SUPABASE_URL;
-  const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY || PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  // The game was migrated away from Lovable Cloud and has one canonical
+  // backend. Lovable can still inject SUPABASE_* values from its former
+  // managed project into the server runtime. Validating a gwqvn... JWT against
+  // that old project always looks like an expired session.
+  // These are browser-safe project coordinates; RLS remains authoritative.
+  const supabaseUrl = PUBLIC_SUPABASE_URL;
+  const publishableKey = PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   // Valide o JWT diretamente no Auth. Isto evita que clientes criados com as
   // novas chaves opacas `sb_publishable_*` confundam a chave pública do projeto

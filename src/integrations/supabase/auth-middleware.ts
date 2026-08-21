@@ -4,30 +4,8 @@ import { getCookie, getRequest } from '@tanstack/react-start/server'
 import { GAME_SESSION_COOKIE } from './session.functions'
 import { getDirectSession } from '@/lib/direct-session.server'
 
-// Browser-safe project credentials. These are intentionally limited to the
-// publishable key and are protected by the database RLS policies.
-const PUBLIC_SUPABASE_URL = 'https://gwqvninbrmrsabuseqbx.supabase.co';
-const PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_ycTtamLVwKvO3G89F5dAfw_W6ozxpo9';
-
-
-
 export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server(
   async ({ next, context }) => {
-    
-    const SUPABASE_URL = process.env.SUPABASE_URL || PUBLIC_SUPABASE_URL;
-    const SUPABASE_PUBLISHABLE_KEY =
-      process.env.SUPABASE_PUBLISHABLE_KEY || PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-    if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-      const missing = [
-        ...(!SUPABASE_URL ? ['SUPABASE_URL'] : []),
-        ...(!SUPABASE_PUBLISHABLE_KEY ? ['SUPABASE_PUBLISHABLE_KEY'] : []),
-      ];
-      const message = `Missing Supabase environment variable(s): ${missing.join(', ')}. Connect Supabase in Lovable Cloud.`;
-      console.error(`[Supabase] ${message}`);
-      throw new Error(message);
-    }
-    
     const request = getRequest();
 
     if (!request?.headers) {

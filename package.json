@@ -12,8 +12,9 @@
     "career:sim": "node --experimental-strip-types scripts/career-sim.ts",
     "monetization:check": "node --experimental-strip-types scripts/monetization-check.ts",
     "arena:check": "node --experimental-strip-types scripts/arena-check.ts",
+    "supabase:check": "node --experimental-strip-types scripts/canonical-supabase-check.ts",
     "journey:check": "node --experimental-strip-types scripts/journey-check.ts",
-    "quality:check": "npm.cmd run balance:check && npm.cmd run monetization:check && npm.cmd run arena:check && npm.cmd run journey:check && npm.cmd run build",
+    "quality:check": "npm.cmd run balance:check && npm.cmd run monetization:check && npm.cmd run arena:check && npm.cmd run supabase:check && npm.cmd run journey:check && npm.cmd run build",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write ."
