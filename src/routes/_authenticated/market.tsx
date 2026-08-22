@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
@@ -26,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ArrowLeft, Coins, Store, Users, Star, Sparkles, Gem } from "lucide-react";
+import { Coins, Store, Users, Star, Sparkles, Gem } from "lucide-react";
 import { StarRating, overallToStars, halfStarsToStars } from "@/components/StarRating";
 
 export const Route = createFileRoute("/_authenticated/market")({
@@ -54,6 +54,11 @@ const ELEMENT_COLORS: Record<string, string> = {
   ar: "bg-sky-400/15 text-sky-200 border-sky-400/30",
   gelo: "bg-cyan-300/15 text-cyan-100 border-cyan-300/30",
 };
+
+const POSITION_BADGE_CLASS =
+  "border-violet-400/60 bg-violet-500/20 text-violet-100";
+const AGE_BADGE_CLASS =
+  "border-slate-500/80 bg-slate-800/90 text-slate-100";
 
 const ELEMENT_LABEL: Record<string, string> = {
   fogo: "Fogo",
@@ -230,19 +235,6 @@ function MarketPage() {
             </CardContent>
           </Card>
         )}
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-violet-500/25 bg-slate-950/72 px-4 py-3 shadow-xl backdrop-blur-sm">
-          <div className="flex items-center gap-3">
-            <Button asChild size="icon" variant="ghost">
-              <Link to="/dashboard">
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
-            </Button>
-            <div>
-              <h2 className="text-lg font-black leading-tight text-white">Mercado</h2>
-              <p className="text-xs text-slate-400">Ofertas rotativas e negociações</p>
-            </div>
-          </div>
-        </div>
         <Card className="border-violet-400/30 bg-slate-950/85 text-white shadow-xl backdrop-blur-sm">
           <CardContent className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
             <div className="flex items-center gap-2">
@@ -308,8 +300,12 @@ function MarketPage() {
                 <Badge variant="outline" className={ELEMENT_COLORS[data.premium_offer.element]}>
                   {ELEMENT_LABEL[data.premium_offer.element]}
                 </Badge>
-                <Badge variant="outline">{data.premium_offer.suggested_position}</Badge>
-                <Badge variant="outline">18 anos</Badge>
+                <Badge variant="outline" className={POSITION_BADGE_CLASS}>
+                  {data.premium_offer.suggested_position}
+                </Badge>
+                <Badge variant="outline" className={AGE_BADGE_CLASS}>
+                  18 anos
+                </Badge>
                 <Stars overall={data.premium_offer.overall} />
                 <span className="text-sm font-bold">OVR {data.premium_offer.overall}</span>
               </div>
@@ -341,7 +337,7 @@ function MarketPage() {
               onChange={(e) => setSearch(e.target.value)}
               className="border-slate-600 bg-slate-900/90 text-white placeholder:text-slate-500"
             />
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <Select value={elementFilter} onValueChange={setElementFilter}>
                 <SelectTrigger className="border-slate-600 bg-slate-900/90 text-white">
                   <SelectValue placeholder="Elemento" />
@@ -425,8 +421,11 @@ function MarketPage() {
                           <Badge variant="outline" className={ELEMENT_COLORS[l.element]}>
                             {ELEMENT_LABEL[l.element]}
                           </Badge>
-                          <Badge variant="outline" className="text-xs">
+                          <Badge variant="outline" className={`text-xs ${POSITION_BADGE_CLASS}`}>
                             {l.suggested_position}
+                          </Badge>
+                          <Badge variant="outline" className={`text-xs ${AGE_BADGE_CLASS}`}>
+                            {l.age} anos
                           </Badge>
                         </div>
                         <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
@@ -500,8 +499,11 @@ function MarketPage() {
                         <Badge variant="outline" className={ELEMENT_COLORS[c.element]}>
                           {ELEMENT_LABEL[c.element]}
                         </Badge>
-                        <Badge variant="outline" className="text-xs">
+                        <Badge variant="outline" className={`text-xs ${POSITION_BADGE_CLASS}`}>
                           {c.suggested_position}
+                        </Badge>
+                        <Badge variant="outline" className={`text-xs ${AGE_BADGE_CLASS}`}>
+                          {c.age} anos
                         </Badge>
                       </div>
                       <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
