@@ -120,6 +120,61 @@ const AGE_PLAN: number[] = [
   ...Array(4).fill(30),
 ];
 
+export interface StarterRosterPreview {
+  name: string;
+  species: string;
+  epithet: string;
+  element: Element;
+  position: Position;
+  overall: number;
+  is_goalkeeper: boolean;
+  power_name: string;
+}
+
+const PREVIEW_SPECIES = [
+  "Humbaba", "Talos", "Cérbero", "Tarasca", "Troll", "Ciclope", "Minotauro",
+  "Golem", "Gnomo", "Saci", "Jack Frost", "Sereia", "Zhu Que", "Garuda",
+  "Thunderbird", "Vouivre", "Grifo", "Skoll", "Ifrit", "Ningyo", "Curupira",
+  "Leviatã", "Pégaso", "Kelpie", "Fênix", "Quimera",
+] as const;
+
+const PREVIEW_EPITHETS: Record<Element, readonly string[]> = {
+  fogo: ["da Pira", "das Cinzas", "do Estio", "do Crepúsculo"],
+  agua: ["das Marés", "do Recife", "das Profundezas", "da Nascente"],
+  terra: ["da Mata Fechada", "das Raízes", "do Barranco", "das Montanhas"],
+  ar: ["do Horizonte", "da Rajada", "das Alturas", "do Vendaval"],
+  gelo: ["do Degelo", "da Nevasca", "das Geleiras", "do Permafrost"],
+};
+
+const PREVIEW_OVERALL = [47, 29, 21, 44, 44, 37, 34, 27, 49, 33, 24, 23, 22, 50, 44, 39, 34, 30, 28, 23, 21, 20, 19, 17, 15, 12] as const;
+
+/**
+ * Prévia instantânea e determinística exibida antes da criação da carreira.
+ * Não acessa o banco: escolher um card nunca deve ficar bloqueado por rede.
+ */
+export function generateStarterRosterPreview(teamKey: StarterKey): StarterRosterPreview[] {
+  const team = getStarterTeam(teamKey);
+  if (!team) throw new Error("Time inicial inválido.");
+  const rng = mulberry32(hashSeed(`preview:${teamKey}`));
+
+  return ROSTER_PLAN.map((position, index) => {
+    const element = pickElementForTeam(team, rng);
+    const species = PREVIEW_SPECIES[index];
+    const epithets = PREVIEW_EPITHETS[element];
+    const epithet = epithets[Math.floor(rng() * epithets.length)];
+    return {
+      name: `${species} ${epithet}`,
+      species,
+      epithet,
+      element,
+      position,
+      overall: PREVIEW_OVERALL[index],
+      is_goalkeeper: position === "Goleiro",
+      power_name: position === "Goleiro" ? "Última muralha" : "Instinto elemental",
+    };
+  });
+}
+
 export function generateStarterRoster(teamKey: StarterKey, bestiary: LoadedBestiary): RolledCreature[] {
   const team = getStarterTeam(teamKey);
   if (!team) throw new Error("Time inicial inválido.");

@@ -14,8 +14,10 @@ import {
 import { stadiumCapacity, stadiumRevenueMultiplier } from "./buildings.server";
 import { buildAttendance, rosterMoraleAverage } from "./attendance";
 import { buildPlayerSideFromDb } from "./player-side.server";
+import { buildPersistentCpuSide } from "./cpu-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { awardTrainerXp, resetSeasonBreakdown } from "./trainer-xp.server";
+import { GEM_ECONOMY_CONFIG } from "./gem-economy";
 import {
   BALANCE_VERSION,
   MATCH_REVENUE,
@@ -343,7 +345,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
 
     const { data: teams } = await supabase
       .from("teams")
-      .select("id, name, is_player, cpu_strength, trainer_id")
+        .select("id, name, is_player, cpu_strength, trainer_id, division, starter_key")
       .in("id", [next.home_team_id, next.away_team_id]);
     const home = teams!.find((t: any) => t.id === next.home_team_id) as any;
     const away = teams!.find((t: any) => t.id === next.away_team_id) as any;
@@ -357,15 +359,8 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         playerSideRef.current = side;
         return side;
       }
-      const seed = hashSeed(team.id);
       const division = ((competition as any).division ?? "bronze") as DivisionSlug;
-      return generateCpuSideFor(
-        seed,
-        team.id,
-        team.name,
-        team.cpu_strength ?? (DIVISION_STRENGTH as any)[division],
-        bestiary,
-      );
+      return buildPersistentCpuSide(supabase, team, division, bestiary);
     }
     // Build both sides em paralelo — player usa DB, CPU é sync.
     const [homeSide, awaySide] = await Promise.all([buildSide(home), buildSide(away)]);
@@ -550,6 +545,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
                 salaries + maintenance,
                 rev.tv + rev.sponsor + rev.merch,
                 matchPrize,
+                division as EconDivision,
               )
             : 0;
 
@@ -1009,7 +1005,7 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
       .in("competition_id", compIds);
     const { data: teamsAll } = await supabase
       .from("teams")
-      .select("id, name, is_player, competition_id, division, color, colors")
+      .select("id, name, is_player, competition_id, division, color, colors, cpu_strength")
       .in("competition_id", compIds);
     const teamsById = new Map<string, any>((teamsAll ?? []).map((t: any) => [t.id, t]));
 
@@ -1083,7 +1079,7 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
         ? SEASON_POSITION_MULT[position - 1]
         : 0;
     const prize = Math.round(winPrize * posMult);
-    const championGems = playerIsChampion ? 50 : 0;
+    const championGems = playerIsChampion ? GEM_ECONOMY_CONFIG.championshipRewards[playerDiv] : 0;
 
     const playerMove = movement.get(playerTeam.id)!;
     const previousDivision = playerMove.fromDiv;
@@ -1112,11 +1108,27 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
     );
     await supabase
       .from("academies")
-      .update({
-        money: availableAfterPrize - eliteSeasonExpense,
-        gems: (acad?.gems ?? 0) + championGems,
-      })
+      .update({ money: availableAfterPrize - eliteSeasonExpense })
       .eq("trainer_id", trainer.id);
+
+    if (championGems > 0) {
+      const { error } = await supabase.rpc("award_season_gems_atomic", {
+        p_amount: championGems,
+        p_reason: "season_champion",
+        p_season_id: String(seasonId),
+        p_idempotency_key: `season:${seasonId}:champion:${trainer.id}`,
+      });
+      if (error) throw error;
+    }
+    if (promoted) {
+      const { error } = await supabase.rpc("award_season_gems_atomic", {
+        p_amount: GEM_ECONOMY_CONFIG.promotionReward,
+        p_reason: "division_promotion",
+        p_season_id: String(seasonId),
+        p_idempotency_key: `season:${seasonId}:promotion:${trainer.id}`,
+      });
+      if (error) throw error;
+    }
 
     // Mantém o campo legado sincronizado; a fonte canônica continua sendo o time atual.
     await supabase.from("trainers").update({ division: newDivision } as any).eq("id", (trainer as any).id);
@@ -1235,7 +1247,28 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
         .update({ competition_id: newCompId, division: div })
         .in("id", ids);
       if (error) throw error;
+
+      const cpuIds = ids.filter((teamId) => !teamsById.get(teamId)?.is_player);
+      if (cpuIds.length) {
+        const { error: cpuStrengthError } = await supabase
+          .from("teams")
+          .update({ cpu_strength: DIVISION_STRENGTH[div] })
+          .in("id", cpuIds);
+        if (cpuStrengthError) throw cpuStrengthError;
+      }
     }
+
+    const promotedCpuIds = [...movement.entries()]
+      .filter(([teamId, move]) => !teamsById.get(teamId)?.is_player && DIVISION_ORDER.indexOf(move.toDiv) > DIVISION_ORDER.indexOf(move.fromDiv))
+      .map(([teamId]) => teamId);
+    const relegatedCpuIds = [...movement.entries()]
+      .filter(([teamId, move]) => !teamsById.get(teamId)?.is_player && DIVISION_ORDER.indexOf(move.toDiv) < DIVISION_ORDER.indexOf(move.fromDiv))
+      .map(([teamId]) => teamId);
+    const { error: cpuEvolutionError } = await (supabase as any).rpc("evolve_cpu_rosters_after_transition", {
+      p_promoted_team_ids: promotedCpuIds,
+      p_relegated_team_ids: relegatedCpuIds,
+    });
+    if (cpuEvolutionError) throw cpuEvolutionError;
 
     // Gera standings zerados e novo calendário de 26 rodadas para cada divisão
     for (const div of DIVISION_ORDER) {
@@ -1332,6 +1365,7 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
       position,
       prize,
       championGems,
+      promotionGems: promoted ? GEM_ECONOMY_CONFIG.promotionReward : 0,
       salaries: 0,
       eliteSeasonExpense,
       previousDivision,

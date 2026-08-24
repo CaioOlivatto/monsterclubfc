@@ -122,7 +122,7 @@ const CHANCE_RATE = 0.09;       // taxa-base de criação de lance por minuto (n
 
 /** OVR médio de cada divisão — usado para normalizar a chance de lance por minuto. */
 const DIVISION_OVR: Record<Division, number> = {
-  bronze: 33, prata: 44, ouro: 55, diamante: 64, lendaria: 72,
+  bronze: 42, prata: 53, ouro: 64, diamante: 74, lendaria: 83,
 };
 
 /** OVR de referência do time. Usa a divisão quando conhecida; senão infere pelo attackAvg. */

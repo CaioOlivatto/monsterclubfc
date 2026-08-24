@@ -94,7 +94,7 @@ for (const division of DIVISION_ORDER) {
         seasonPoints += outcome === 0 ? 3 : outcome === 1 ? 1 : 0;
         const prize = MATCH_PRIZE[division][outcome];
         const awayBonus = !isHome && outcome === 0
-          ? computeAwayWinBonus(salaryPerMatch + maintenance, fixed, prize)
+          ? computeAwayWinBonus(salaryPerMatch + maintenance, fixed, prize, division)
           : 0;
         seasonNet += fixed + prize + (isHome ? gate : 0) + awayBonus - salaryPerMatch - maintenance;
       }

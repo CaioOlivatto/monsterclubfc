@@ -1,13 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CalendarDays, Check, Clock, Gem, Gift, Sparkles, Trophy } from "lucide-react";
+import { CalendarDays, Check, Clock, Gem, Gift, Sparkles, Trophy } from "lucide-react";
 import { toast } from "sonner";
 import { activateMonthlyClubWithGems, claimClubCalendarDay, claimClubTask, getMonthlyClubState } from "@/lib/club.functions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { GamePageShell } from "@/components/GamePageShell";
 
 export const Route = createFileRoute("/_authenticated/club")({ component: MonthlyClubPage });
 
@@ -42,13 +43,7 @@ function MonthlyClubPage() {
   if (isLoading || !data) return <div className="grid min-h-screen place-items-center text-muted-foreground">Carregando Clube Mensal...</div>;
   const daysLeft = data.active_until ? Math.max(0, Math.ceil((new Date(data.active_until).getTime() - Date.now()) / 86400000)) : 0;
 
-  return <div className="min-h-screen bg-background pb-10">
-    <header className="border-b bg-card/40"><div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-4">
-      <Button asChild variant="ghost" size="sm"><Link to="/dashboard"><ArrowLeft className="mr-2 h-4 w-4" />Voltar</Link></Button>
-      <div><h1 className="text-xl font-bold">Clube Mensal</h1><p className="text-xs text-muted-foreground">Assiduidade também vale benefícios</p></div>
-      <Badge className="ml-auto gap-1" variant="secondary"><Gem className="h-3 w-3" />{data.gems}</Badge>
-    </div></header>
-    <main className="mx-auto max-w-3xl space-y-4 p-4">
+  return <GamePageShell title="Clube Mensal" subtitle="Assiduidade também vale benefícios" gems={data.gems}>
       <Card className="overflow-hidden border-violet-400/40 bg-gradient-to-br from-violet-500/15 via-card to-cyan-500/10"><CardHeader><CardTitle className="flex items-center gap-2"><Sparkles className="text-violet-400" />Clube Monster</CardTitle></CardHeader><CardContent className="space-y-4">
         {data.active ? <div className="flex flex-wrap items-center justify-between gap-3"><div><Badge className="bg-emerald-600">Ativo</Badge><p className="mt-2 text-sm text-muted-foreground"><Clock className="mr-1 inline h-4 w-4" />{daysLeft} dias restantes</p></div><Button disabled>{data.real_price} · renovação automática em breve</Button></div> : <div className="space-y-3">
           <div className="grid gap-2 sm:grid-cols-2"><Button disabled>{data.real_price} · 30 dias · em breve</Button><Button variant="secondary" disabled={data.gems < data.gem_price || activateMutation.isPending} onClick={() => activateMutation.mutate()}><Gem className="mr-2 h-4 w-4" />Ativar por {data.gem_price}</Button></div>
@@ -64,9 +59,8 @@ function MonthlyClubPage() {
         <div className="grid gap-2 text-xs sm:grid-cols-3"><Badge variant="outline">{data.entitlements.scout_credits} olheiros</Badge><Badge variant="outline">{data.entitlements.shield_12h_credits} escudos de 12h</Badge><Badge variant="outline">{data.entitlements.training_rush_credits} acelerações</Badge></div>
       </CardContent></Card>}
 
-      <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><CalendarDays className="h-4 w-4" />Tarefas de hoje</CardTitle></CardHeader><CardContent className="space-y-3">{data.tasks.map((task) => <div key={task.key} className="flex items-center gap-3 rounded-md border p-3"><div className="min-w-0 flex-1"><div className="flex justify-between gap-2 text-sm"><span className="font-medium">{task.label}</span><span>{task.current}/{task.target}</span></div><Progress className="mt-2 h-1.5" value={(task.current / task.target) * 100} /></div><Button size="sm" disabled={!task.complete || task.claimed || claimMutation.isPending} onClick={() => claimMutation.mutate(task.key)}>{task.claimed ? "Resgatado" : `+${task.reward} 💎`}</Button></div>)}</CardContent></Card>
+      <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><CalendarDays className="h-4 w-4" />Missões semanais</CardTitle></CardHeader><CardContent className="space-y-3">{data.tasks.map((task) => <div key={task.key} className="flex flex-col gap-3 rounded-md border p-3 sm:flex-row sm:items-center"><div className="min-w-0 flex-1"><div className="flex justify-between gap-2 text-sm"><span className="font-medium">{task.label}</span><span>{task.current}/{task.target}</span></div><Progress className="mt-2 h-1.5" value={(task.current / task.target) * 100} /></div><Button size="sm" className="w-full sm:w-auto" disabled={!task.complete || task.claimed || claimMutation.isPending} onClick={() => claimMutation.mutate(task.key)}>{task.claimed ? "Resgatado" : `+${task.reward} 💎`}</Button></div>)}</CardContent></Card>
 
-      <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Trophy className="h-4 w-4" />Assiduidade semanal</CardTitle></CardHeader><CardContent className="space-y-3"><p className="text-sm text-muted-foreground">Resgate a tarefa de entrada em 5 dias diferentes. Membros também recebem um escudo de Arena de 12 horas.</p><Progress value={(data.weekly.current / data.weekly.target) * 100} /><div className="flex items-center justify-between"><span className="text-sm">{data.weekly.current}/{data.weekly.target} dias</span><Button disabled={!data.weekly.complete || data.weekly.claimed || claimMutation.isPending} onClick={() => claimMutation.mutate("weekly_bonus")}>{data.weekly.claimed ? "Resgatado" : `+${data.weekly.reward} 💎`}</Button></div></CardContent></Card>
-    </main>
-  </div>;
+      <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Trophy className="h-4 w-4" />Conclusão semanal</CardTitle></CardHeader><CardContent className="space-y-3"><p className="text-sm text-muted-foreground">Conclua todas as missões para receber o bônus. Nenhuma missão exige gasto de gemas ou dinheiro real.</p><Progress value={(data.weekly.current / data.weekly.target) * 100} /><div className="flex items-center justify-between"><span className="text-sm">{data.weekly.current}/{data.weekly.target} missões</span><Button disabled={!data.weekly.complete || data.weekly.claimed || claimMutation.isPending} onClick={() => claimMutation.mutate("weekly_bonus")}>{data.weekly.claimed ? "Resgatado" : `+${data.weekly.reward} 💎`}</Button></div></CardContent></Card>
+  </GamePageShell>;
 }

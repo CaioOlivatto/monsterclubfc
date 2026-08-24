@@ -421,16 +421,19 @@ function MatchPage() {
               <Button
                 size="sm"
                 variant={speed === 2 ? "default" : "outline"}
-                onClick={() => setSpeed(2)}
+                onClick={() => {
+                  if (data.speed?.paid_2x) setSpeed(2);
+                  else window.location.assign("/shop");
+                }}
               >
-                2x
+                {!data.speed?.paid_2x && <Lock className="mr-1 h-3 w-3" />} 2x
               </Button>
               <Button
                 size="sm"
                 variant={speed === 4 ? "default" : "outline"}
                 onClick={() => {
                   if (data.speed?.paid_4x) setSpeed(4);
-                  else setUnlockMode("4x");
+                  else window.location.assign("/shop");
                 }}
               >
                 {data.speed?.paid_4x ? (
@@ -448,7 +451,7 @@ function MatchPage() {
                     setSpeed(0);
                     setPlaying(true);
                   } else {
-                    setUnlockMode("instant");
+                    window.location.assign("/shop");
                   }
                 }}
               >

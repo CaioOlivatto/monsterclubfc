@@ -9,6 +9,7 @@ import {
   type PrognosticAnalysis,
 } from "./match-engine.server";
 import { buildPlayerSideFromDb, buildPlayerSideFromDraft } from "./player-side.server";
+import { buildPersistentCpuSide } from "./cpu-side.server";
 import { loadBestiary } from "./bestiary.server";
 import { stadiumCapacity } from "./buildings.server";
 import { buildAttendance, rosterMoraleAverage, type AttendanceInfo } from "./attendance";
@@ -126,9 +127,10 @@ async function loadLineupPrognostic(supabase: any, userId: string, data: z.infer
       playerIsHome = nextMatch.home_team_id === playerLeagueTeam.id;
       const oppId = playerIsHome ? nextMatch.away_team_id : nextMatch.home_team_id;
       const { data: opp } = await supabase
-        .from("teams").select("id, name, cpu_strength").eq("id", oppId).maybeSingle();
-      const strength = opp?.cpu_strength ?? DIVISION_STRENGTH[division];
-      opponentSide = generateCpuSideFor(hashSeed(oppId), oppId, opp?.name ?? "Adversário", strength, bestiary);
+        .from("teams").select("id, name, cpu_strength, division, starter_key").eq("id", oppId).maybeSingle();
+      opponentSide = opp
+        ? await buildPersistentCpuSide(supabase, opp, division, bestiary)
+        : generateCpuSideFor(hashSeed(oppId), oppId, "Adversário", DIVISION_STRENGTH[division], bestiary);
       opponentInfo = { name: opp?.name ?? "Adversário", is_next_official: true, round: nextMatch.round, is_home: playerIsHome };
     } else {
       const pool = (WORLD_TEAMS[division] ?? WORLD_TEAMS.bronze).filter((t) => t.name !== playerName);

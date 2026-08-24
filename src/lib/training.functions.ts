@@ -173,19 +173,13 @@ export const rushAttributeTraining = createServerFn({ method: "POST" })
       await sweepAttributeTrainings(supabase, trainer.id);
       return { spent: 0 };
     }
-    // Mesmo padrão dos demais temporizadores: 1 gema a cada 10 min restantes.
-    const { data: usedClubCredit, error: creditError } = await (supabase as any).rpc("consume_club_training_rush", { p_trainer: trainer.id });
-    if (creditError) throw creditError;
-    const cost = usedClubCredit ? 0 : Math.max(1, Math.ceil(remainingMs / (10 * 60 * 1000)));
-    if (trainer.gems < cost) throw new Error(`Você precisa de ${cost} 💎 para acelerar.`);
-
-    await supabase.from("academies").update({ gems: trainer.gems - cost }).eq("trainer_id", trainer.id);
-    await supabase
-      .from("creatures")
-      .update({ attr_training_completes_at: new Date().toISOString() })
-      .eq("id", c.id);
+    const { data: result, error } = await supabase.rpc("rush_timer_with_gems_atomic", {
+      p_kind: "training", p_creature: c.id,
+      p_idempotency_key: `training-rush:${c.id}:${c.attr_training_completes_at}`,
+    });
+    if (error) throw error;
     await sweepAttributeTrainings(supabase, trainer.id);
-    return { spent: cost };
+    return result;
   });
 
 /** Cancela o treino e devolve o XP e a energia consumidos. */

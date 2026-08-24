@@ -126,7 +126,7 @@ export const GEM_PACKAGES: GemPackage[] = [
   { id: "primeiro_reforco", name: "Primeiro Reforço", gems: 100, bonus: 0, price: "R$ 7,90", priceCents: 790 },
   { id: "saco", name: "Saco", gems: 400, bonus: 50, price: "R$ 24,90", priceCents: 2490, highlight: "Mais escolhido" },
   { id: "bau", name: "Baú", gems: 900, bonus: 150, price: "R$ 49,90", priceCents: 4990, highlight: "Melhor começo" },
-  { id: "cofre", name: "Cofre", gems: 2000, bonus: 500, price: "R$ 99,90", priceCents: 9990 },
+  { id: "cofre", name: "Cofre", gems: 1800, bonus: 400, price: "R$ 84,90", priceCents: 8490, highlight: "Pacote central" },
   { id: "tesouro", name: "Tesouro", gems: 4500, bonus: 1500, price: "R$ 199,90", priceCents: 19990, highlight: "Maior valor" },
 ];
 
@@ -150,6 +150,17 @@ export const SPEED_REAL_MONEY_PRODUCTS = {
   "4x": { priceCents: 1490, priceLabel: "R$ 14,90" },
   instant: { priceCents: 2990, priceLabel: "R$ 29,90" },
 } as const;
+
+// Alternativa conquistável dentro do jogo. O resultado da partida é sempre o
+// mesmo; estes desbloqueios alteram somente a velocidade de apresentação.
+export const SPEED_GEM_UNLOCKS = {
+  "2x": 100,
+  "4x": 300,
+  instant: 800,
+  bundle: 1050,
+} as const;
+
+export type SpeedUnlockMode = keyof typeof SPEED_GEM_UNLOCKS;
 
 // Conversão de gemas em dinheiro do jogo (§3.4).
 // Taxa BASE (referência 5ª Bronze). Multiplicador por divisão calibra o custo

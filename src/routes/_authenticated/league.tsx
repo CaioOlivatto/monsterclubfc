@@ -1,9 +1,9 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Trophy, Play, Calendar, ArrowUp, ArrowDown, Crown, Sparkles } from "lucide-react";
+import { Trophy, Play, Calendar, ArrowUp, ArrowDown, Crown, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { getLeague, startLeague, finishSeasonAndAdvance } from "@/lib/league.functions";
 import { recomputeWorldRanking } from "@/lib/ranking.functions";
+import { GamePageShell } from "@/components/GamePageShell";
 
 const DIV_LABEL: Record<string, string> = {
   lendaria: "1ª — Lendária",
@@ -86,17 +87,7 @@ function LeaguePage() {
   const comp = data?.competition;
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur">
-        <div className="mx-auto flex max-w-4xl items-center gap-2 p-3">
-          <Button variant="ghost" size="icon" asChild>
-            <Link to="/dashboard"><ArrowLeft className="h-5 w-5" /></Link>
-          </Button>
-          <h1 className="text-lg font-bold">Liga</h1>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-4xl space-y-4 p-4">
+    <GamePageShell title="Competições" subtitle="Classificação, calendário e evolução nas divisões" maxWidth="4xl">
         {!comp && (
           <Card>
             <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
@@ -125,10 +116,8 @@ function LeaguePage() {
           />
         )}
 
-      </main>
-
       <SeasonSummaryDialog summary={summary} onClose={() => setSummary(null)} />
-    </div>
+    </GamePageShell>
   );
 }
 

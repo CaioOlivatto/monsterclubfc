@@ -5,8 +5,9 @@ import { getFinancesWithSession } from "@/lib/finances.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Coins, Gem, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import { Coins, Gem, TrendingDown, TrendingUp } from "lucide-react";
 import { GameRecovery } from "@/components/GameRecovery";
+import { GamePageShell } from "@/components/GamePageShell";
 
 export const Route = createFileRoute("/_authenticated/finances")({
   head: () => ({
@@ -48,15 +49,7 @@ function FinancesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border/60 bg-card/40 backdrop-blur">
-        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-4">
-          <Wallet className="h-5 w-5 text-primary" />
-          <h1 className="text-xl font-bold">Finanças</h1>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-3xl space-y-4 p-4">
+    <GamePageShell title="Finanças" subtitle="Receitas, despesas e saúde financeira do clube" money={data.money} gems={data.gems}>
         <div className="grid gap-3 sm:grid-cols-3">
           <StatCard icon={<Coins className="h-4 w-4" />} label="Caixa" value={money(data.money)} />
           <StatCard
@@ -144,8 +137,7 @@ function FinancesPage() {
             })}
           </CardContent>
         </Card>
-      </main>
-    </div>
+    </GamePageShell>
   );
 }
 

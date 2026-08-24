@@ -6,28 +6,18 @@ import { GEM_PACKAGES } from "@/lib/shop.server";
 export const MONTHLY_CLUB_GEM_PRICE = 1050;
 export const MONTHLY_CLUB_REAL_PRICE = "R$ 29,90";
 
-const TASKS = [
-  { key: "check_in", label: "Entrar no jogo", target: 1, reward: 2 },
-  { key: "play_1", label: "Jogar 1 partida", target: 1, reward: 4 },
-  { key: "play_3", label: "Jogar 3 partidas", target: 3, reward: 5 },
-  { key: "win_1", label: "Vencer 1 partida", target: 1, reward: 4 },
-] as const;
-
-function saoPauloDate(value = new Date()) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(value);
-}
+const WEEKLY_MISSIONS: Record<string, { label: string; target: number; reward: number }> = {
+  active_days_5: { label: "Entrar em 5 dias diferentes", target: 5, reward: 3 },
+  play_matches_3: { label: "Jogar 3 partidas", target: 3, reward: 3 },
+  win_matches_2: { label: "Vencer 2 partidas", target: 2, reward: 3 },
+  score_goals_5: { label: "Marcar 5 gols", target: 5, reward: 2 },
+  training_1: { label: "Concluir 1 treinamento", target: 1, reward: 2 },
+  market_visit_1: { label: "Visitar o Mercado", target: 1, reward: 1 },
+  sign_player_1: { label: "Contratar 1 jogador", target: 1, reward: 1 },
+};
 
 async function trainerContext(context: { supabase: any; userId: string }) {
-  const { data: trainer } = await context.supabase
-    .from("trainers")
-    .select("id")
-    .eq("user_id", context.userId)
-    .single();
+  const { data: trainer } = await context.supabase.from("trainers").select("id").eq("user_id", context.userId).single();
   if (!trainer) throw new Error("Treinador não encontrado.");
   return trainer as { id: string };
 }
@@ -37,58 +27,29 @@ export const getMonthlyClubState = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const trainer = await trainerContext(context);
     const supabase = context.supabase as any;
-    const today = saoPauloDate();
-    const localToday = new Date(`${today}T00:00:00Z`);
-    const mondayOffset = (localToday.getUTCDay() + 6) % 7;
-    localToday.setUTCDate(localToday.getUTCDate() - mondayOffset);
-    const weekStart = localToday.toISOString().slice(0, 10);
-    const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-
     const now = new Date().toISOString();
-    const [{ data: academy }, { data: membership }, { data: teams }, { data: claims }, { data: cycle }, { data: entitlements }] = await Promise.all([
+    const [{ data: academy }, { data: membership }, { data: cycle }, { data: entitlements }, weeklyResult] = await Promise.all([
       supabase.from("academies").select("gems").eq("trainer_id", trainer.id).single(),
       supabase.from("club_memberships").select("active_until, activation_source").eq("trainer_id", trainer.id).maybeSingle(),
-      supabase.from("teams").select("id").eq("trainer_id", trainer.id).eq("is_player", true),
-      supabase.from("club_daily_claims").select("claim_date, task_key, gems_awarded").eq("trainer_id", trainer.id).gte("claim_date", weekStart),
       supabase.from("club_cycles").select("id, starts_at, ends_at").eq("trainer_id", trainer.id).lte("starts_at", now).gt("ends_at", now).order("starts_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("club_entitlements").select("scout_credits, shield_12h_credits, training_rush_credits").eq("trainer_id", trainer.id).maybeSingle(),
+      supabase.rpc("get_weekly_mission_state"),
     ]);
 
+    if (weeklyResult.error) throw weeklyResult.error;
     let calendarClaims: any[] = [];
     if (cycle?.id) {
       const { data } = await supabase.from("club_calendar_claims").select("day_number, reward_key").eq("cycle_id", cycle.id).order("day_number");
       calendarClaims = data ?? [];
     }
 
-    const teamIds = (teams ?? []).map((team: any) => team.id);
-    let matches: any[] = [];
-    if (teamIds.length) {
-      const filters = teamIds.flatMap((id: string) => [`home_team_id.eq.${id}`, `away_team_id.eq.${id}`]).join(",");
-      const { data } = await supabase
-        .from("matches")
-        .select("home_team_id, away_team_id, home_score, away_score, played_at")
-        .or(filters)
-        .gte("played_at", since);
-      matches = (data ?? []).filter((match: any) => match.played_at && saoPauloDate(new Date(match.played_at)) === today);
-    }
-
-    const teamSet = new Set(teamIds);
-    const wins = matches.filter((match: any) =>
-      (teamSet.has(match.home_team_id) && match.home_score > match.away_score) ||
-      (teamSet.has(match.away_team_id) && match.away_score > match.home_score),
-    ).length;
-    const claimedToday = new Set((claims ?? []).filter((c: any) => c.claim_date === today).map((c: any) => c.task_key));
-    const checkInDays = new Set((claims ?? []).filter((c: any) => c.task_key === "check_in").map((c: any) => c.claim_date)).size;
-    const weeklyClaimed = (claims ?? []).some((c: any) => c.task_key === "weekly_bonus" && c.claim_date === weekStart);
-
     const active = !!membership && new Date(membership.active_until).getTime() > Date.now();
-    const rewardMultiplier = active ? 1.5 : 1;
     const currentCalendarDay = cycle ? Math.min(30, Math.floor((Date.now() - new Date(cycle.starts_at).getTime()) / 86400000) + 1) : 0;
     const claimedCalendarDays = calendarClaims.map((claim: any) => Number(claim.day_number));
     const gemDeficit = Math.max(0, MONTHLY_CLUB_GEM_PRICE - Number(academy?.gems ?? 0));
-    const recommendedPackage = gemDeficit > 0
-      ? GEM_PACKAGES.find((pack) => pack.gems + pack.bonus >= gemDeficit) ?? GEM_PACKAGES.at(-1)
-      : null;
+    const recommendedPackage = gemDeficit > 0 ? GEM_PACKAGES.find((pack) => pack.gems + pack.bonus >= gemDeficit) ?? GEM_PACKAGES.at(-1) : null;
+    const weekly = weeklyResult.data ?? { missions: [], completed: 0, total: 0, claimed: false };
+
     return {
       gems: Number(academy?.gems ?? 0),
       gem_price: MONTHLY_CLUB_GEM_PRICE,
@@ -110,11 +71,22 @@ export const getMonthlyClubState = createServerFn({ method: "GET" })
         shield_12h_credits: Number(entitlements?.shield_12h_credits ?? 0),
         training_rush_credits: Number(entitlements?.training_rush_credits ?? 0),
       },
-      tasks: TASKS.map((task) => {
-        const current = task.key === "check_in" ? 1 : task.key === "win_1" ? wins : matches.length;
-        return { ...task, reward: Math.ceil(task.reward * rewardMultiplier), current: Math.min(task.target, current), complete: current >= task.target, claimed: claimedToday.has(task.key) };
-      }),
-      weekly: { current: Math.min(5, checkInDays), target: 5, reward: Math.ceil(40 * rewardMultiplier), complete: checkInDays >= 5, claimed: weeklyClaimed },
+      tasks: (weekly.missions ?? []).map((mission: any) => ({
+        key: mission.key,
+        label: WEEKLY_MISSIONS[mission.key]?.label ?? mission.key,
+        target: Number(mission.target ?? WEEKLY_MISSIONS[mission.key]?.target ?? 1),
+        reward: Number(mission.reward ?? WEEKLY_MISSIONS[mission.key]?.reward ?? 1),
+        current: Number(mission.progress ?? 0),
+        complete: Boolean(mission.complete),
+        claimed: Boolean(mission.claimed),
+      })),
+      weekly: {
+        current: Number(weekly.completed ?? 0),
+        target: Number(weekly.total ?? 7),
+        reward: 5,
+        complete: Number(weekly.completed ?? 0) >= Number(weekly.total ?? 7),
+        claimed: Boolean(weekly.completion_claimed),
+      },
     };
   });
 
@@ -138,10 +110,13 @@ export const claimClubCalendarDay = createServerFn({ method: "POST" })
 
 export const claimClubTask = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ task_key: z.enum(["check_in", "play_1", "play_3", "win_1", "weekly_bonus"]) }).parse(input))
+  .inputValidator((input: unknown) => z.object({ task_key: z.string().min(1).max(64) }).parse(input))
   .handler(async ({ context, data }) => {
-    const trainer = await trainerContext(context);
-    const { data: reward, error } = await (context.supabase as any).rpc("claim_club_task", { p_trainer_id: trainer.id, p_task_key: data.task_key });
+    const rpc = data.task_key === "weekly_bonus" ? "claim_weekly_completion_atomic" : "claim_weekly_mission_atomic";
+    const params = data.task_key === "weekly_bonus"
+      ? { p_idempotency_key: crypto.randomUUID() }
+      : { p_mission_key: data.task_key, p_idempotency_key: crypto.randomUUID() };
+    const { data: reward, error } = await (context.supabase as any).rpc(rpc, params);
     if (error) throw error;
     return { reward: Number(reward) };
   });

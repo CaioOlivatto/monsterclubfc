@@ -66,7 +66,8 @@ function AuthenticatedLayout() {
     );
   }
 
-  const pageOwnsBranding = pathname === "/dashboard" || pathname === "/onboarding" || pathname === "/roster" || pathname === "/lineup" || pathname === "/buildings" || pathname.startsWith("/match/");
+  const brandedPages = ["/dashboard", "/onboarding", "/roster", "/lineup", "/buildings", "/shop", "/club", "/finances", "/league", "/career"];
+  const pageOwnsBranding = brandedPages.includes(pathname) || pathname.startsWith("/match/");
   return (
     <div className="flex min-h-screen flex-col bg-background pb-[env(safe-area-inset-bottom)]">
       {!pageOwnsBranding && (

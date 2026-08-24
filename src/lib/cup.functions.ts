@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { simulate, persistableSimulationEvents, generateCpuSideFor, type EngineSide, type EngineBestiary } from "./match-engine.server";
+import { buildPersistentCpuSide } from "./cpu-side.server";
 
 import { buildPlayerSideFromDb } from "./player-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
@@ -375,7 +376,7 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
     const [{ data: teams }, bestiary] = await Promise.all([
       supabase
         .from("teams")
-        .select("id, name, is_player, cpu_strength")
+        .select("id, name, is_player, cpu_strength, division, starter_key")
         .in("id", [next.home_team_id, next.away_team_id]),
       loadEngineBestiary(supabase),
     ]);
@@ -389,7 +390,7 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
         playerSideRef.current = s;
         return s;
       }
-      return generateCpuSideFor(hashSeed(team.id), team.id, team.name, team.cpu_strength ?? 50, bestiary);
+      return buildPersistentCpuSide(supabase, team, (team.division ?? cup.division ?? "bronze") as any, bestiary);
     }
     stamp("bestiary");
     const [homeSide, awaySide] = await Promise.all([side(home), side(away)]);
@@ -495,7 +496,7 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
         const salaries = (roster ?? []).reduce((a: number, c: any) => a + Math.round(divisionalMatchSalary(c.overall ?? 40, division) * (c.salary_mult ?? 1)), 0);
         const maintenance = totalMaintenancePerMatch(division, bldgs ?? []);
         const awayWinBonus = !isHome && outcome === "W"
-          ? computeAwayWinBonus(salaries + maintenance, rev.tv + rev.sponsor + rev.merch, matchPrize)
+          ? computeAwayWinBonus(salaries + maintenance, rev.tv + rev.sponsor + rev.merch, matchPrize, division)
           : 0;
 
         const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch + awayWinBonus;

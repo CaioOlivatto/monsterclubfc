@@ -16,11 +16,11 @@ export const DIVISION_ORDER: DivisionSlug[] = ["bronze", "prata", "ouro", "diama
 
 /** Força central usada quando um time CPU ainda não possui força persistida. */
 export const DIVISION_STRENGTH: Record<DivisionSlug, number> = {
-  bronze: 33,
-  prata: 44,
-  ouro: 55,
-  diamante: 64,
-  lendaria: 72,
+  bronze: 42,
+  prata: 53,
+  ouro: 64,
+  diamante: 74,
+  lendaria: 83,
 };
 
 export const DIVISION_LABEL: Record<DivisionSlug, string> = {

@@ -11,6 +11,7 @@ import {
 } from "./bestiary";
 import type { LoadedBestiary } from "./bestiary.server";
 import { rollBandForDivision, DIVISION_STAR_PROFILE, type Division } from "./economy";
+import { GEM_ECONOMY_CONFIG, normalPlayerGemPrice, type MarketScoutPosition } from "./gem-economy";
 
 
 export const STAR_VALUE = [
@@ -126,14 +127,14 @@ export interface MarketListing {
   half_star_band: number;
   age: number;
   is_prodigy: boolean;
+  gem_price: number;
 }
 
 export interface PremiumMarketOffer extends MarketListing {
-  real_price_cents: number;
-  real_price_label: string;
+  gem_price: number;
   premium_band: number;
   premium_tier_label: string;
-  lifetime_limit: 1;
+  season_division_limit: 1;
 }
 
 function pickSpeciesForBand(bestiary: LoadedBestiary, band: number, rng: () => number): SpeciesBase {
@@ -183,7 +184,7 @@ function generateOne(
   const price = Math.max(1000, Math.round((market_value * priceMultiplier) / 1000) * 1000);
   const idSeed = Math.floor(rng() * 1e9).toString(16);
 
-  return {
+  const listing = {
     id: `market_${idSeed}`,
     species: adjusted.species,
     epithet: adjusted.epithet,
@@ -212,6 +213,17 @@ function generateOne(
     age,
     is_prodigy: adjusted.is_prodigy,
   };
+  return {
+    ...listing,
+    gem_price: normalPlayerGemPrice({
+      division,
+      overall: listing.overall,
+      age: listing.age,
+      halfStarBand: listing.half_star_band,
+      marketValue: listing.market_value,
+      isProdigy: listing.is_prodigy,
+    }),
+  };
 }
 
 export function generateMarketListings(
@@ -220,16 +232,32 @@ export function generateMarketListings(
   seasonNumber: number,
   division: Division = "bronze",
   count = 24,
+  rotationKey = "initial",
+  scoutPosition?: MarketScoutPosition | null,
 ): MarketListing[] {
-  const seed = hashString(`${trainerId}:season:${seasonNumber}:${division}`);
+  const seed = hashString(`${trainerId}:season:${seasonNumber}:${division}:rotation:${rotationKey}:scout:${scoutPosition ?? "all"}`);
   const rng = mulberry32(seed);
   const deck = buildBandDeck(division, count, rng);
   const listings: MarketListing[] = [];
   for (let i = 0; i < count; i++) listings.push(generateOne(bestiary, rng, division, deck[i]));
+  if (scoutPosition) {
+    const matches = listings.filter((listing) => positionGroup(listing.suggested_position) === scoutPosition);
+    // O olheiro é uma busca direcionada, não apenas uma mudança cosmética na
+    // ordem da mesma lista. Gera uma vitrine exclusivamente da posição pedida.
+    return matches.slice(0, count);
+  }
   return listings;
 }
 
-/** Oferta premium determinística, adequada à divisão e limitada a uma compra por carreira. */
+function positionGroup(position: string): MarketScoutPosition {
+  const value = position.toUpperCase();
+  if (value.includes("GOL")) return "GOL";
+  if (value.includes("DEF") || value.includes("ZAG")) return "DEF";
+  if (value.includes("MEI")) return "MEI";
+  return "ATA";
+}
+
+/** Oferta premium determinística, adequada à divisão e limitada por temporada/divisão. */
 export function generatePremiumMarketOffer(
   bestiary: LoadedBestiary,
   trainerId: string,
@@ -257,13 +285,6 @@ export function generatePremiumMarketOffer(
     diamante: "5 estrelas — jogador de elite",
     lendaria: "5 estrelas — nível máximo",
   };
-  const priceByDivision: Record<Division, number> = {
-    bronze: 2990,
-    prata: 4990,
-    ouro: 7990,
-    diamante: 9990,
-    lendaria: 11990,
-  };
   const rng = mulberry32(hashString(`${trainerId}:premium:${seasonNumber}:${division}`));
   const premiumBand = bandByDivision[division];
   const listing = generateOne(
@@ -274,7 +295,6 @@ export function generatePremiumMarketOffer(
     overallByDivision[division],
   );
   const marketValue = computeMarketValue(listing.overall, 18);
-  const cents = priceByDivision[division];
   return {
     ...listing,
     id: `premium_${division}_${seasonNumber}_${listing.id}`,
@@ -282,11 +302,10 @@ export function generatePremiumMarketOffer(
     is_prodigy: true,
     market_value: marketValue,
     price: marketValue,
-    real_price_cents: cents,
-    real_price_label: `R$ ${(cents / 100).toFixed(2).replace(".", ",")}`,
+    gem_price: GEM_ECONOMY_CONFIG.premiumGemPriceByDivision[division],
     premium_band: premiumBand,
     premium_tier_label: tierLabelByDivision[division],
-    lifetime_limit: 1,
+    season_division_limit: 1,
   };
 }
 
@@ -296,9 +315,11 @@ export function findListing(
   seasonNumber: number,
   division: Division,
   listingId: string,
+  rotationKey = "initial",
+  scoutPosition?: MarketScoutPosition | null,
 ): MarketListing | null {
   return (
-    generateMarketListings(bestiary, trainerId, seasonNumber, division).find((l) => l.id === listingId) ??
+    generateMarketListings(bestiary, trainerId, seasonNumber, division, 24, rotationKey, scoutPosition).find((l) => l.id === listingId) ??
     null
   );
 }

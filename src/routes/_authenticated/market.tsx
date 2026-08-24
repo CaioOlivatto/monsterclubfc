@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { getMarketWithSession, buyCreatureWithSession, sellCreatureWithSession } from "@/lib/market.functions";
+import { getMarketWithSession, buyCreatureWithSession, buyPremiumCreatureWithSession, sellCreatureWithSession, refreshMarketWithSession, useMarketScoutWithSession } from "@/lib/market.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { GameLogo } from "@/components/GameLogo";
 import { TeamCrest } from "@/components/TeamCrest";
@@ -26,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Coins, Store, Users, Star, Sparkles, Gem } from "lucide-react";
+import { Coins, Store, Users, Star, Sparkles, Gem, RefreshCw, Search } from "lucide-react";
 import { StarRating, overallToStars, halfStarsToStars } from "@/components/StarRating";
 
 export const Route = createFileRoute("/_authenticated/market")({
@@ -80,7 +80,10 @@ function MarketPage() {
   const qc = useQueryClient();
   const fetchMarket = useServerFn(getMarketWithSession);
   const buyFn = useServerFn(buyCreatureWithSession);
+  const buyPremiumFn = useServerFn(buyPremiumCreatureWithSession);
   const sellFn = useServerFn(sellCreatureWithSession);
+  const refreshFn = useServerFn(refreshMarketWithSession);
+  const scoutFn = useServerFn(useMarketScoutWithSession);
 
   const getAccessToken = async () => {
     const { data, error } = await supabase.auth.getSession();
@@ -102,8 +105,17 @@ function MarketPage() {
 
   const [counter, setCounter] = useState<any | null>(null);
 
+  const premiumBuyMut = useMutation({
+    mutationFn: async (offer_id: string) => buyPremiumFn({ data: { offer_id, access_token: await getAccessToken() } }),
+    onSuccess: async (res: any) => {
+      toast.success(`${res.name} foi contratado por ${res.price.toLocaleString("pt-BR")} gemas.`);
+      await qc.invalidateQueries({ queryKey: ["market"] });
+    },
+    onError: (error: any) => toast.error(error?.message ?? "Não foi possível concluir a contratação premium."),
+  });
+
   const buyMut = useMutation({
-    mutationFn: async (vars: { listing_id: string; accept_counter?: boolean }) =>
+    mutationFn: async (vars: { listing_id: string; accept_counter?: boolean; currency?: "money" | "gems" }) =>
       buyFn({ data: { ...vars, access_token: await getAccessToken() } }),
     onSuccess: (res: any) => {
       if (res.refused) {
@@ -122,7 +134,8 @@ function MarketPage() {
           ...old,
           listings: (old.listings ?? []).filter((l: any) => l.name !== res.name || l.price !== res.price),
           payroll: res.payroll_after,
-          money: (old.money ?? 0) - res.price,
+          money: res.currency === "gems" ? old.money : (old.money ?? 0) - res.price,
+          gems: res.currency === "gems" ? (old.gems ?? 0) - res.price : old.gems,
           roster_count: res.roster_count_after,
         };
       });
@@ -153,6 +166,17 @@ function MarketPage() {
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: (e: Error) => toast.error(e.message),
+  });
+
+  const refreshMut = useMutation({
+    mutationFn: async () => refreshFn({ data: { access_token: await getAccessToken(), idempotency_key: crypto.randomUUID() } }),
+    onSuccess: async () => { await qc.invalidateQueries({ queryKey: ["market"] }); toast.success("Novas ofertas chegaram ao Mercado."); },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const scoutMut = useMutation({
+    mutationFn: async (position: "GOL" | "DEF" | "MEI" | "ATA") => scoutFn({ data: { access_token: await getAccessToken(), position, idempotency_key: crypto.randomUUID() } }),
+    onSuccess: async (_, position) => { await qc.invalidateQueries({ queryKey: ["market"] }); toast.success(`Olheiro focado em ${position} aplicado.`); },
+    onError: (error: Error) => toast.error(error.message),
   });
 
   const sellMut = useMutation({
@@ -262,6 +286,27 @@ function MarketPage() {
           </CardContent>
         </Card>
 
+        <Card className="border-cyan-400/25 bg-slate-950/85 text-white shadow-xl">
+          <CardContent className="space-y-3 py-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-bold">Rotação de ofertas</p>
+                <p className="text-xs text-slate-400">O mercado muda sozinho a cada 12 horas. Atualizações extras ficam progressivamente mais caras.</p>
+              </div>
+              <Button disabled={refreshMut.isPending} onClick={() => refreshMut.mutate()} className="border border-cyan-400/30 bg-cyan-950/80 text-cyan-100 hover:bg-cyan-900">
+                <RefreshCw className={`mr-2 h-4 w-4 ${refreshMut.isPending ? "animate-spin" : ""}`} />
+                Atualizar · {data?.next_refresh_cost?.currency === "free" ? "grátis" : data?.next_refresh_cost?.currency === "money" ? formatMoney(data.next_refresh_cost.amount) : `${data?.next_refresh_cost?.amount ?? 0} gemas`}
+              </Button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 border-t border-slate-800 pt-3">
+              <span className="mr-1 flex items-center gap-1 text-xs text-slate-400"><Search className="h-3.5 w-3.5" /> Olheiro por posição · 10 gemas:</span>
+              {(["GOL", "DEF", "MEI", "ATA"] as const).map((position) => (
+                <Button key={position} size="sm" variant="outline" disabled={scoutMut.isPending || (data?.gems ?? 0) < 10} onClick={() => scoutMut.mutate(position)} className={data?.market_cycle?.scout_position === position ? "border-violet-400 bg-violet-700 text-white" : "border-slate-600 bg-slate-900 text-slate-100"}>{position}</Button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
 
         <div className="grid grid-cols-2 gap-2">
           <Button
@@ -287,10 +332,10 @@ function MarketPage() {
             <CardHeader className="space-y-2 pb-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <Badge className="gap-1 bg-amber-400 text-amber-950 hover:bg-amber-400">
-                  <Sparkles className="h-3.5 w-3.5" /> Oferta única da carreira
+                  <Sparkles className="h-3.5 w-3.5" /> Oferta rara da temporada
                 </Badge>
                 <span className="text-lg font-black text-amber-300">
-                  {data.premium_offer.real_price_label}
+                  {data.premium_offer.gem_price.toLocaleString("pt-BR")} gemas
                 </span>
               </div>
               <CardTitle className="text-xl">{data.premium_offer.name}</CardTitle>
@@ -311,10 +356,16 @@ function MarketPage() {
               </div>
               <p className="text-sm text-muted-foreground">
                 {data.premium_offer.premium_tier_label}. Jovem prodígio de 18 anos selecionado pelo olheiro premium.
-                Limite permanente de uma contratação premium por treinador.
+                Limite de uma contratação premium por temporada e divisão. A oferta não concede vantagem oculta e entra normalmente no cálculo de força.
               </p>
-              <Button disabled className="w-full">
-                Pagamento em breve
+              <Button
+                className="w-full bg-amber-400 font-black text-amber-950 hover:bg-amber-300"
+                disabled={premiumBuyMut.isPending || (data.gems ?? 0) < data.premium_offer.gem_price}
+                onClick={() => premiumBuyMut.mutate(data.premium_offer.id)}
+              >
+                {premiumBuyMut.isPending
+                  ? "Contratando com segurança..."
+                  : `Contratar por ${data.premium_offer.gem_price.toLocaleString("pt-BR")} gemas`}
               </Button>
             </CardContent>
           </Card>
@@ -324,7 +375,7 @@ function MarketPage() {
           <Card className="border-dashed border-slate-600 bg-slate-950/85 text-slate-200">
             <CardContent className="flex items-center gap-2 py-3 text-sm text-muted-foreground">
               <Star className="h-4 w-4 text-amber-400" />
-              Sua contratação premium única já foi utilizada.
+              A contratação premium desta temporada e divisão já foi utilizada.
             </CardContent>
           </Card>
         )}
@@ -434,15 +485,9 @@ function MarketPage() {
                           <span className="truncate">de {l.seller}</span>
                         </div>
                       </div>
-                      <div className="shrink-0 text-right">
-                        <Button
-                          size="sm"
-                          className="h-8"
-                          disabled={disabled}
-                          onClick={() => buyMut.mutate({ listing_id: l.id })}
-                        >
-                          {btnLabel}
-                        </Button>
+                      <div className="flex shrink-0 flex-col gap-1 text-right">
+                        <Button size="sm" className="h-8" disabled={disabled} onClick={() => buyMut.mutate({ listing_id: l.id, currency: "money" })}>{btnLabel} {formatMoney(l.price)}</Button>
+                        <Button size="sm" variant="outline" className="h-8 border-violet-400/50 bg-violet-950/70 text-violet-100" disabled={rosterFull || overCap || buyMut.isPending || (data?.gems ?? 0) < l.gem_price} onClick={() => buyMut.mutate({ listing_id: l.id, currency: "gems" })}><Gem className="mr-1 h-3.5 w-3.5" />{l.gem_price}</Button>
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-2 text-xs">

@@ -22,13 +22,14 @@ import {
   type CupFinish,
   type Division,
 } from "../src/lib/economy.ts";
+import { divisionTargetMidpoint } from "../src/lib/game-balance.ts";
 
 const DIVISION_OVR: Record<Division, number> = {
-  bronze: 33,
-  prata: 44,
-  ouro: 55,
-  diamante: 64,
-  lendaria: 72,
+  bronze: divisionTargetMidpoint("bronze"),
+  prata: divisionTargetMidpoint("prata"),
+  ouro: divisionTargetMidpoint("ouro"),
+  diamante: divisionTargetMidpoint("diamante"),
+  lendaria: divisionTargetMidpoint("lendaria"),
 };
 const MATCH_PRIZE: Record<Division, [number, number, number]> = {
   bronze: [15_000, 6_000, 2_000],
@@ -144,7 +145,9 @@ function matchNet(club: Club, outcome: number, home: boolean, rng: () => number)
           TICKET_PRICE[club.division],
       )
     : 0;
-  const awayBonus = !home && outcome === 0 ? computeAwayWinBonus(cost, fixed, prize) : 0;
+  const awayBonus = !home && outcome === 0
+    ? computeAwayWinBonus(cost, fixed, prize, club.division)
+    : 0;
   return fixed + prize + gate + awayBonus - cost;
 }
 

@@ -54,6 +54,7 @@ for (const division of DIVISION_ORDER) {
 
 assert.equal(computeAwayWinBonus(100_000, 60_000, 20_000), 28_000);
 assert.equal(computeAwayWinBonus(50_000, 60_000, 20_000), 8_000);
+assert.equal(computeAwayWinBonus(1_000_000, 0, 0, "bronze"), 28_000);
 assert.equal(computeWorldParticipationGrant(100_000, 60_000), 30_000);
 assert.equal(computeWorldParticipationGrant(50_000, 60_000), 0);
 assert.equal(divisionalMatchSalary(90, "bronze"), matchSalary(90));

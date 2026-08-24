@@ -61,6 +61,20 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+.game-page-shell .game-page-content [class*="bg-card"] {
+  border-color: rgb(139 92 246 / 0.3);
+  background-color: rgb(2 6 23 / 0.84);
+  color: rgb(248 250 252);
+  backdrop-filter: blur(10px);
+}
+
+.game-page-shell .game-page-content select,
+.game-page-shell .game-page-content input {
+  border-color: rgb(100 116 139 / 0.7);
+  background-color: rgb(15 23 42 / 0.92);
+  color: white;
+}
+
 :root {
   --radius: 0.625rem;
   --background: oklch(1 0 0);

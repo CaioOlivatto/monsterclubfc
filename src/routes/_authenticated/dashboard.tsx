@@ -7,7 +7,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { GameRecovery } from "@/components/GameRecovery";
 import { getDashboardWithSession } from "@/lib/creatures.functions";
 import { createFriendlyMatch } from "@/lib/match.functions";
-import { claimWeeklyGems } from "@/lib/progression.functions";
 import { type ConfidenceInfo } from "@/lib/career.functions";
 import { getLeague, startLeague } from "@/lib/league.functions";
 import { getMyLineup } from "@/lib/lineup.functions";
@@ -81,7 +80,6 @@ function Dashboard() {
   const nav = useNavigate();
   const fetchDashboard = useServerFn(getDashboardWithSession);
   const startFriendly = useServerFn(createFriendlyMatch);
-  const claimWeekly = useServerFn(claimWeeklyGems);
   const fetchLineup = useServerFn(getMyLineup);
   const fetchMarket = useServerFn(getMarket);
   const fetchLeague = useServerFn(getLeague);
@@ -219,14 +217,6 @@ function Dashboard() {
     },
     onError: (e: any) => toast.error(e?.message ?? "Não foi possível iniciar a temporada."),
   });
-  const weeklyMut = useMutation({
-    mutationFn: () => claimWeekly(),
-    onSuccess: (res: any) => {
-      if (res.claimed) toast.success("+30 💎 recompensa semanal!");
-      else toast.info("Próxima recompensa em " + new Date(res.nextAt).toLocaleDateString("pt-BR"));
-    },
-    onError: (e: any) => toast.error(e?.message ?? "Falha ao resgatar."),
-  });
 
   async function signOut() {
     await supabase.auth.signOut();
@@ -285,16 +275,13 @@ function Dashboard() {
             <Inbox className="h-4 w-4" />
           </Link>
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 shrink-0 border-white/80 bg-white px-2 text-violet-700 shadow-[0_0_12px_rgba(139,92,246,0.22)] hover:bg-violet-50 hover:text-violet-800 disabled:bg-white/80 disabled:text-violet-400"
-            onClick={() => weeklyMut.mutate()}
-            disabled={weeklyMut.isPending}
-            aria-label="Recompensa semanal"
+          <Link
+            to="/club"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-white/80 bg-white text-violet-700 shadow-[0_0_12px_rgba(139,92,246,0.22)] hover:bg-violet-50"
+            aria-label="Missões e Clube Mensal"
           >
             <Gem className="h-4 w-4 fill-violet-200 text-violet-700" strokeWidth={2.2} />
-          </Button>
+          </Link>
 
           <Button variant="ghost" size="sm" className="h-9 shrink-0 px-2" onClick={signOut} aria-label="Sair">
             <LogOut className="h-4 w-4" />

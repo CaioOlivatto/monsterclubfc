@@ -152,15 +152,13 @@ export const rushMoraleSession = createServerFn({ method: "POST" })
       await sweepMoraleSessions(supabase, trainer.id);
       return { spent: 0 };
     }
-    const cost = Math.max(1, Math.ceil(remainingMs / (10 * 60 * 1000)));
-    if (trainer.gems < cost) throw new Error(`Você precisa de ${cost} 💎 para acelerar.`);
-    await supabase.from("academies").update({ gems: trainer.gems - cost }).eq("id", trainer.academyId);
-    await supabase
-      .from("creatures")
-      .update({ morale_session_completes_at: new Date().toISOString() })
-      .eq("id", c.id);
+    const { data: result, error } = await supabase.rpc("rush_timer_with_gems_atomic", {
+      p_kind: "morale", p_creature: c.id,
+      p_idempotency_key: `morale-rush:${c.id}:${c.morale_session_completes_at}`,
+    });
+    if (error) throw error;
     await sweepMoraleSessions(supabase, trainer.id);
-    return { spent: cost };
+    return result;
   });
 
 export const cancelMoraleSession = createServerFn({ method: "POST" })
@@ -211,17 +209,12 @@ export const rushMoraleMeeting = createServerFn({ method: "POST" })
       await sweepMoraleMeeting(supabase, trainer.id, trainer.academyId, trainer.meetingAt);
       return { spent: 0 };
     }
-    const cost = Math.max(1, Math.ceil(remainingMs / (10 * 60 * 1000)));
-    if (trainer.gems < cost) throw new Error(`Você precisa de ${cost} 💎 para acelerar.`);
-    await supabase
-      .from("academies")
-      .update({
-        gems: trainer.gems - cost,
-        morale_meeting_completes_at: new Date().toISOString(),
-      })
-      .eq("id", trainer.academyId);
+    const { data: result, error } = await supabase.rpc("rush_morale_meeting_with_gems_atomic", {
+      p_idempotency_key: `meeting-rush:${trainer.meetingAt}`,
+    });
+    if (error) throw error;
     await sweepMoraleMeeting(supabase, trainer.id, trainer.academyId, new Date().toISOString());
-    return { spent: cost };
+    return result;
   });
 
 export const cancelMoraleMeeting = createServerFn({ method: "POST" })

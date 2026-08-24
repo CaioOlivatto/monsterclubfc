@@ -1,8 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { ArrowLeft, Award, Trophy, TrendingUp, TrendingDown, DoorOpen, Building2, Sparkles, Handshake, AlertTriangle } from "lucide-react";
+import { Award, Trophy, TrendingUp, TrendingDown, DoorOpen, Building2, Sparkles, Handshake, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from "sonner";
 import { getCareer, listOffers, declineOffer, acceptOffer, type CareerEntry, type JobOffer } from "@/lib/career.functions";
 import { listMyCreatures } from "@/lib/creatures.functions";
+import { GamePageShell } from "@/components/GamePageShell";
 
 const DIV_LABEL: Record<string, string> = {
   lendaria: "1ª — Lendária",
@@ -66,17 +67,7 @@ function CareerPage() {
   const { data: offersData } = useQuery({ queryKey: ["career", "offers"], queryFn: () => fetchOffers() });
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-4">
-      <div className="flex items-center gap-2 pb-3">
-        <Button asChild variant="ghost" size="icon">
-          <Link to="/dashboard"><ArrowLeft className="h-5 w-5" /></Link>
-        </Button>
-        <div>
-          <h1 className="text-lg font-semibold leading-none">Carreira</h1>
-          <p className="text-xs text-muted-foreground">Seu currículo e propostas</p>
-        </div>
-      </div>
-
+    <GamePageShell title="Carreira" subtitle="Seu currículo, conquistas e propostas" academyName={data?.academy_name} trainerName={data?.trainer_name} level={data?.level} xp={data?.xp} maxWidth="4xl">
       {isLoading || !data ? (
         <div className="space-y-3">
           <Skeleton className="h-24 w-full" />
@@ -128,7 +119,7 @@ function CareerPage() {
             </CardContent>
           </Card>
 
-          <div className="mb-3 grid grid-cols-3 gap-2">
+          <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
             <MiniStat label="Clubes" value={data.totals.clubs} />
             <MiniStat label="Temporadas" value={data.totals.seasons} />
             <MiniStat label="Títulos" value={data.totals.titles} accent="amber" />
@@ -196,7 +187,7 @@ function CareerPage() {
           </Card>
         </>
       )}
-    </div>
+    </GamePageShell>
   );
 }
 

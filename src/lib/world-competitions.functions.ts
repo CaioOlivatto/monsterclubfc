@@ -23,6 +23,7 @@ import {
 } from "./match-engine.server";
 import { loadBestiary } from "./bestiary.server";
 import { buildPlayerSideFromDb } from "./player-side.server";
+import { buildPersistentCpuSide } from "./cpu-side.server";
 import { applyPostMatchXp, insertMessage } from "./xp.server";
 import { MATCH_REVENUE, totalMaintenancePerMatch, divisionalMatchSalary, computeAwayWinBonus, computeWorldParticipationGrant, worldLeaguePhaseBonus, type Division as EconDivision } from "./economy";
 import { adjustAcademyMoney } from "./academy-money.server";
@@ -119,7 +120,7 @@ async function simulatePlayerMatch(
 ): Promise<{ home_score: number; away_score: number }> {
   const { data: teams } = await supabase
     .from("teams")
-    .select("id, name, cpu_strength")
+    .select("id, name, cpu_strength, division, starter_key")
     .in("id", [matchRow.home_team_id, matchRow.away_team_id]);
   const home = teams!.find((t: any) => t.id === matchRow.home_team_id) as any;
   const away = teams!.find((t: any) => t.id === matchRow.away_team_id) as any;
@@ -131,7 +132,7 @@ async function simulatePlayerMatch(
       playerSide = s;
       return s;
     }
-    return generateCpuSideFor(hashSeed(t.id), t.id, t.name, t.cpu_strength ?? 45, bestiary);
+    return buildPersistentCpuSide(supabase, t, (t.division ?? "bronze") as any, bestiary);
   };
   // O lado do jogador consulta o banco, enquanto o lado CPU é gerado localmente.
   // Prepará-los juntos reduz a espera antes da simulação mundial.
@@ -225,7 +226,7 @@ async function simulatePlayerMatch(
         rev.tv + rev.sponsor + rev.merch,
       );
       const awayWinBonus = !isHome && outcome === "W"
-        ? computeAwayWinBonus(salaries + maintenance, rev.tv + rev.sponsor + rev.merch, matchPrize)
+        ? computeAwayWinBonus(salaries + maintenance, rev.tv + rev.sponsor + rev.merch, matchPrize, div)
         : 0;
 
       const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch + participationGrant + awayWinBonus;

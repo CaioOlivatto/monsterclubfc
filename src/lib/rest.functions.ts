@@ -113,47 +113,12 @@ export const startRest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((raw: unknown) => z.object({ creatureId: z.string().uuid() }).parse(raw))
   .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
-    const loadedTrainer = await loadTrainer(supabase, userId);
-    const [t] = await Promise.all([
-      maybeResetPool(supabase, loadedTrainer),
-      sweepRests(supabase, loadedTrainer.id),
-    ]);
-
-    const { data: c } = await supabase
-      .from("creatures")
-      .select("id, retired, energy, rest_completes_at")
-      .eq("id", data.creatureId)
-      .eq("owner_trainer_id", t.id)
-      .maybeSingle();
-    if (!c) throw new Error("Criatura não encontrada.");
-    if (c.retired) throw new Error("Criatura aposentada.");
-    if (c.rest_completes_at && new Date(c.rest_completes_at).getTime() > Date.now()) {
-      throw new Error("Esta criatura já está descansando.");
-    }
-    if ((c.energy ?? 0) >= 100) throw new Error("Energia já está no máximo.");
-
-    let paidCost = 0;
-    if (t.rest_free_charges > 0) {
-      const nextFree = t.rest_free_charges - 1;
-      const update: any = { rest_free_charges: nextFree };
-      if (nextFree === 0) update.rest_pool_zeroed_at = new Date().toISOString();
-      const { error } = await supabase.from("trainers").update(update).eq("id", t.id);
-      if (error) throw error;
-    } else {
-      paidCost = paidCostForNextUse(t.rest_paid_uses);
-      if (t.gems < paidCost) throw new Error(`Você precisa de ${paidCost} 💎 para este descanso extra.`);
-      await supabase.from("academies").update({ gems: t.gems - paidCost }).eq("id", t.academyId);
-      await supabase.from("trainers").update({ rest_paid_uses: t.rest_paid_uses + 1 }).eq("id", t.id);
-    }
-
-    const completes = new Date(Date.now() + REST_DURATION_MS).toISOString();
-    const { error } = await supabase
-      .from("creatures")
-      .update({ rest_completes_at: completes })
-      .eq("id", c.id);
+    const { data: result, error } = await context.supabase.rpc("start_rest_atomic", {
+      p_creature: data.creatureId,
+      p_idempotency_key: `rest:${data.creatureId}:${crypto.randomUUID()}`,
+    });
     if (error) throw error;
-    return { completes_at: completes, paid_cost: paidCost };
+    return result;
   });
 
 export const rushRest = createServerFn({ method: "POST" })
@@ -174,15 +139,13 @@ export const rushRest = createServerFn({ method: "POST" })
       await sweepRests(supabase, t.id);
       return { spent: 0 };
     }
-    const cost = Math.max(1, Math.ceil(remainingMs / (10 * 60 * 1000)));
-    if (t.gems < cost) throw new Error(`Você precisa de ${cost} 💎 para acelerar.`);
-    await supabase.from("academies").update({ gems: t.gems - cost }).eq("id", t.academyId);
-    await supabase
-      .from("creatures")
-      .update({ rest_completes_at: new Date().toISOString() })
-      .eq("id", c.id);
+    const { data: result, error } = await supabase.rpc("rush_timer_with_gems_atomic", {
+      p_kind: "rest", p_creature: c.id,
+      p_idempotency_key: `rest-rush:${c.id}:${c.rest_completes_at}`,
+    });
+    if (error) throw error;
     await sweepRests(supabase, t.id);
-    return { spent: cost };
+    return result;
   });
 
 export const cancelRest = createServerFn({ method: "POST" })

@@ -22,7 +22,8 @@ export type Database = {
           id: string
           money: number
           morale_meeting_completes_at: string | null
-          paid_4x: boolean
+            paid_2x: boolean
+            paid_4x: boolean
           paid_instant: boolean
           roster_slots: number
           trainer_id: string
@@ -35,7 +36,8 @@ export type Database = {
           id?: string
           money?: number
           morale_meeting_completes_at?: string | null
-          paid_4x?: boolean
+            paid_2x?: boolean
+            paid_4x?: boolean
           paid_instant?: boolean
           roster_slots?: number
           trainer_id: string
@@ -48,7 +50,8 @@ export type Database = {
           id?: string
           money?: number
           morale_meeting_completes_at?: string | null
-          paid_4x?: boolean
+            paid_2x?: boolean
+            paid_4x?: boolean
           paid_instant?: boolean
           roster_slots?: number
           trainer_id?: string

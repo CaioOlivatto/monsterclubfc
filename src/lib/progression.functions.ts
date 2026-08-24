@@ -86,39 +86,3 @@ export const spendHalfStar = createServerFn({ method: "POST" })
 
     return { ok: true, message: "Meia-estrela aplicada!" };
   });
-
-
-/**
- * §3.1 — Recompensa semanal: 30 💎 a cada 7 dias.
- */
-export const claimWeeklyGems = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { supabase, userId } = context;
-    const { data: trainer } = await supabase
-      .from("trainers").select("id, last_weekly_gems_at").eq("user_id", userId).maybeSingle();
-    if (!trainer) throw new Error("Treinador não encontrado.");
-
-    const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-    const lastAt = trainer.last_weekly_gems_at ? new Date(trainer.last_weekly_gems_at).getTime() : 0;
-    const now = Date.now();
-    if (lastAt && now - lastAt < WEEK_MS) {
-      return { claimed: false, gems: 0, nextAt: new Date(lastAt + WEEK_MS).toISOString() };
-    }
-
-    const { data: acad } = await supabase
-      .from("academies").select("gems").eq("trainer_id", trainer.id).maybeSingle();
-    const current = acad?.gems ?? 0;
-    await supabase.from("academies").update({ gems: current + 30 }).eq("trainer_id", trainer.id);
-    await supabase.from("trainers").update({ last_weekly_gems_at: new Date(now).toISOString() }).eq("id", trainer.id);
-    await supabase.from("financial_transactions").insert({
-      trainer_id: trainer.id, transaction_type: "income", amount: 0,
-      description: "Recompensa semanal — +30 💎",
-    });
-    await supabase.from("messages").insert({
-      trainer_id: trainer.id, kind: "reward",
-      title: "Recompensa semanal", body: "Você recebeu 30 💎 pela sua atividade semanal.",
-    });
-
-    return { claimed: true, gems: 30, nextAt: new Date(now + WEEK_MS).toISOString() };
-  });

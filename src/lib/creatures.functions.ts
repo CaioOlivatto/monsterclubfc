@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
   STARTER_TEAMS,
   generateStarterRoster,
+  generateStarterRosterPreview,
   getStarterTeam,
   rosterToDbRows,
   type StarterKey,
@@ -512,23 +513,8 @@ const starterChoiceSchema = starterKeySchema.extend({
 export const getStarterTeamDetail = createServerFn({ method: "GET" })
   .inputValidator((raw: unknown) => starterKeySchema.parse(raw))
   .handler(async ({ data }) => {
-    // Esta é somente a prévia pública dos seis times iniciais. Ela não lê nem
-    // altera informações do treinador; exigir o JWT aqui fazia a vitrine falhar
-    // quando o ambiente do Lovable não repassava o cabeçalho de autenticação ao
-    // server function. O catálogo species/epithets já é público e protegido de
-    // escrita pelas políticas do Supabase.
-    const { createClient } = await import("@supabase/supabase-js");
-    const catalogSupabase = createClient(
-      "https://gwqvninbrmrsabuseqbx.supabase.co",
-      "sb_publishable_ycTtamLVwKvO3G89F5dAfw_W6ozxpo9",
-      {
-        auth: { persistSession: false, autoRefreshToken: false },
-      },
-    );
-    const { loadBestiary } = await import("./bestiary.server");
-    const bestiary = await loadBestiary(catalogSupabase);
     const team = getStarterTeam(data.key)!;
-    const roster = generateStarterRoster(data.key as StarterKey, bestiary);
+    const roster = generateStarterRosterPreview(data.key as StarterKey);
     return {
       team: {
         key: team.key,
@@ -800,32 +786,13 @@ async function chargeHeal(
   creatureId: string,
   mode: "one" | "all",
 ) {
-  const { data: trainer } = await supabase
-    .from("trainers").select("id").eq("user_id", userId).maybeSingle();
-  if (!trainer) throw new Error("Treinador não encontrado.");
-  const { data: c } = await supabase
-    .from("creatures")
-    .select("id, name, injury_matches_remaining, injury_severity")
-    .eq("id", creatureId).eq("owner_trainer_id", trainer.id).maybeSingle();
-  if (!c) throw new Error("Criatura não encontrada.");
-  const remaining = c.injury_matches_remaining ?? 0;
-  if (remaining <= 0) throw new Error(`${c.name} não está lesionada.`);
-  const matchesToHeal = mode === "all" ? remaining : 1;
-  const cost = matchesToHeal * HEAL_GEMS_PER_MATCH;
-  const { data: academy } = await supabase
-    .from("academies").select("id, gems").eq("trainer_id", trainer.id).maybeSingle();
-  if (!academy) throw new Error("Academia não encontrada.");
-  if ((academy.gems ?? 0) < cost) throw new Error(`Gemas insuficientes (precisa ${cost} 💎).`);
-  await supabase.from("academies").update({ gems: academy.gems - cost }).eq("id", academy.id);
-  const newRemaining = Math.max(0, remaining - matchesToHeal);
-  await supabase
-    .from("creatures")
-    .update({
-      injury_matches_remaining: newRemaining,
-      injury_severity: newRemaining === 0 ? null : c.injury_severity,
-    })
-    .eq("id", c.id);
-  return { ok: true, spent: cost, remaining: newRemaining };
+  void userId;
+  const { data, error } = await supabase.rpc("heal_creature_with_gems_atomic", {
+    p_creature: creatureId, p_mode: mode,
+    p_idempotency_key: `heal:${creatureId}:${mode}:${crypto.randomUUID()}`,
+  });
+  if (error) throw error;
+  return { ok: true, ...data };
 }
 
 export const healCreatureWithGems = createServerFn({ method: "POST" })

@@ -3,7 +3,7 @@
 export type Division = "bronze" | "prata" | "ouro" | "diamante" | "lendaria";
 
 /** Versão das regras usada para auditoria, telemetria e reprodução de temporadas. */
-export const BALANCE_VERSION = "2.1.0";
+export const BALANCE_VERSION = "2.2.0";
 
 export const DIVISION_ORDER: Division[] = ["bronze", "prata", "ouro", "diamante", "lendaria"];
 
@@ -92,6 +92,16 @@ export function eliteTreasuryReserveFee(division: Division, cashAfterPrize: numb
 /** Margem mínima garantida por vitória fora (§Economia-Por-Partida — bônus dinâmico). */
 export const AWAY_WIN_MIN_MARGIN = 8_000;
 
+/** Limite do subsídio de viagem. O bônus protege o começo da carreira, mas não
+ * paga sozinho uma folha ou um estádio incompatível com a divisão. */
+export const AWAY_WIN_BONUS_CAP: Record<Division, number> = {
+  bronze: 28_000,
+  prata: 55_000,
+  ouro: 100_000,
+  diamante: 180_000,
+  lendaria: 300_000,
+};
+
 /** Bônus dinâmico de vitória fora: cobre o déficit entre despesas da partida e
  *  (receita fixa sem bilheteria + prêmio da partida), garantindo uma margem mínima.
  *  Assim, uma vitória fora sempre fecha positivo em ~$8k, mesmo quando o jogador
@@ -100,9 +110,13 @@ export function computeAwayWinBonus(
   expenses: number,
   fixedRevenueNoGate: number,
   matchPrize: number,
+  division: Division = "bronze",
 ): number {
   const deficit = expenses - fixedRevenueNoGate - matchPrize;
-  return Math.max(0, deficit) + AWAY_WIN_MIN_MARGIN;
+  return Math.min(
+    AWAY_WIN_BONUS_CAP[division],
+    Math.max(0, deficit) + AWAY_WIN_MIN_MARGIN,
+  );
 }
 
 /**
@@ -118,11 +132,11 @@ export function computeWorldParticipationGrant(expenses: number, fixedRevenue: n
 export type CupFinish = "champion" | "runnerUp" | "semi" | "qf";
 
 export const CUP_PHASE_BONUS: Record<Division, Record<CupFinish, number>> = {
-  bronze: { champion: 2_000_000, runnerUp: 900_000, semi: 450_000, qf: 150_000 },
-  prata: { champion: 3_000_000, runnerUp: 1_400_000, semi: 700_000, qf: 250_000 },
-  ouro: { champion: 4_500_000, runnerUp: 2_200_000, semi: 1_100_000, qf: 400_000 },
-  diamante: { champion: 7_000_000, runnerUp: 3_500_000, semi: 1_800_000, qf: 650_000 },
-  lendaria: { champion: 10_000_000, runnerUp: 5_500_000, semi: 2_800_000, qf: 1_000_000 },
+  bronze: { champion: 1_200_000, runnerUp: 550_000, semi: 260_000, qf: 90_000 },
+  prata: { champion: 1_900_000, runnerUp: 850_000, semi: 420_000, qf: 150_000 },
+  ouro: { champion: 3_000_000, runnerUp: 1_400_000, semi: 680_000, qf: 240_000 },
+  diamante: { champion: 4_800_000, runnerUp: 2_300_000, semi: 1_100_000, qf: 400_000 },
+  lendaria: { champion: 7_000_000, runnerUp: 3_500_000, semi: 1_700_000, qf: 650_000 },
 };
 
 export function cupPhaseBonus(division: Division, finish: CupFinish): number {
@@ -133,10 +147,10 @@ export function cupPhaseBonus(division: Division, finish: CupFinish): number {
 export type WorldLeagueFinish = "champion" | "runnerUp" | "semi" | "groups";
 
 const WORLD_PHASE_BASE: Record<WorldLeagueFinish, number> = {
-  champion: 5_000_000,
-  runnerUp: 2_500_000,
-  semi: 1_200_000,
-  groups: 500_000,
+  champion: 3_200_000,
+  runnerUp: 1_600_000,
+  semi: 800_000,
+  groups: 300_000,
 };
 
 const WORLD_PHASE_DIVISION_MULT: Record<Division, number> = {

@@ -4,6 +4,9 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { getDirectSession } from "./direct-session.server";
 import { BUILDINGS, BUILDING_TYPES, type BuildingType } from "./buildings.server";
+import { maintenancePerMatch } from "./economy";
+import { resolvePlayerDivision } from "./division.server";
+import { recordTelemetryBestEffort } from "./telemetry.server";
 
 const buildingTypeSchema = z.enum(["ct_treino", "estadio", "centro_medico"]);
 const sessionSchema = z.object({ access_token: z.string().min(20) });
@@ -15,7 +18,7 @@ async function ensureBuildingFoundation(supabase: any, trainer: { id: string; cu
   const { data: academy, error: academyError } = await supabase.from("academies").select("id").eq("trainer_id", trainerId).maybeSingle();
   if (academyError) throw academyError;
   if (!academy) {
-    const { error } = await supabase.from("academies").insert({ trainer_id: trainerId, money: 400000, gems: 50, builders: 1, roster_slots: 26 });
+    const { error } = await supabase.from("academies").insert({ trainer_id: trainerId, money: 400000, gems: 10, builders: 1, roster_slots: 26 });
     if (error) throw error;
   }
   if (!trainer.current_team_id) throw new Error("Escolha seu clube antes de acessar as construções.");
@@ -45,18 +48,14 @@ async function completeFinishedUpgrades(supabase: any, teamId: string) {
   ));
 }
 
-function maintenance(type: BuildingType, level: number) {
-  const base: Record<BuildingType, number> = { ct_treino: 9000, estadio: 18000, centro_medico: 6000 };
-  return Math.round(base[type] * (1 + Math.max(0, level - 1) * 0.18));
-}
-
 async function loadBuildingsForUser(supabase: any, userId: string) {
   const trainer = await trainerForUser(supabase, userId);
   await ensureBuildingFoundation(supabase, trainer);
   await completeFinishedUpgrades(supabase, trainer.current_team_id);
-  const [{ data: academy, error: academyError }, { data: rows, error: rowsError }] = await Promise.all([
+  const [{ data: academy, error: academyError }, { data: rows, error: rowsError }, division] = await Promise.all([
     supabase.from("academies").select("money, gems, builders").eq("trainer_id", trainer.id).maybeSingle(),
     supabase.from("buildings").select("id, building_type, level, upgrade_completes_at").eq("team_id", trainer.current_team_id),
+    resolvePlayerDivision(supabase, trainer.id, trainer.current_team_id),
   ]);
   if (academyError) throw academyError;
   if (rowsError) throw rowsError;
@@ -73,7 +72,8 @@ async function loadBuildingsForUser(supabase: any, userId: string) {
       completes_at: upgrading ? row.upgrade_completes_at : null,
       currentEffect: spec.effectByLevel(level), nextEffect: level < spec.maxLevel ? spec.effectByLevel(nextLevel) : null,
       nextCost: level < spec.maxLevel ? spec.cost(nextLevel) : 0, nextDurationSec: level < spec.maxLevel ? spec.duration(nextLevel) : 0,
-      maintenancePerMatch: maintenance(type, level), nextMaintenancePerMatch: level < spec.maxLevel ? maintenance(type, nextLevel) : undefined,
+      maintenancePerMatch: maintenancePerMatch(division, type, level),
+      nextMaintenancePerMatch: level < spec.maxLevel ? maintenancePerMatch(division, type, nextLevel) : undefined,
     };
   });
   return {
@@ -102,31 +102,29 @@ async function startUpgradeForUser(supabase: any, userId: string, type: Building
   const cost = spec.cost(nextLevel);
   if ((academy.money ?? 0) < cost) throw new Error("Saldo insuficiente para iniciar esta obra.");
   const completesAt = new Date(Date.now() + spec.duration(nextLevel) * 1000).toISOString();
-  const { error: academyUpdateError } = await supabase.from("academies").update({ money: academy.money - cost }).eq("trainer_id", trainer.id);
-  if (academyUpdateError) throw academyUpdateError;
-  const { error: buildingUpdateError } = await supabase.from("buildings").update({ upgrade_completes_at: completesAt } as any).eq("id", building.id);
-  if (buildingUpdateError) throw buildingUpdateError;
-  return { ok: true, completesAt };
+  const { data: operation, error: operationError } = await supabase.rpc("start_building_upgrade_atomic" as any, {
+    p_type: type,
+    p_cost: cost,
+    p_completes_at: completesAt,
+    p_idempotency_key: `building-start:${type}:${crypto.randomUUID()}`,
+  });
+  if (operationError) throw operationError;
+  await recordTelemetryBestEffort(supabase, "stadium_upgraded", "/buildings", {
+    building_type: type,
+    target_level: nextLevel,
+    cost,
+  });
+  return { ok: true, completesAt: (operation as any)?.completes_at ?? completesAt };
 }
 
 async function finishUpgradeForUser(supabase: any, userId: string, type: BuildingType) {
-  const trainer = await trainerForUser(supabase, userId);
-  const [{ data: academy, error: academyError }, { data: building, error: buildingError }] = await Promise.all([
-    supabase.from("academies").select("gems").eq("trainer_id", trainer.id).maybeSingle(),
-    supabase.from("buildings").select("id, level, upgrade_completes_at").eq("team_id", trainer.current_team_id).eq("building_type", type).maybeSingle(),
-  ]);
-  if (academyError || buildingError) throw academyError ?? buildingError;
-  if (!building?.upgrade_completes_at) return { spent: 0 };
-  const remainingMs = Math.max(0, new Date(building.upgrade_completes_at).getTime() - Date.now());
-  const spent = remainingMs > 0 ? Math.max(1, Math.ceil(remainingMs / 600000)) : 0;
-  if ((academy?.gems ?? 0) < spent) throw new Error("Gemas insuficientes para concluir agora.");
-  if (spent) {
-    const { error } = await supabase.from("academies").update({ gems: academy.gems - spent }).eq("trainer_id", trainer.id);
-    if (error) throw error;
-  }
-  const { error } = await supabase.from("buildings").update({ level: Math.min(BUILDINGS[type].maxLevel, Number(building.level ?? 1) + 1), upgrade_completes_at: null } as any).eq("id", building.id);
+  void userId;
+  const { data, error } = await supabase.rpc("finish_building_with_gems_atomic", {
+    p_type: type,
+    p_idempotency_key: `building-rush:${type}:${crypto.randomUUID()}`,
+  });
   if (error) throw error;
-  return { spent };
+  return data;
 }
 
 export const getBuildingsWithSession = createServerFn({ method: "POST" }).inputValidator((raw: unknown) => sessionSchema.parse(raw))

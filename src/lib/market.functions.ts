@@ -12,8 +12,9 @@ import {
   totalMaintenancePerMatch,
   type Division,
 } from "./economy";
-import { adjustAcademyMoney } from "./academy-money.server";
 import { getDirectSession } from "./direct-session.server";
+import { recordTelemetryBestEffort } from "./telemetry.server";
+import { GEM_ECONOMY_CONFIG, refreshCost, type MarketScoutPosition } from "./gem-economy";
 
 /** Divisão ATUAL do jogador — fonte única (time atual), nunca `competitions`. */
 async function currentDivision(supabase: any, trainerId: string, currentTeamId?: string | null): Promise<Division> {
@@ -36,10 +37,10 @@ async function currentSeasonNumber(supabase: any, trainerId: string): Promise<nu
 async function getTrainerWithAcademy(
   supabase: any,
   userId: string,
-): Promise<{ id: string; money: number; roster_slots: number; season_number: number; division: Division }> {
+): Promise<{ id: string; money: number; gems: number; roster_slots: number; season_number: number; division: Division }> {
   const { data: trainer, error } = await supabase
     .from("trainers")
-    .select("id, academies(money, roster_slots)")
+    .select("id, academies(money, gems, roster_slots)")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw error;
@@ -53,6 +54,7 @@ async function getTrainerWithAcademy(
   return {
     id: trainer.id,
     money: academy.money,
+    gems: academy.gems,
     roster_slots: academy.roster_slots,
     season_number: seasonNumber,
     division,
@@ -70,6 +72,12 @@ async function currentPayroll(supabase: any, trainerId: string, division: Divisi
   );
 }
 
+async function marketCycleContext(supabase: any) {
+  const { data, error } = await supabase.rpc("get_market_cycle_context" as any);
+  if (error) throw error;
+  return data as { cycle_number: number; refresh_count: number; rotation_number: number; scout_position: MarketScoutPosition | null; cycle_ends_at: string };
+}
+
 async function loadMarketForUser(supabase: any, userId: string) {
   const { data: trainer, error: trainerError } = await supabase
     .from("trainers")
@@ -78,20 +86,23 @@ async function loadMarketForUser(supabase: any, userId: string) {
     .maybeSingle();
   if (trainerError) throw trainerError;
   if (!trainer) throw new Error("Treinador não encontrado.");
+  void supabase.rpc("record_weekly_mission_progress", { p_event: "market_opened", p_increment: 1 });
   const academy = Array.isArray(trainer.academies) ? trainer.academies[0] : trainer.academies;
   const { loadBestiary } = await import("./bestiary.server");
-  const [seasonNumber, division, creaturesResult, bestiary] = await Promise.all([
+  const [seasonNumber, division, creaturesResult, bestiary, cycle] = await Promise.all([
     currentSeasonNumber(supabase, trainer.id),
     currentDivision(supabase, trainer.id, trainer.current_team_id),
     supabase.from("creatures").select("id, name, element, suggested_position, overall, energy, market_value, age, is_prodigy, salary_mult").eq("owner_trainer_id", trainer.id).order("overall", { ascending: false }),
     loadBestiary(supabase),
+    marketCycleContext(supabase),
   ]);
   if (creaturesResult.error) throw creaturesResult.error;
   const creatures = creaturesResult.data ?? [];
-  const allListings = generateMarketListings(bestiary, trainer.id, seasonNumber, division);
+  const rotationKey = `${cycle.cycle_number}:${cycle.rotation_number}`;
+  const allListings = generateMarketListings(bestiary, trainer.id, seasonNumber, division, 24, rotationKey, cycle.scout_position);
   const [{ data: bought }, { data: premiumSigning }] = await Promise.all([
     supabase.from("market_purchases").select("listing_id").eq("trainer_id", trainer.id).eq("season_number", seasonNumber).eq("division", division),
-    supabase.from("premium_signings" as any).select("id").eq("trainer_id", trainer.id).maybeSingle(),
+    supabase.from("premium_signings" as any).select("id").eq("trainer_id", trainer.id).eq("season_number", seasonNumber).eq("division", division).maybeSingle(),
   ]);
   const boughtSet = new Set((bought ?? []).map((row: any) => row.listing_id));
   const listings = allListings.filter((listing) => !boughtSet.has(listing.id)).map((listing) => ({
@@ -114,11 +125,19 @@ async function loadMarketForUser(supabase: any, userId: string) {
     money: academy?.money ?? 0, gems: academy?.gems ?? 0, roster_slots: academy?.roster_slots ?? 0,
     roster_count: creatures.length,
     my_creatures: creatures.map(({ salary_mult: _salaryMult, ...creature }: any) => ({ ...creature, sell_price: sellPriceForOverall(creature.overall ?? 0, creature.age ?? 24) })),
-    listings, premium_offer: premiumSigning ? null : generatePremiumMarketOffer(bestiary, trainer.id, seasonNumber, division),
+    listings, premium_offer: premiumSigning || !premiumAppears(trainer.id, cycle.cycle_number, cycle.rotation_number) ? null : generatePremiumMarketOffer(bestiary, trainer.id, seasonNumber, division),
     premium_offer_used: !!premiumSigning, season_number: seasonNumber, division, max_band: DIVISION_MAX_BAND[division],
     salary_cap: DIVISION_SALARY_CAP[division], payroll, minimum_operating_reserve: minimumOperatingReserve,
-    rotation_label: "Próxima renovação: início da próxima temporada",
+    market_cycle: cycle,
+    next_refresh_cost: refreshCost(cycle.refresh_count + 1, division),
+    rotation_label: `Renova automaticamente em ${new Date(cycle.cycle_ends_at).toLocaleString("pt-BR")}`,
   };
+}
+
+function premiumAppears(trainerId: string, cycle: number, rotation: number) {
+  let hash = 2166136261;
+  for (const char of `${trainerId}:${cycle}:${rotation}:premium`) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  return (hash >>> 0) / 4294967296 < GEM_ECONOMY_CONFIG.premiumFrequency;
 }
 
 // O host publicado nem sempre encaminha a sessão para server functions GET.
@@ -134,93 +153,39 @@ export const getMarketWithSession = createServerFn({ method: "POST" })
 export const getMarket = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase, userId } = context;
+    return loadMarketForUser(context.supabase, context.userId);
+  });
 
-    const { data: trainer } = await supabase
-      .from("trainers")
-      .select("id, current_team_id, academies(money, gems, roster_slots)")
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (!trainer) throw new Error("Treinador não encontrado.");
-    const academy = Array.isArray(trainer.academies) ? trainer.academies[0] : trainer.academies;
-    const { loadBestiary } = await import("./bestiary.server");
-    const [seasonNumber, division, creaturesResult, bestiary] = await Promise.all([
-      currentSeasonNumber(supabase, trainer.id),
-      currentDivision(supabase, trainer.id, trainer.current_team_id),
-      supabase
-        .from("creatures")
-        .select("id, name, element, suggested_position, overall, energy, market_value, age, is_prodigy, salary_mult")
-        .eq("owner_trainer_id", trainer.id)
-        .order("overall", { ascending: false }),
-      loadBestiary(supabase),
-    ]);
-    if (creaturesResult.error) throw creaturesResult.error;
-    const creatures = creaturesResult.data ?? [];
-    const allListings = generateMarketListings(bestiary, trainer.id, seasonNumber, division);
+const marketActionInput = z.object({
+  access_token: z.string().min(20),
+  idempotency_key: z.string().min(8).max(160),
+});
 
-    // Remove ofertas já compradas nesta temporada/divisão
-    const [{ data: bought }, { data: premiumSigning }] = await Promise.all([
-      supabase
-        .from("market_purchases")
-        .select("listing_id")
-        .eq("trainer_id", trainer.id)
-        .eq("season_number", seasonNumber)
-        .eq("division", division),
-      supabase
-        .from("premium_signings" as any)
-        .select("id")
-        .eq("trainer_id", trainer.id)
-        .maybeSingle(),
-    ]);
-    const boughtSet = new Set((bought ?? []).map((r: any) => r.listing_id));
-    const listings = allListings
-      .filter((l) => !boughtSet.has(l.id))
-      .map((l) => ({
-        ...l,
-        salary: divisionalMatchSalary(l.overall, division) * MATCHES_PER_SEASON,
-        salary_per_match: divisionalMatchSalary(l.overall, division),
-      }));
+export const refreshMarketWithSession = createServerFn({ method: "POST" })
+  .inputValidator((raw: unknown) => marketActionInput.parse(raw))
+  .handler(async ({ data }) => {
+    const { supabase, userId } = await getDirectSession(data.access_token);
+    const trainer = await getTrainerWithAcademy(supabase, userId);
+    const { data: result, error } = await supabase.rpc("refresh_market_atomic" as any, {
+      p_division: trainer.division,
+      p_idempotency_key: data.idempotency_key,
+    });
+    if (error) throw error;
+    await recordTelemetryBestEffort(supabase, "market_refreshed", "/market", result ?? {});
+    return result;
+  });
 
-    const rosterCount = creatures.length;
-    // O elenco já foi carregado para a aba "Vender"; reutilizamos esses dados
-    // para a folha, evitando uma segunda consulta completa à mesma tabela.
-    const payroll = creatures.reduce(
-      (acc: number, creature: any) => acc + Math.round(divisionalMatchSalary(creature.overall ?? 40, division) * MATCHES_PER_SEASON * (creature.salary_mult ?? 1)),
-      0,
-    );
-    const minimumOperatingReserve = Math.round(
-      5 * (
-        payroll / 26 +
-        totalMaintenancePerMatch(division, [
-          { building_type: "estadio", level: 1 },
-          { building_type: "ct_treino", level: 1 },
-          { building_type: "centro_medico", level: 1 },
-        ])
-      ),
-    );
-
-    return {
-      money: academy?.money ?? 0,
-      gems: academy?.gems ?? 0,
-      roster_slots: academy?.roster_slots ?? 0,
-      roster_count: rosterCount,
-      my_creatures: creatures.map(({ salary_mult: _salaryMult, ...creature }: any) => ({
-        ...creature,
-        sell_price: sellPriceForOverall(creature.overall ?? 0, creature.age ?? 24),
-      })),
-      listings,
-      premium_offer: premiumSigning
-        ? null
-        : generatePremiumMarketOffer(bestiary, trainer.id, seasonNumber, division),
-      premium_offer_used: !!premiumSigning,
-      season_number: seasonNumber,
-      division,
-      max_band: DIVISION_MAX_BAND[division],
-      salary_cap: DIVISION_SALARY_CAP[division],
-      payroll,
-      minimum_operating_reserve: minimumOperatingReserve,
-      rotation_label: "Próxima renovação: início da próxima temporada",
-    };
+export const useMarketScoutWithSession = createServerFn({ method: "POST" })
+  .inputValidator((raw: unknown) => marketActionInput.extend({ position: z.enum(["GOL", "DEF", "MEI", "ATA"]) }).parse(raw))
+  .handler(async ({ data }) => {
+    const { supabase } = await getDirectSession(data.access_token);
+    const { data: result, error } = await supabase.rpc("use_market_scout_atomic" as any, {
+      p_position: data.position,
+      p_idempotency_key: data.idempotency_key,
+    });
+    if (error) throw error;
+    await recordTelemetryBestEffort(supabase, "market_scout_used", "/market", { position: data.position });
+    return result;
   });
 
 /** Multiplicador da contraproposta do veterano (passe e salário). */
@@ -231,7 +196,7 @@ export const VETERAN_MIN_AGE = 25;
 async function buyCreatureForUser(
   supabase: any,
   userId: string,
-  data: { listing_id: string; accept_counter?: boolean },
+  data: { listing_id: string; accept_counter?: boolean; currency?: "money" | "gems" },
 ) {
     const trainer = await getTrainerWithAcademy(supabase, userId);
 
@@ -248,7 +213,8 @@ async function buyCreatureForUser(
 
     const { loadBestiary } = await import("./bestiary.server");
     const bestiary = await loadBestiary(supabase);
-    const listing = findListing(bestiary, trainer.id, trainer.season_number, trainer.division, data.listing_id);
+    const cycle = await marketCycleContext(supabase);
+    const listing = findListing(bestiary, trainer.id, trainer.season_number, trainer.division, data.listing_id, `${cycle.cycle_number}:${cycle.rotation_number}`, cycle.scout_position);
     if (!listing) throw new Error("Oferta não encontrada ou já expirou.");
 
     // §8.1 — Calibre por divisão (avaliado do zero a cada proposta)
@@ -301,7 +267,9 @@ async function buyCreatureForUser(
     }
 
     const salaryMult = premium ? VETERAN_COUNTER_MULT : 1;
-    const price = premium ? Math.round(listing.price * VETERAN_COUNTER_MULT) : listing.price;
+    const moneyPrice = premium ? Math.round(listing.price * VETERAN_COUNTER_MULT) : listing.price;
+    const currency = data.currency ?? "money";
+    const price = currency === "gems" ? listing.gem_price : moneyPrice;
 
     // §8.2 — Teto de folha salarial
     const payroll = await currentPayroll(supabase, trainer.id, trainer.division);
@@ -313,81 +281,44 @@ async function buyCreatureForUser(
       );
     }
 
-    if (trainer.money < price) {
+    if (currency === "money" && trainer.money < price) {
       throw new Error("Dinheiro insuficiente para essa contratação.");
     }
+    if (currency === "gems" && trainer.gems < price) throw new Error("Gemas insuficientes para essa contratação.");
 
 
-    // Reserva o valor atomicamente antes de criar o atleta. Se a criação
-    // falhar, o bloco de compensação devolve integralmente o dinheiro.
-    await adjustAcademyMoney(supabase, trainer.id, -price);
-    const { data: created, error: cErr } = await supabase
-      .from("creatures")
-      .insert({
-        owner_trainer_id: trainer.id,
-        name: listing.name,
-        species: listing.species,
-        epithet: listing.epithet,
-        element: listing.element,
-        suggested_position: listing.suggested_position,
-        is_goalkeeper: listing.is_goalkeeper,
-        power_key: listing.power_key,
-        attr_defender: listing.attr_defender,
-        attr_passar: listing.attr_passar,
-        attr_atacar: listing.attr_atacar,
-        attr_tecnica: listing.attr_tecnica,
-        attr_forca: listing.attr_forca,
-        attr_pique: listing.attr_pique,
-        attr_maos: listing.attr_maos,
-        attr_concentracao: listing.attr_concentracao,
-        attr_elasticidade: listing.attr_elasticidade,
-        overall: listing.overall,
-        // Estrelas são a força inata (mesma regra do elenco inicial e do mundo):
-        // meia-estrelas = overall/10. Sem isso, a criatura comprada nascia com 0★.
-        half_stars_earned: Math.max(0, Math.min(10, Math.round((listing.overall ?? 0) / 10))),
-        career_baseline_xp: xpForHalfStars(Math.max(0, Math.min(10, Math.round((listing.overall ?? 0) / 10)))),
-        energy: 100,
-
-        market_value: listing.market_value,
-        age: listing.age,
-        aff_fogo: 0, aff_agua: 0, aff_terra: 0, aff_ar: 0, aff_gelo: 0,
-        is_prodigy: !!(listing as any).is_prodigy,
-        salary_mult: salaryMult,
-      } as any)
-      .select("id")
-      .single();
-    if (cErr) {
-      await adjustAcademyMoney(supabase, trainer.id, price).catch(() => undefined);
-      throw cErr;
-    }
-
-    await supabase.from("financial_transactions").insert({
-      trainer_id: trainer.id,
-      transaction_type: "expense",
-      amount: price,
-      description: `Contratação: ${listing.name} (${listing.seller})${premium ? " — contraproposta aceita" : ""}`,
+    const halfStars = Math.max(0, Math.min(10, Math.round((listing.overall ?? 0) / 10)));
+    const idempotencyKey = `market-player:${trainer.id}:${cycle.cycle_number}:${listing.id}:${currency}:${salaryMult}`;
+    const { data: purchase, error: purchaseError } = await supabase.rpc("purchase_market_creature_atomic" as any, {
+      p_listing: { ...listing, career_baseline_xp: xpForHalfStars(halfStars) },
+      p_currency: currency,
+      p_price: price,
+      p_season_number: trainer.season_number,
+      p_division: trainer.division,
+      p_is_premium: false,
+      p_salary_mult: salaryMult,
+      p_idempotency_key: idempotencyKey,
     });
-    await supabase.from("transfers").insert({
-      trainer_id: trainer.id,
-      creature_id: created.id,
-      transfer_type: "buy",
-      amount: price,
-    });
-    await supabase.from("market_purchases").insert({
-      trainer_id: trainer.id,
-      season_number: trainer.season_number,
+    if (purchaseError) throw purchaseError;
+    const createdId = (purchase as any).creature_id as string;
+    await recordTelemetryBestEffort(supabase, "player_signed", "/market", {
+      creature_id: createdId,
+      price,
+      currency,
       division: trainer.division,
-      listing_id: listing.id,
+      overall: listing.overall,
     });
+    void supabase.rpc("record_weekly_mission_progress", { p_event: "player_signed", p_increment: 1 });
 
     const newPayroll = payroll + addSalary;
     return {
       refused: false as const,
       counter_offer: null,
       message: null,
-      creature_id: created.id,
+      creature_id: createdId,
       name: listing.name,
       price,
+      currency,
       salary: addSalary,
       salary_per_match: Math.round(divisionalMatchSalary(listing.overall, trainer.division) * salaryMult),
       element: listing.element,
@@ -398,11 +329,54 @@ async function buyCreatureForUser(
       payroll_after: newPayroll,
       salary_cap: cap,
       roster_slots: trainer.roster_slots,
-      roster_count_after: rosterCount + 1,
+      roster_count_after: (purchase as any).roster_count_after ?? rosterCount + 1,
     };
 }
 
-const buyCreatureInput = z.object({ listing_id: z.string(), accept_counter: z.boolean().optional() });
+async function buyPremiumCreatureForUser(supabase: any, userId: string, data: { offer_id: string }) {
+  const trainer = await getTrainerWithAcademy(supabase, userId);
+  const [{ loadBestiary }, cycle] = await Promise.all([import("./bestiary.server"), marketCycleContext(supabase)]);
+  if (!premiumAppears(trainer.id, cycle.cycle_number, cycle.rotation_number)) throw new Error("A oferta rara não está mais disponível.");
+  const bestiary = await loadBestiary(supabase);
+  const offer = generatePremiumMarketOffer(bestiary, trainer.id, trainer.season_number, trainer.division);
+  if (offer.id !== data.offer_id) throw new Error("Oferta premium inválida ou expirada.");
+
+  const [{ count }, { data: signing }] = await Promise.all([
+    supabase.from("creatures").select("id", { count: "exact", head: true }).eq("owner_trainer_id", trainer.id),
+    supabase.from("premium_signings" as any).select("id").eq("trainer_id", trainer.id).eq("season_number", trainer.season_number).eq("division", trainer.division).maybeSingle(),
+  ]);
+  if (signing) throw new Error("A contratação premium desta temporada e divisão já foi utilizada.");
+  if ((count ?? 0) >= trainer.roster_slots) throw new Error("Elenco cheio. Venda uma criatura antes.");
+  if (trainer.gems < offer.gem_price) throw new Error("Gemas insuficientes para esta contratação premium.");
+
+  const payroll = await currentPayroll(supabase, trainer.id, trainer.division);
+  const addSalary = divisionalMatchSalary(offer.overall, trainer.division) * MATCHES_PER_SEASON;
+  const cap = DIVISION_SALARY_CAP[trainer.division];
+  if (payroll + addSalary > cap) throw new Error("Esta contratação ultrapassaria o teto salarial da divisão.");
+  const halfStars = Math.max(0, Math.min(10, Math.round(offer.overall / 10)));
+  const { data: purchase, error } = await supabase.rpc("purchase_market_creature_atomic" as any, {
+    p_listing: { ...offer, career_baseline_xp: xpForHalfStars(halfStars) },
+    p_currency: "gems",
+    p_price: offer.gem_price,
+    p_season_number: trainer.season_number,
+    p_division: trainer.division,
+    p_is_premium: true,
+    p_salary_mult: 1,
+    p_idempotency_key: `premium-player:${trainer.id}:${trainer.season_number}:${trainer.division}:${offer.id}`,
+  });
+  if (error) throw error;
+  await recordTelemetryBestEffort(supabase, "premium_player_signed", "/market", { division: trainer.division, season_number: trainer.season_number, gems: offer.gem_price, overall: offer.overall });
+  void supabase.rpc("record_weekly_mission_progress", { p_event: "player_signed", p_increment: 1 });
+  return {
+    ...(purchase as any), refused: false as const, counter_offer: null, message: null,
+    name: offer.name, price: offer.gem_price, currency: "gems" as const, salary: addSalary,
+    salary_per_match: divisionalMatchSalary(offer.overall, trainer.division), element: offer.element,
+    position: offer.suggested_position, overall: offer.overall, stars: offer.overall / 20,
+    payroll_before: payroll, payroll_after: payroll + addSalary, salary_cap: cap,
+  };
+}
+
+const buyCreatureInput = z.object({ listing_id: z.string(), accept_counter: z.boolean().optional(), currency: z.enum(["money", "gems"]).optional() });
 
 export const buyCreature = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -414,6 +388,14 @@ export const buyCreatureWithSession = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { supabase, userId } = await getDirectSession(data.access_token);
     return buyCreatureForUser(supabase, userId, data);
+  });
+
+const buyPremiumInput = z.object({ offer_id: z.string(), access_token: z.string().min(20) });
+export const buyPremiumCreatureWithSession = createServerFn({ method: "POST" })
+  .inputValidator((raw: unknown) => buyPremiumInput.parse(raw))
+  .handler(async ({ data }) => {
+    const { supabase, userId } = await getDirectSession(data.access_token);
+    return buyPremiumCreatureForUser(supabase, userId, data);
   });
 
 async function sellCreatureForUser(supabase: any, userId: string, data: { creature_id: string }) {

@@ -27,6 +27,8 @@ export function GameTelemetry() {
     if (route === "/onboarding")
       record({ data: { event: "onboarding_started", route } }).catch(() => undefined);
     if (route === "/club") record({ data: { event: "club_viewed", route } }).catch(() => undefined);
+    if (route === "/market") record({ data: { event: "market_opened", route } }).catch(() => undefined);
+    if (route === "/shop") record({ data: { event: "shop_opened", route } }).catch(() => undefined);
     if (previousRoute.current === "/onboarding" && route === "/dashboard") {
       record({ data: { event: "onboarding_completed", route } }).catch(() => undefined);
     }

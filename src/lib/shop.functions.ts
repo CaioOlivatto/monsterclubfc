@@ -10,6 +10,7 @@ import {
   MAX_BUILDERS,
   ROSTER_EXPANSIONS,
   SPEED_REAL_MONEY_PRODUCTS,
+  SPEED_GEM_UNLOCKS,
   XP_BURST_MATCHES,
   XP_BURST_MULTIPLIER,
   GEM_TO_MONEY_RATE,
@@ -21,6 +22,7 @@ import {
   type ItemKey,
   type ExchangeDivision,
 } from "./shop.server";
+import { recordTelemetryBestEffort } from "./telemetry.server";
 
 
 async function loadCtx(context: { supabase: any; userId: string }) {
@@ -93,6 +95,7 @@ export const getShopState = createServerFn({ method: "GET" })
         gems: academy.gems,
         builders: academy.builders,
         roster_slots: academy.roster_slots,
+        paid_2x: !!academy.paid_2x,
         paid_4x: !!academy.paid_4x,
         paid_instant: !!academy.paid_instant,
       },
@@ -110,6 +113,7 @@ export const getShopState = createServerFn({ method: "GET" })
         nextBuilderCost: extraBuilderCostFor(academy.builders ?? 1),
         maxBuilders: MAX_BUILDERS,
         speedProducts: SPEED_REAL_MONEY_PRODUCTS,
+        speedGemUnlocks: SPEED_GEM_UNLOCKS,
         xpBurstMatches: XP_BURST_MATCHES,
         gemToMoneyRate: GEM_TO_MONEY_RATE,
         gemToMoneyRateEffective: gemExchangeRateFor(division),
@@ -278,47 +282,43 @@ export const buyGemPackage = createServerFn({ method: "POST" })
 export const buyExtraBuilder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { academy } = await loadCtx(context);
-    if (academy.builders >= MAX_BUILDERS) throw new Error("Você já tem o máximo de construtores.");
-    const cost = extraBuilderCostFor(academy.builders);
-    if (cost == null) throw new Error("Você já tem o máximo de construtores.");
-    if (academy.gems < cost) throw new Error("Gemas insuficientes.");
-    await context.supabase
-      .from("academies")
-      .update({
-        gems: academy.gems - cost,
-        builders: academy.builders + 1,
-      })
-      .eq("id", academy.id);
-    return { ok: true, message: `Novo construtor contratado por ${cost}💎!` };
+    const { data, error } = await context.supabase.rpc("buy_academy_capacity_atomic", {
+      p_kind: "builder", p_idempotency_key: `builder:${crypto.randomUUID()}`,
+    });
+    if (error) throw error;
+    return { ok: true, ...data };
   });
 
 // ---------- Expandir elenco ----------
 export const expandRoster = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { academy } = await loadCtx(context);
-    const next = ROSTER_EXPANSIONS.find((r) => r.from === academy.roster_slots);
-    if (!next) throw new Error("Elenco já está no máximo.");
-    if (academy.gems < next.gems) throw new Error("Gemas insuficientes.");
-    await context.supabase
-      .from("academies")
-      .update({
-        gems: academy.gems - next.gems,
-        roster_slots: next.to,
-      })
-      .eq("id", academy.id);
-    return { ok: true, message: `Elenco expandido para ${next.to} vagas.` };
+    const { data, error } = await context.supabase.rpc("buy_academy_capacity_atomic", {
+      p_kind: "roster", p_idempotency_key: `roster:${crypto.randomUUID()}`,
+    });
+    if (error) throw error;
+    return { ok: true, ...data };
   });
 
 // ---------- Desbloquear velocidade permanentemente ----------
 export const unlockSpeed = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: { mode: "4x" | "instant" }) => ({
-    mode: z.enum(["4x", "instant"]).parse(data.mode),
+  .inputValidator((data: { mode: "2x" | "4x" | "instant" | "bundle" }) => ({
+    mode: z.enum(["2x", "4x", "instant", "bundle"]).parse(data.mode),
   }))
   .handler(async ({ data, context }) => {
-    void data;
-    void context;
-    throw new Error("Este recurso exige pagamento em dinheiro real. Pagamentos em breve.");
+    const { data: result, error } = await context.supabase.rpc("unlock_match_speed_with_gems" as any, {
+      p_mode: data.mode,
+    });
+    if (error) throw error;
+    await recordTelemetryBestEffort(context.supabase, "speed_unlocked", "/shop", {
+      mode: data.mode,
+    });
+    return {
+      ok: true,
+      message: data.mode === "bundle"
+        ? "Pacote completo de velocidades desbloqueado."
+        : `Velocidade ${data.mode} desbloqueada permanentemente.`,
+      result,
+    };
   });

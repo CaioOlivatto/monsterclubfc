@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -8,6 +8,7 @@ import {
   useItem,
   buyExtraBuilder,
   expandRoster,
+  unlockSpeed,
 } from "@/lib/shop.functions";
 
 import { listMyCreatures } from "@/lib/creatures.functions";
@@ -23,7 +24,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useState } from "react";
-import { ArrowLeft, Coins, Gem, Hammer, Package, Users, Zap } from "lucide-react";
+import { Coins, Gem, Hammer, Package, Users, Zap } from "lucide-react";
+import { GamePageShell } from "@/components/GamePageShell";
 
 export const Route = createFileRoute("/_authenticated/shop")({
   head: () => ({
@@ -38,7 +40,6 @@ export const Route = createFileRoute("/_authenticated/shop")({
 });
 
 function ShopPage() {
-  const nav = useNavigate();
   const qc = useQueryClient();
   const fetchShop = useServerFn(getShopState);
   const fetchCreatures = useServerFn(listMyCreatures);
@@ -46,6 +47,7 @@ function ShopPage() {
   const useItemFn = useServerFn(useItem);
   const buyBuilderFn = useServerFn(buyExtraBuilder);
   const expandFn = useServerFn(expandRoster);
+  const unlockSpeedFn = useServerFn(unlockSpeed);
 
 
   const { data: shop, isLoading } = useQuery({
@@ -60,32 +62,39 @@ function ShopPage() {
   const [potionTarget, setPotionTarget] = useState<string>("");
 
 
-  const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ["shop"] });
-    qc.invalidateQueries({ queryKey: ["my-creatures"] });
-    qc.invalidateQueries({ queryKey: ["dashboard"] });
-    qc.invalidateQueries({ queryKey: ["buildings"] });
+  const invalidate = async () => {
+    await Promise.all([
+      qc.invalidateQueries({ queryKey: ["shop"], refetchType: "active" }),
+      qc.invalidateQueries({ queryKey: ["my-creatures"], refetchType: "active" }),
+      qc.invalidateQueries({ queryKey: ["dashboard"], refetchType: "active" }),
+      qc.invalidateQueries({ queryKey: ["buildings"], refetchType: "active" }),
+    ]);
   };
 
   const buyMut = useMutation({
     mutationFn: (v: { itemKey: any; currency: "money" | "gems" }) => buyItemFn({ data: v }),
-    onSuccess: (r) => { toast.success(r.message); invalidate(); },
+    onSuccess: async (r) => { await invalidate(); toast.success(r.message); },
     onError: (e: any) => toast.error(e?.message ?? "Falha na compra"),
   });
   const useMut = useMutation({
     mutationFn: (v: { itemKey: any; creatureId?: string }) => useItemFn({ data: v }),
-    onSuccess: (r) => { toast.success(r.message); invalidate(); },
+    onSuccess: async (r) => { await invalidate(); toast.success(r.message); },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao usar item"),
   });
   const builderMut = useMutation({
     mutationFn: () => buyBuilderFn({}),
-    onSuccess: (r) => { toast.success(r.message); invalidate(); },
+    onSuccess: async (r) => { await invalidate(); toast.success(r.message); },
     onError: (e: any) => toast.error(e?.message ?? "Falha"),
   });
   const expandMut = useMutation({
     mutationFn: () => expandFn({}),
-    onSuccess: (r) => { toast.success(r.message); invalidate(); },
+    onSuccess: async (r) => { await invalidate(); toast.success(r.message); },
     onError: (e: any) => toast.error(e?.message ?? "Falha"),
+  });
+  const speedMut = useMutation({
+    mutationFn: (mode: "2x" | "4x" | "instant" | "bundle") => unlockSpeedFn({ data: { mode } }),
+    onSuccess: async (r) => { await invalidate(); toast.success(r.message); },
+    onError: (e: any) => toast.error(e?.message ?? "Não foi possível desbloquear"),
   });
 
 
@@ -101,21 +110,7 @@ function ShopPage() {
   const nextExpansion = catalogs.rosterExpansions.find((r: any) => r.from === academy.roster_slots);
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border/60 bg-card/40 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-4">
-          <Button variant="ghost" size="sm" onClick={() => nav({ to: "/dashboard" })}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
-          </Button>
-          <h1 className="text-xl font-bold sm:text-2xl">Loja</h1>
-          <div className="ml-auto flex items-center gap-3 text-sm">
-            <span className="flex items-center gap-1"><Coins className="h-4 w-4 text-yellow-500" /> $ {academy.money.toLocaleString("pt-BR")}</span>
-            <span className="flex items-center gap-1"><Gem className="h-4 w-4 text-cyan-400" /> {academy.gems}</span>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-5xl space-y-4 p-4">
+    <GamePageShell title="Loja de Gemas" subtitle="Itens, gemas e melhorias para sua academia" money={academy.money} gems={academy.gems} maxWidth="5xl">
         <Tabs defaultValue="itens">
           <TabsList>
             <TabsTrigger value="itens"><Package className="mr-2 h-4 w-4" /> Itens</TabsTrigger>
@@ -282,8 +277,9 @@ function ShopPage() {
               </CardContent>
             </Card>
             {([
-              { mode: "4x" as const, title: "Velocidade 4x (permanente)", desc: "Permite acelerar a simulação da partida em 4x.", price: catalogs.speedProducts["4x"].priceLabel, owned: academy.paid_4x },
-              { mode: "instant" as const, title: "Modo Instantâneo (permanente)", desc: "Pula direto para o resultado da partida.", price: catalogs.speedProducts.instant.priceLabel, owned: academy.paid_instant },
+              { mode: "2x" as const, title: "Velocidade 2x (permanente)", desc: "Acelera a apresentação sem alterar resultado, XP ou desgaste.", gems: catalogs.speedGemUnlocks["2x"], owned: academy.paid_2x },
+              { mode: "4x" as const, title: "Velocidade 4x (permanente)", desc: "Acelera a apresentação sem alterar resultado, XP ou desgaste.", gems: catalogs.speedGemUnlocks["4x"], owned: academy.paid_4x },
+              { mode: "instant" as const, title: "Modo Instantâneo (permanente)", desc: "Mostra o resultado já simulado, sem mudar qualquer evento da partida.", gems: catalogs.speedGemUnlocks.instant, owned: academy.paid_instant },
             ]).map((s) => (
               <Card key={s.mode}>
                 <CardHeader className="pb-2">
@@ -298,21 +294,28 @@ function ShopPage() {
                     <Badge variant="secondary">Já desbloqueado</Badge>
                   ) : (
                     <Button
-                      disabled
+                      disabled={speedMut.isPending || academy.gems < s.gems}
+                      onClick={() => speedMut.mutate(s.mode)}
                     >
-                      {s.price} · Pagamentos em breve
+                      <Gem className="mr-2 h-4 w-4" /> {s.gems}
                     </Button>
                   )}
                 </CardContent>
               </Card>
             ))}
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-base"><Zap className="h-4 w-4" /> Pacote completo de velocidades</CardTitle></CardHeader>
+              <CardContent className="flex flex-wrap items-center justify-between gap-3">
+                <div><p className="text-sm">Desbloqueia 2x, 4x e resultado instantâneo.</p><p className="text-xs text-muted-foreground">Economia de 150 gemas sobre os desbloqueios separados.</p></div>
+                {academy.paid_2x && academy.paid_4x && academy.paid_instant ? <Badge variant="secondary">Já desbloqueado</Badge> : <Button disabled={speedMut.isPending || academy.gems < catalogs.speedGemUnlocks.bundle} onClick={() => speedMut.mutate("bundle")}><Gem className="mr-2 h-4 w-4" /> {catalogs.speedGemUnlocks.bundle}</Button>}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
 
         <p className="text-center text-xs text-muted-foreground">
           <Link to="/dashboard" className="underline underline-offset-4">Voltar ao painel</Link>
         </p>
-      </main>
-    </div>
+    </GamePageShell>
   );
 }

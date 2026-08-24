@@ -215,7 +215,7 @@ async function loadMatchForUser(supabase: any, userId: string, matchId: string) 
         .order("created_at", { ascending: true }),
       supabase
         .from("academies")
-        .select("paid_4x, paid_instant, gems")
+        .select("paid_2x, paid_4x, paid_instant, gems")
         .eq("trainer_id", trainer.id)
         .maybeSingle(),
     ]);
@@ -234,6 +234,7 @@ async function loadMatchForUser(supabase: any, userId: string, matchId: string) 
       player_team_id: playerTeamId,
       events: events ?? [],
       speed: {
+        paid_2x: academy?.paid_2x ?? false,
         paid_4x: academy?.paid_4x ?? false,
         paid_instant: academy?.paid_instant ?? false,
         price_4x: SPEED_REAL_MONEY_PRODUCTS["4x"].priceLabel,

@@ -94,7 +94,7 @@ BEGIN
   END IF;
 
   INSERT INTO public.academies (trainer_id, money, gems, builders, roster_slots)
-  VALUES (v_trainer_id, 400000, 50, 1, 26)
+  VALUES (v_trainer_id, 400000, 10, 1, 26)
   ON CONFLICT (trainer_id) DO UPDATE
     SET roster_slots = GREATEST(public.academies.roster_slots, 26);
 
