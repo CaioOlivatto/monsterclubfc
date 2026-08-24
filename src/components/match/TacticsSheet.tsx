@@ -18,15 +18,13 @@ import { Slider } from "@/components/ui/slider";
 import { Sliders } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-
-type Tactics = {
-  mentalidade: number;
-  verticalidade: number;
-  pressao: number;
-  cortes: number;
-};
-
-const NEUTRAL: Tactics = { mentalidade: 0, verticalidade: 0, pressao: 0, cortes: 0 };
+import {
+  createTacticsPayload,
+  NEUTRAL_TACTICS as NEUTRAL,
+  normalizeTactics,
+  updateTacticAxis,
+  type TacticsDraft as Tactics,
+} from "@/lib/tactics-draft";
 
 const AXES: Array<{
   key: keyof Tactics;
@@ -97,7 +95,7 @@ export function TacticsSheet({ substitutionsUsed = 0, autoOpenSubstitutions = fa
   const [draft, setDraft] = useState<Tactics>(NEUTRAL);
 
   useEffect(() => {
-    if (data?.tactics) setDraft(data.tactics);
+    if (data?.tactics) setDraft(normalizeTactics(data.tactics));
   }, [data?.tactics]);
 
   useEffect(() => {
@@ -126,15 +124,7 @@ export function TacticsSheet({ substitutionsUsed = 0, autoOpenSubstitutions = fa
   };
 
   const mut = useMutation({
-    mutationFn: (t: Tactics) =>
-      saveFn({
-        data: {
-          mentalidade: Number(t.mentalidade),
-          verticalidade: Number(t.verticalidade),
-          pressao: Number(t.pressao),
-          cortes: Number(t.cortes),
-        },
-      }),
+    mutationFn: (t: Tactics) => saveFn({ data: createTacticsPayload(t, normalizeTactics(data?.tactics)) }),
     onSuccess: () => {
       toast.success("Táticas salvas — valem a partir da próxima partida.");
       qc.invalidateQueries({ queryKey: ["my-tactics"] });
@@ -147,7 +137,10 @@ export function TacticsSheet({ substitutionsUsed = 0, autoOpenSubstitutions = fa
   });
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={(nextOpen) => {
+      if (nextOpen) setDraft(normalizeTactics(data?.tactics));
+      setOpen(nextOpen);
+    }}>
       <SheetTrigger asChild>
         <Button size="sm" variant="outline">
           <Sliders className="mr-1 h-3 w-3" /> Táticas
@@ -168,7 +161,8 @@ export function TacticsSheet({ substitutionsUsed = 0, autoOpenSubstitutions = fa
           </TabsList>
           <TabsContent value="tactics" className="space-y-6 pt-4">
           {AXES.map((a) => {
-            const v = draft[a.key];
+            const current = normalizeTactics(data?.tactics);
+            const v = normalizeTactics(draft, current)[a.key];
             return (
               <div key={a.key} className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -182,9 +176,7 @@ export function TacticsSheet({ substitutionsUsed = 0, autoOpenSubstitutions = fa
                   max={2}
                   step={1}
                   value={[v]}
-                  onValueChange={(val) =>
-                    setDraft((d) => ({ ...d, [a.key]: Number(val[0]) }))
-                  }
+                  onValueChange={(val) => setDraft((d) => updateTacticAxis(d, a.key, val, current))}
                 />
                 <div className="flex justify-between text-[10px] text-muted-foreground">
                   <span>{a.minLabel}</span>
