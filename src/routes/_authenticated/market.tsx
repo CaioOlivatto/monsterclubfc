@@ -10,14 +10,6 @@ import { TeamCrest } from "@/components/TeamCrest";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -98,10 +90,6 @@ function MarketPage() {
   });
 
   const [tab, setTab] = useState<"buy" | "sell">("buy");
-  const [elementFilter, setElementFilter] = useState<string>("all");
-  const [posFilter, setPosFilter] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<string>("price");
-  const [search, setSearch] = useState("");
 
   const [counter, setCounter] = useState<any | null>(null);
 
@@ -191,39 +179,14 @@ function MarketPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const filteredListings = useMemo(() => {
-    const list = data?.listings ?? [];
-    let out = list.filter((l) => {
-      if (elementFilter !== "all" && l.element !== elementFilter) return false;
-      if (posFilter !== "all" && l.suggested_position !== posFilter) return false;
-      if (search && !l.name.toLowerCase().includes(search.toLowerCase())) return false;
-      return true;
-    });
-    out = [...out].sort((a, b) => {
-      if (sortBy === "price") return a.price - b.price;
-      if (sortBy === "overall") return b.overall - a.overall;
-      if (sortBy === "name") return a.name.localeCompare(b.name);
-      return 0;
-    });
-    return out;
-  }, [data, elementFilter, posFilter, sortBy, search]);
-
-  const filteredMine = useMemo(() => {
-    const list = data?.my_creatures ?? [];
-    let out = list.filter((c) => {
-      if (elementFilter !== "all" && c.element !== elementFilter) return false;
-      if (posFilter !== "all" && c.suggested_position !== posFilter) return false;
-      if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false;
-      return true;
-    });
-    out = [...out].sort((a, b) => {
-      if (sortBy === "price") return (b.market_value ?? 0) - (a.market_value ?? 0);
-      if (sortBy === "overall") return b.overall - a.overall;
-      if (sortBy === "name") return a.name.localeCompare(b.name);
-      return 0;
-    });
-    return out;
-  }, [data, elementFilter, posFilter, sortBy, search]);
+  const listings = useMemo(
+    () => [...(data?.listings ?? [])].sort((a, b) => a.price - b.price),
+    [data?.listings],
+  );
+  const myCreatures = useMemo(
+    () => [...(data?.my_creatures ?? [])].sort((a, b) => (b.market_value ?? 0) - (a.market_value ?? 0)),
+    [data?.my_creatures],
+  );
 
   return (
     <div className="min-h-screen bg-[#020617] pb-24 text-white">
@@ -388,65 +351,17 @@ function MarketPage() {
           </Card>
         )}
 
-        <Card className="border-violet-400/30 bg-slate-950/85 text-white shadow-xl backdrop-blur-sm">
-          <CardContent className="space-y-3 py-4">
-            <Input
-              placeholder="Buscar por nome..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="border-slate-600 bg-slate-900/90 text-white placeholder:text-slate-500"
-            />
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <Select value={elementFilter} onValueChange={setElementFilter}>
-                <SelectTrigger className="border-slate-600 bg-slate-900/90 text-white">
-                  <SelectValue placeholder="Elemento" />
-                </SelectTrigger>
-                <SelectContent className="border-slate-700 bg-slate-950 text-white">
-                  <SelectItem value="all">Todos elementos</SelectItem>
-                  {Object.entries(ELEMENT_LABEL).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>
-                      {v}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={posFilter} onValueChange={setPosFilter}>
-                <SelectTrigger className="border-slate-600 bg-slate-900/90 text-white">
-                  <SelectValue placeholder="Posição" />
-                </SelectTrigger>
-                <SelectContent className="border-slate-700 bg-slate-950 text-white">
-                  <SelectItem value="all">Todas posições</SelectItem>
-                  <SelectItem value="Goleiro">Goleiro</SelectItem>
-                  <SelectItem value="Zagueiro">Zagueiro</SelectItem>
-                  <SelectItem value="Meio-campo">Meio-campo</SelectItem>
-                  <SelectItem value="Atacante">Atacante</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="border-slate-600 bg-slate-900/90 text-white">
-                  <SelectValue placeholder="Ordenar" />
-                </SelectTrigger>
-                <SelectContent className="border-slate-700 bg-slate-950 text-white">
-                  <SelectItem value="price">Preço</SelectItem>
-                  <SelectItem value="overall">Overall</SelectItem>
-                  <SelectItem value="name">Nome</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-
         {tab === "buy" ? (
           <div className="space-y-3">
             {isLoading && <p className="text-sm text-muted-foreground">Carregando ofertas...</p>}
-            {!isLoading && filteredListings.length === 0 && (
+            {!isLoading && listings.length === 0 && (
               <Card className="border-slate-700 bg-slate-950/85 text-slate-300">
                 <CardContent className="py-8 text-center text-sm text-muted-foreground">
                   Nenhuma oferta corresponde aos filtros.
                 </CardContent>
               </Card>
             )}
-            {filteredListings.map((l: any) => {
+            {listings.map((l: any) => {
               const canAfford = (data?.money ?? 0) >= l.price;
               const rosterFull = (data?.roster_count ?? 0) >= (data?.roster_slots ?? 0);
               const salary = l.salary ?? 0;
@@ -528,14 +443,14 @@ function MarketPage() {
         ) : (
           <div className="space-y-3">
             {isLoading && <p className="text-sm text-muted-foreground">Carregando elenco...</p>}
-            {!isLoading && filteredMine.length === 0 && (
+            {!isLoading && myCreatures.length === 0 && (
               <Card className="border-slate-700 bg-slate-950/85 text-slate-300">
                 <CardContent className="py-8 text-center text-sm text-muted-foreground">
                   Nenhuma criatura corresponde aos filtros.
                 </CardContent>
               </Card>
             )}
-            {filteredMine.map((c) => {
+            {myCreatures.map((c) => {
               const sellPrice = (c as any).sell_price ?? Math.round((c.market_value * 0.9) / 100) * 100;
               const canSell = (data?.roster_count ?? 0) > 11;
               return (
