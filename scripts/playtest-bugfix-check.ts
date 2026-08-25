@@ -12,7 +12,9 @@ const league = read("src/lib/league.functions.ts");
 const dashboard = read("src/routes/_authenticated/dashboard.tsx");
 const leagueUi = read("src/routes/_authenticated/league.tsx");
 const market = read("src/lib/market.functions.ts");
+const marketRoute = read("src/routes/_authenticated/market.tsx");
 const marketMigration = read("supabase/migrations/20260824140000_gem_market_economy.sql");
+const marketElementMigration = read("supabase/migrations/20260825160000_fix_market_purchase_element_cast.sql");
 const seasonMigration = read("supabase/migrations/20260825110000_season_transition_guard.sql");
 const moraleMigration = read("supabase/migrations/20260825120000_atomic_morale_cycles.sql");
 const timerMigration = read("supabase/migrations/20260825130000_authoritative_offline_timers.sql");
@@ -28,6 +30,8 @@ expect("CTAs da temporada", /Ver resultados/i.test(dashboard) && /Iniciar nova t
 expect("continuidade de temporada com sessão direta", league.includes("getSeasonAdvanceStatusWithSession") && league.includes("finishSeasonAndAdvanceWithSession") && league.includes("await recoverStaleRounds") && dashboard.includes("getSeasonAdvanceStatusWithSession") && dashboard.includes("finishSeasonAndAdvanceWithSession") && leagueUi.includes("getSeasonAdvanceStatusWithSession") && leagueUi.includes("finishSeasonAndAdvanceWithSession"));
 expect("compra de mercado atômica", market.includes("purchase_market_creature_atomic") && marketMigration.includes("CREATE OR REPLACE FUNCTION public.purchase_market_creature_atomic"));
 expect("mercado com idempotência", marketMigration.includes("idempotency") && marketMigration.includes("FOR UPDATE"));
+expect("elemento do jogador convertido para enum no banco", marketElementMigration.includes("(p_listing->>'element')::public.element_type"));
+expect("abas Comprar e Vender indicam a seleção", marketRoute.includes('tab === "sell"') && marketRoute.includes("bg-violet-700"));
 expect("ciclos coletivos atômicos", morale.includes("apply_collective_morale_action_atomic") && moraleMigration.includes("CREATE OR REPLACE FUNCTION public.apply_collective_morale_action_atomic"));
 expect("janelas reais 12h/24h", gems.includes("meetingHours: 12") && gems.includes("generalHours: 24"));
 expect("custos extras progressivos", gems.includes("[15, 30, 60, 120]") && gems.includes("[30, 60, 120, 240]"));

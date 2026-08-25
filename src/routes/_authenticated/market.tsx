@@ -312,7 +312,11 @@ function MarketPage() {
           <Button
             variant={tab === "buy" ? "default" : "outline"}
             onClick={() => setTab("buy")}
-            className="h-11 border border-violet-400/30 bg-violet-700 text-white hover:bg-violet-600"
+            className={
+              tab === "buy"
+                ? "h-11 border border-violet-400/30 bg-violet-700 text-white hover:bg-violet-600"
+                : "h-11 border border-slate-600 bg-slate-900/90 text-slate-100 hover:bg-slate-800"
+            }
           >
             <Store className="mr-2 h-4 w-4" />
             Comprar
@@ -320,7 +324,11 @@ function MarketPage() {
           <Button
             variant={tab === "sell" ? "default" : "outline"}
             onClick={() => setTab("sell")}
-            className="h-11 border border-slate-600 bg-slate-900/90 text-slate-100 hover:bg-slate-800"
+            className={
+              tab === "sell"
+                ? "h-11 border border-violet-400/30 bg-violet-700 text-white hover:bg-violet-600"
+                : "h-11 border border-slate-600 bg-slate-900/90 text-slate-100 hover:bg-slate-800"
+            }
           >
             <Coins className="mr-2 h-4 w-4" />
             Vender
