@@ -190,7 +190,7 @@ async function loadDashboard(supabase: any, userId: string) {
     const buildingsPromise = supabase
       .from("buildings")
       .select("building_type, level")
-      .eq("trainer_id", trainer.id);
+      .eq("team_id", trainer.current_team_id);
 
     const [playerTeam, { data: creatures, error: creaturesError }, { data: lineup }, { data: buildings }] = await Promise.all([
       playerTeamPromise,

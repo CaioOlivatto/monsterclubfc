@@ -52,15 +52,18 @@ for (const division of DIVISION_ORDER) {
   }
 }
 
-assert.equal(computeAwayWinBonus(100_000, 60_000, 20_000), 28_000);
-assert.equal(computeAwayWinBonus(50_000, 60_000, 20_000), 8_000);
-assert.equal(computeAwayWinBonus(1_000_000, 0, 0, "bronze"), 28_000);
+assert.equal(computeAwayWinBonus(100_000, 60_000, 20_000), 8_000);
+assert.equal(computeAwayWinBonus(1_000_000, 0, 0, "bronze"), 8_000);
+assert.equal(computeAwayWinBonus(1, 1, 1, "lendaria"), 70_000);
 assert.equal(computeWorldParticipationGrant(100_000, 60_000), 30_000);
 assert.equal(computeWorldParticipationGrant(50_000, 60_000), 0);
 assert.equal(divisionalMatchSalary(90, "bronze"), matchSalary(90));
 assert.equal(divisionalMatchSalary(90, "prata"), matchSalary(90));
-assert.ok(divisionalMatchSalary(90, "diamante") > matchSalary(90));
-assert.ok(divisionalMatchSalary(90, "lendaria") > divisionalMatchSalary(90, "diamante"));
+assert.equal(divisionalMatchSalary(90, "diamante"), matchSalary(90));
+assert.equal(divisionalMatchSalary(90, "lendaria"), matchSalary(90));
+for (let overall = 2; overall <= 100; overall += 1) {
+  assert.ok(matchSalary(overall) >= matchSalary(overall - 1), "salário precisa ser contínuo e monotônico");
+}
 assert.equal(eliteRenewalFee("ouro", [{ overall: 90 }]), 0);
 assert.ok(eliteRenewalFee("lendaria", [{ overall: 90 }]) > 0);
 assert.equal(eliteTreasuryReserveFee("bronze", 100_000_000), 0);

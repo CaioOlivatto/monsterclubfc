@@ -75,10 +75,15 @@ export async function applyPostMatchXp(
   const isOfficial = opts.isOfficial ?? false;
 
 
+  const { data: currentTeam } = await supabase
+    .from("trainers")
+    .select("current_team_id")
+    .eq("id", trainerId)
+    .maybeSingle();
   const { data: buildings } = await supabase
     .from("buildings")
     .select("building_type, level")
-    .eq("trainer_id", trainerId);
+    .eq("team_id", currentTeam?.current_team_id);
   const ctLevel =
     (buildings ?? []).find((b: any) => b.building_type === "ct_treino")?.level ?? 0;
   const medLevel =

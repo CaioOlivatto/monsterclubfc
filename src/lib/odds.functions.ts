@@ -161,7 +161,7 @@ async function loadLineupPrognostic(supabase: any, userId: string, data: z.infer
     let stadiumPreview: AttendanceInfo | null = null;
     if (playerIsHome) {
       const [{ data: bldgs }, { data: rosterMor }, { data: arenaProfile }] = await Promise.all([
-        supabase.from("buildings").select("building_type, level").eq("trainer_id", trainer.id),
+        supabase.from("buildings").select("building_type, level").eq("team_id", playerTeamId),
         supabase.from("creatures").select("morale").eq("owner_trainer_id", trainer.id),
         (supabase as any).from("arena_profiles").select("stadium_damage_pct, repair_completes_at").eq("trainer_id", trainer.id).maybeSingle(),
       ]);

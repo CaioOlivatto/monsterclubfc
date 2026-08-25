@@ -446,7 +446,7 @@ export const acceptOffer = createServerFn({ method: "POST" })
       await supabase
         .from("buildings")
         .update({ trainer_id: null as any })
-        .eq("trainer_id", trainer.id);
+        .eq("team_id", trainer.current_team_id);
     }
 
     // 7) Descarta os 2 mais fracos do novo clube (liberados para nada — sumiram)
@@ -493,19 +493,19 @@ export const acceptOffer = createServerFn({ method: "POST" })
     const { data: newClubBuildings } = await supabase
       .from("buildings")
       .select("id")
-      .eq("trainer_id", trainer.id);
+      .eq("team_id", newTeam.id);
     if (newClubBuildings && newClubBuildings.length > 0) {
       const { error: claimBuildingsError } = await supabase
         .from("buildings")
         .update({ trainer_id: trainer.id })
-        .eq("trainer_id", trainer.id);
+        .eq("team_id", newTeam.id);
       if (claimBuildingsError) throw claimBuildingsError;
     } else {
       const baseline = CLUB_INFRASTRUCTURE_BASELINE[newTeam.division ?? "bronze"] ?? CLUB_INFRASTRUCTURE_BASELINE.bronze;
       const { error: createBuildingsError } = await supabase.from("buildings").insert([
-        { trainer_id: trainer.id, building_type: "estadio", level: baseline.estadio },
-        { trainer_id: trainer.id, building_type: "ct_treino", level: baseline.ct_treino },
-        { trainer_id: trainer.id, building_type: "centro_medico", level: baseline.centro_medico },
+        { trainer_id: trainer.id, team_id: newTeam.id, building_type: "estadio", level: baseline.estadio },
+        { trainer_id: trainer.id, team_id: newTeam.id, building_type: "ct_treino", level: baseline.ct_treino },
+        { trainer_id: trainer.id, team_id: newTeam.id, building_type: "centro_medico", level: baseline.centro_medico },
       ]);
       if (createBuildingsError) throw createBuildingsError;
     }

@@ -3,7 +3,7 @@
 export type Division = "bronze" | "prata" | "ouro" | "diamante" | "lendaria";
 
 /** Versão das regras usada para auditoria, telemetria e reprodução de temporadas. */
-export const BALANCE_VERSION = "2.2.0";
+export const BALANCE_VERSION = "3.0.0";
 
 export const DIVISION_ORDER: Division[] = ["bronze", "prata", "ouro", "diamante", "lendaria"];
 
@@ -21,11 +21,10 @@ export const MATCHES_PER_SEASON = 26;
 
 /** Salário anual (temporada de 26 partidas). Base para o teto de folha. */
 export function seasonSalary(overall: number): number {
-  if (overall < 30) return 4_000;
-  if (overall < 50) return 12_000;
-  if (overall < 70) return 35_000;
-  if (overall < 90) return 110_000;
-  return 400_000;
+  // Curva contínua: elimina os saltos artificiais em OVR 50/70/90 sem
+  // baratear estrelas. O custo cresce de forma progressiva, não por degraus.
+  const ovr = Math.max(1, Math.min(100, Number(overall) || 1));
+  return Math.round(2_000 + 0.9 * Math.pow(ovr, 2.5));
 }
 
 /** Salário por partida (§Economia-Por-Partida). */
@@ -33,23 +32,11 @@ export function matchSalary(overall: number): number {
   return Math.round(seasonSalary(overall) / MATCHES_PER_SEASON);
 }
 
-/** Folha por partida com pressão salarial de elite. Bronze e Prata mantêm
- * exatamente a regra v2.0; o adicional começa apenas em atletas fortes nas
- * divisões superiores. */
+/** A divisão não altera artificialmente o contrato do atleta; a pressão
+ * financeira é consequência do elenco e da infraestrutura escolhidos. */
 export function divisionalMatchSalary(overall: number, division: Division): number {
-  const base = matchSalary(overall);
-  const threshold =
-    division === "ouro" ? 75 : division === "diamante" ? 65 : division === "lendaria" ? 60 : 101;
-  const rate =
-    division === "ouro"
-      ? 0.025
-      : division === "diamante"
-        ? 0.055
-        : division === "lendaria"
-          ? 0.085
-          : 0;
-  const multiplier = 1 + Math.max(0, overall - threshold) * rate;
-  return Math.round(base * multiplier);
+  void division;
+  return matchSalary(overall);
 }
 
 /** Renovação anual do elenco. É zero até a Ouro e só se torna relevante no
@@ -89,34 +76,26 @@ export function eliteTreasuryReserveFee(division: Division, cashAfterPrize: numb
   return Math.round(Math.max(0, cashAfterPrize - threshold) * rate);
 }
 
-/** Margem mínima garantida por vitória fora (§Economia-Por-Partida — bônus dinâmico). */
-export const AWAY_WIN_MIN_MARGIN = 8_000;
-
-/** Limite do subsídio de viagem. O bônus protege o começo da carreira, mas não
- * paga sozinho uma folha ou um estádio incompatível com a divisão. */
-export const AWAY_WIN_BONUS_CAP: Record<Division, number> = {
-  bronze: 28_000,
-  prata: 55_000,
-  ouro: 100_000,
-  diamante: 180_000,
-  lendaria: 300_000,
+/** Bônus esportivo fixo por vitória fora. Não cobre automaticamente a operação. */
+export const AWAY_WIN_BONUS: Record<Division, number> = {
+  bronze: 8_000,
+  prata: 15_000,
+  ouro: 25_000,
+  diamante: 45_000,
+  lendaria: 70_000,
 };
 
-/** Bônus dinâmico de vitória fora: cobre o déficit entre despesas da partida e
- *  (receita fixa sem bilheteria + prêmio da partida), garantindo uma margem mínima.
- *  Assim, uma vitória fora sempre fecha positivo em ~$8k, mesmo quando o jogador
- *  sobe construções e aumenta manutenção/salários. */
+/** Compatibilidade de chamada: o bônus é deliberadamente independente de custo. */
 export function computeAwayWinBonus(
   expenses: number,
   fixedRevenueNoGate: number,
   matchPrize: number,
   division: Division = "bronze",
 ): number {
-  const deficit = expenses - fixedRevenueNoGate - matchPrize;
-  return Math.min(
-    AWAY_WIN_BONUS_CAP[division],
-    Math.max(0, deficit) + AWAY_WIN_MIN_MARGIN,
-  );
+  void expenses;
+  void fixedRevenueNoGate;
+  void matchPrize;
+  return AWAY_WIN_BONUS[division];
 }
 
 /**
@@ -197,14 +176,13 @@ export function revenueCapacity(division: Division, stadiumCapacity: number): nu
   return Math.min(Math.max(0, stadiumCapacity), ATTENDANCE_DEMAND_CAP[division]);
 }
 
-/** Manutenção por partida — base (nível 1) por divisão. Escala +40% por nível.
- *  Spec Economia-Por-Partida: derrota fora deve ser sempre risco financeiro. */
+/** Manutenção por partida, calibrada ao ciclo de progressão de cada divisão. */
 const MAINTENANCE_BASE: Record<Division, { estadio: number; ct: number; centro_medico: number }> = {
   bronze: { estadio: 18_000, ct: 9_000, centro_medico: 6_000 },
-  prata: { estadio: 59_000, ct: 30_000, centro_medico: 20_000 },
-  ouro: { estadio: 102_000, ct: 51_000, centro_medico: 36_000 },
-  diamante: { estadio: 180_000, ct: 90_000, centro_medico: 64_000 },
-  lendaria: { estadio: 310_000, ct: 160_000, centro_medico: 105_000 },
+  prata: { estadio: 45_000, ct: 23_000, centro_medico: 15_000 },
+  ouro: { estadio: 76_000, ct: 38_000, centro_medico: 27_000 },
+  diamante: { estadio: 125_000, ct: 62_000, centro_medico: 45_000 },
+  lendaria: { estadio: 200_000, ct: 102_000, centro_medico: 70_000 },
 };
 
 /** Manutenção por partida de um prédio (0 se não construído). Escala +40% por nível acima do 1. */
@@ -228,7 +206,7 @@ export function maintenancePerMatch(
   // mas setores premium passam a sustentar a operação nas divisões altas.
   // Na Bronze, a demanda limitada impede que um estádio gigante vire lucro fácil.
   if (key === "estadio") {
-    const stadiumScale = Math.pow(1.10, Math.min(level - 1, 4)) * Math.pow(1.14, Math.max(0, level - 5));
+    const stadiumScale = Math.pow(1.08, Math.min(level - 1, 4)) * Math.pow(1.10, Math.max(0, level - 5));
     const stadiumEliteMultiplier =
       division === "diamante"
         ? 1 + Math.max(0, level - 5) * 0.05
@@ -238,7 +216,7 @@ export function maintenancePerMatch(
     return Math.round(base.estadio * stadiumScale * stadiumEliteMultiplier);
   }
   // Níveis melhores continuam tendo custo, mas não anulam o benefício do prédio.
-  const scale = Math.pow(1.18, level - 1);
+  const scale = Math.pow(1.14, level - 1);
   const eliteInfrastructureMultiplier =
     level < 4
       ? 1

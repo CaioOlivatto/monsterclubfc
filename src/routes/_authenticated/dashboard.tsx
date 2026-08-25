@@ -509,7 +509,7 @@ function NextMatchHero({
 }: {
   nextMatch: any;
   hasLeague: boolean;
-  seasonStatus?: { leagueFinished?: boolean; eligible?: boolean; reason?: string | null };
+  seasonStatus?: { playerLeagueFinished?: boolean; leagueFinished?: boolean; eligible?: boolean; reason?: string | null };
   onPlay: () => void;
   onStartSeason: () => void;
   startSeasonPending: boolean;
@@ -521,7 +521,7 @@ function NextMatchHero({
   const hasMatch = !!nextMatch;
   const seasonNotStarted = !hasMatch && !hasLeague;
   const seasonIdle = !hasMatch && hasLeague;
-  const seasonFinished = seasonIdle && Boolean(seasonStatus?.leagueFinished);
+  const seasonFinished = seasonIdle && Boolean(seasonStatus?.playerLeagueFinished ?? seasonStatus?.leagueFinished);
   const competition = hasMatch ? nextMatch.competition : "league";
 
   return (
@@ -599,7 +599,7 @@ function NextMatchHero({
             {startSeasonPending ? "Iniciando..." : "Iniciar temporada"}
           </Button>
         ) : seasonFinished ? (
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2">
             <Button asChild size="lg" variant="secondary" className="h-12 w-full">
               <Link to="/league"><Trophy className="mr-2 h-5 w-5" />Ver resultados</Link>
             </Button>

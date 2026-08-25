@@ -650,6 +650,7 @@ function FinanceSummaryCard({ summary }: { summary: any }) {
   ];
   if ((inc.gate ?? 0) > 0) rows.push({ label: "Bilheteria", value: inc.gate, kind: "in" });
   if ((inc.away_win_bonus ?? 0) > 0) rows.push({ label: "Prêmio de vitória fora", value: inc.away_win_bonus, kind: "in" });
+  if ((inc.performance_bonus ?? 0) > 0) rows.push({ label: "Bônus de desempenho", value: inc.performance_bonus, kind: "in" });
   if ((exp.salaries ?? 0) > 0) rows.push({ label: "Salários", value: exp.salaries, kind: "out" });
   if ((exp.maintenance ?? 0) > 0) rows.push({ label: "Manutenção", value: exp.maintenance, kind: "out" });
 
@@ -688,6 +689,19 @@ function FinanceSummaryCard({ summary }: { summary: any }) {
             </div>
           ))}
         </div>
+        {Object.keys(exp.maintenance_breakdown ?? {}).length > 0 ? (
+          <details className="rounded-md border border-slate-700/80 bg-slate-900/40 px-2 py-1.5 text-xs">
+            <summary className="cursor-pointer text-muted-foreground">Detalhar manutenção</summary>
+            <div className="mt-2 space-y-1">
+              {Object.entries(exp.maintenance_breakdown).map(([type, value]) => (
+                <div key={type} className="flex justify-between">
+                  <span>{({ ct_treino: "Centro de Treinamento", estadio: "Estádio", centro_medico: "Centro Médico" } as Record<string, string>)[type] ?? type}</span>
+                  <span className="text-red-300">−{money(Number(value))}</span>
+                </div>
+              ))}
+            </div>
+          </details>
+        ) : null}
         <div className="flex items-center justify-between border-t pt-2 text-xs">
           <span className="text-muted-foreground">Receitas / Despesas</span>
           <span>

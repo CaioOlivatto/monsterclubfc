@@ -23,6 +23,7 @@ import {
   MATCH_REVENUE,
   TICKET_PRICE,
   revenueCapacity,
+  maintenancePerMatch,
   totalMaintenancePerMatch,
   divisionalMatchSalary,
   eliteRenewalFee,
@@ -483,7 +484,7 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
         const rev = MATCH_REVENUE[division];
 
         const [bldgsRes, standRowsRes, rosterRes, arenaRes] = await Promise.all([
-          supabase.from("buildings").select("building_type, level").eq("trainer_id", trainer.id),
+          supabase.from("buildings").select("building_type, level").eq("team_id", trainer.current_team_id),
           isHome
             ? supabase
                 .from("standings")
@@ -538,7 +539,13 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
             a + Math.round(divisionalMatchSalary(c.overall ?? 40, division) * (c.salary_mult ?? 1)),
           0,
         );
-        const maintenance = totalMaintenancePerMatch(division as EconDivision, bldgs ?? []);
+        const maintenanceBreakdown = Object.fromEntries(
+          (bldgs ?? []).map((building) => [
+            building.building_type,
+            maintenancePerMatch(division as EconDivision, building.building_type, building.level),
+          ]),
+        );
+        const maintenance = Object.values(maintenanceBreakdown).reduce((sum, value) => sum + value, 0);
         const awayWinBonus =
           !isHome && outcome === "W"
             ? computeAwayWinBonus(
@@ -549,7 +556,15 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
               )
             : 0;
 
-        const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch + gate + awayWinBonus;
+        // Eventos são persistidos antes da apuração: o RPC consulta cartões no banco e
+        // protege cada recompensa com UNIQUE(match_id, reward_type).
+        await eventsJob;
+        const { data: performanceRaw, error: performanceError } = await (supabase as any)
+          .rpc("settle_match_performance_rewards", { p_match_id: next.id });
+        if (performanceError) console.error("[playNextLeagueMatch] performance rewards", performanceError);
+        const performance = performanceError ? { total: 0, rewards: [] } : (performanceRaw ?? { total: 0, rewards: [] });
+        const performanceBonus = Number(performance.total ?? 0);
+        const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch + gate + awayWinBonus + performanceBonus;
         const totalExpense = salaries + maintenance;
         const net = totalIncome - totalExpense;
 
@@ -634,14 +649,18 @@ export const playNextLeagueMatch = createServerFn({ method: "POST" })
             merch: rev.merch,
             gate,
             away_win_bonus: awayWinBonus,
+            performance_bonus: performanceBonus,
+            performance_rewards: performance.rewards ?? [],
           },
-          expense: { salaries, maintenance },
+          expense: { salaries, maintenance, maintenance_breakdown: maintenanceBreakdown },
           totals: { income: totalIncome, expense: totalExpense, net },
           attendance: attendanceInfo, // { capacity, attendance, occupancy, morale_avg, label } | null
         };
         // 3 writes em paralelo
         await Promise.all([
-          adjustAcademyMoney(supabase, trainer.id, net),
+          // O RPC de recompensa já credita o bônus de desempenho de forma
+          // idempotente; esta movimentação liquida apenas a operação normal.
+          adjustAcademyMoney(supabase, trainer.id, net - performanceBonus),
           supabase.from("financial_transactions").insert(txs),
           supabase
             .from("matches")
@@ -961,7 +980,7 @@ async function getSeasonAdvanceStatusForUser(supabase: any, userId: string) {
     const { data: playerTeam } = trainer.current_team_id
       ? await supabase
           .from("teams")
-          .select("competition_id")
+          .select("id, competition_id")
           .eq("id", trainer.current_team_id)
           .eq("trainer_id", trainer.id)
           .maybeSingle()
@@ -969,14 +988,30 @@ async function getSeasonAdvanceStatusForUser(supabase: any, userId: string) {
     if (playerTeam?.competition_id && competitionIds.includes(playerTeam.competition_id)) {
       await recoverStaleRounds(supabase, trainer.id, seasonId, playerTeam.competition_id);
     }
-    const [{ count: pendingMatches, error: pendingError }, { data: sideCompetitions, error: sideError }, { data: run }] = await Promise.all([
+    const playerPendingQuery = playerTeam?.competition_id && playerTeam.id
+      ? supabase
+          .from("matches")
+          .select("id", { count: "exact", head: true })
+          .eq("competition_id", playerTeam.competition_id)
+          .eq("status", "scheduled")
+          .or(`home_team_id.eq.${playerTeam.id},away_team_id.eq.${playerTeam.id}`)
+      : Promise.resolve({ count: 0, error: null });
+    const [
+      { count: pendingMatches, error: pendingError },
+      { count: playerPendingMatches, error: playerPendingError },
+      { data: sideCompetitions, error: sideError },
+      { data: run },
+    ] = await Promise.all([
       supabase.from("matches").select("id", { count: "exact", head: true }).in("competition_id", competitionIds).eq("status", "scheduled"),
+      playerPendingQuery,
       supabase.from("competitions").select("type").eq("trainer_id", trainer.id).eq("season_id", seasonId).neq("type", "league").eq("status", "active"),
       (supabase as any).from("season_transition_runs").select("status").eq("trainer_id", trainer.id).eq("season_id", seasonId).maybeSingle(),
     ]);
     if (pendingError) throw pendingError;
+    if (playerPendingError) throw playerPendingError;
     if (sideError) throw sideError;
 
+    const playerLeagueFinished = (playerPendingMatches ?? 0) === 0;
     const leagueFinished = (pendingMatches ?? 0) === 0;
     const labels: Record<string, string> = { cup: "Copa Nacional", world_league: "Liga Mundial", world_cup: "Copa Mundial" };
     const sideNames = Array.from(new Set((sideCompetitions ?? []).map((item: any) => labels[item.type] ?? "competição")));
@@ -991,7 +1026,14 @@ async function getSeasonAdvanceStatusForUser(supabase: any, userId: string) {
           : completed
             ? "A transição desta temporada já foi concluída."
             : null;
-    return { hasSeason: true, seasonId, leagueFinished, eligible: leagueFinished && !sideNames.length && !processing && !completed, reason };
+    return {
+      hasSeason: true,
+      seasonId,
+      playerLeagueFinished,
+      leagueFinished,
+      eligible: leagueFinished && !sideNames.length && !processing && !completed,
+      reason,
+    };
 }
 
 const directSessionSchema = z.object({ access_token: z.string().min(20) });

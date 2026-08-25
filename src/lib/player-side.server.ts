@@ -2,11 +2,11 @@ import { buildSlots } from "./lineup.server";
 import type { EngineSide, EngineSlot, SlotRole, Element, Tactics, Division } from "./match-engine.server";
 import { NEUTRAL_TACTICS } from "./match-engine.server";
 
-async function fetchMedicalLevel(supabase: any, trainerId: string): Promise<number> {
+async function fetchMedicalLevel(supabase: any, teamId: string): Promise<number> {
   const { data } = await supabase
     .from("buildings")
     .select("level")
-    .eq("trainer_id", trainerId)
+    .eq("team_id", teamId)
     .eq("building_type", "centro_medico")
     .maybeSingle();
   return Math.max(1, Math.min(5, data?.level ?? 1));
@@ -37,7 +37,7 @@ export async function buildPlayerSideFromDb(
       .select("formation, strategy, starters, bench, default_tactics")
       .eq("trainer_id", trainerId)
       .maybeSingle(),
-    fetchMedicalLevel(supabase, trainerId),
+    fetchMedicalLevel(supabase, teamId),
     fetchTeamDivision(supabase, teamId),
   ]);
   if (!lineup) throw new Error("Você ainda não tem escalação salva. Vá em Escalação primeiro.");
@@ -139,7 +139,7 @@ export async function buildPlayerSideFromDraft(
         "id, name, element, suggested_position, overall, is_goalkeeper, attr_pique, attr_forca, energy, morale, age, aff_fogo, aff_agua, aff_terra, aff_ar, aff_gelo, injury_matches_remaining, owner_trainer_id",
       )
       .in("id", allIds),
-    fetchMedicalLevel(supabase, trainerId),
+    fetchMedicalLevel(supabase, teamId),
     fetchTeamDivision(supabase, teamId),
   ]);
   const { data: creatures, error } = creaturesResult;
@@ -199,4 +199,3 @@ export async function buildPlayerSideFromDraft(
     division,
   };
 }
-

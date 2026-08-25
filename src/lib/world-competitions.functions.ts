@@ -53,11 +53,11 @@ async function loadEngineBestiary(supabase: any): Promise<EngineBestiary> {
 async function getTrainer(supabase: any, userId: string) {
   const { data } = await supabase
     .from("trainers")
-    .select("id, academy_name")
+    .select("id, academy_name, current_team_id")
     .eq("user_id", userId)
     .maybeSingle();
   if (!data) throw new Error("Treinador não encontrado.");
-  return data as { id: string; academy_name: string };
+  return data as { id: string; academy_name: string; current_team_id: string | null };
 }
 
 async function getCurrentSeason(supabase: any, trainerId: string) {
@@ -214,7 +214,7 @@ async function simulatePlayerMatch(
       // Reads em paralelo
       const [rosterRes, bldgsRes] = await Promise.all([
         supabase.from("creatures").select("overall, salary_mult").eq("owner_trainer_id", trainerId),
-        supabase.from("buildings").select("building_type, level").eq("trainer_id", trainerId),
+        supabase.from("buildings").select("building_type, level").eq("team_id", playerTeamId),
       ]);
       const roster = (rosterRes as any).data as Array<{ overall: number }> | null;
       const bldgs = (bldgsRes as any).data as Array<{ building_type: string; level: number }> | null;
@@ -229,7 +229,14 @@ async function simulatePlayerMatch(
         ? computeAwayWinBonus(salaries + maintenance, rev.tv + rev.sponsor + rev.merch, matchPrize, div)
         : 0;
 
-      const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch + participationGrant + awayWinBonus;
+      // Fair play e bônus tático são apurados após a persistência dos eventos.
+      await eventsJob;
+      const { data: performance, error: performanceError } = await supabase
+        .rpc("settle_match_performance_rewards", { p_match_id: matchRow.id });
+      if (performanceError) console.error("[world] performance rewards", performanceError);
+      const performanceBonus = performanceError ? 0 : Number((performance as any)?.total ?? 0);
+
+      const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch + participationGrant + awayWinBonus + performanceBonus;
       const totalExpense = salaries + maintenance;
       const net = totalIncome - totalExpense;
 
@@ -258,14 +265,15 @@ async function simulatePlayerMatch(
       const financeSummary = {
         outcome, division: div, round: ctx.round, is_home: isHome,
         competition: ctx.competition,
-        income: { match_prize: matchPrize, tv: rev.tv, sponsor: rev.sponsor, merch: rev.merch, gate: 0, participation_grant: participationGrant, away_win_bonus: awayWinBonus },
+        income: { match_prize: matchPrize, tv: rev.tv, sponsor: rev.sponsor, merch: rev.merch, gate: 0, participation_grant: participationGrant, away_win_bonus: awayWinBonus, performance_bonus: performanceBonus, performance_rewards: (performance as any)?.rewards ?? [] },
         expense: { salaries, maintenance },
         totals: { income: totalIncome, expense: totalExpense, net },
       };
 
       // Writes em paralelo
       await Promise.all([
-        adjustAcademyMoney(supabase, trainerId, net),
+        // O bônus já foi creditado de maneira idempotente pelo RPC.
+        adjustAcademyMoney(supabase, trainerId, net - performanceBonus),
         supabase.from("financial_transactions").insert(txs),
         supabase.from("matches").update({ finance_summary: financeSummary }).eq("id", matchRow.id),
       ]);

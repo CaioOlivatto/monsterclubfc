@@ -38,11 +38,11 @@ const CUP_ROUND_NAMES: Record<number, string> = { 1: "Quartas", 2: "Semifinal", 
 async function getTrainer(supabase: any, userId: string) {
   const { data: trainer } = await supabase
     .from("trainers")
-    .select("id, academy_name, division")
+    .select("id, academy_name, division, current_team_id")
     .eq("user_id", userId)
     .maybeSingle();
   if (!trainer) throw new Error("Treinador não encontrado.");
-  return trainer as { id: string; academy_name: string; division: EconDivision | null };
+  return trainer as { id: string; academy_name: string; division: EconDivision | null; current_team_id: string | null };
 }
 
 async function playerAverage(supabase: any, trainerId: string): Promise<number> {
@@ -488,7 +488,7 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
 
         const [rosterRes, bldgsRes] = await Promise.all([
           supabase.from("creatures").select("overall, salary_mult").eq("owner_trainer_id", trainer.id),
-          supabase.from("buildings").select("building_type, level").eq("trainer_id", trainer.id),
+          supabase.from("buildings").select("building_type, level").eq("team_id", trainer.current_team_id),
         ]);
         const roster = (rosterRes as any).data as Array<{ overall: number }> | null;
         const bldgs = (bldgsRes as any).data as Array<{ building_type: string; level: number }> | null;
@@ -499,7 +499,14 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
           ? computeAwayWinBonus(salaries + maintenance, rev.tv + rev.sponsor + rev.merch, matchPrize, division)
           : 0;
 
-        const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch + awayWinBonus;
+        // Eventos devem existir antes da liquidação: fair play é apurado no servidor.
+        await eventsJob;
+        const { data: performance, error: performanceError } = await supabase
+          .rpc("settle_match_performance_rewards", { p_match_id: next.id });
+        if (performanceError) console.error("[playNextCupMatch] performance rewards", performanceError);
+        const performanceBonus = performanceError ? 0 : Number((performance as any)?.total ?? 0);
+
+        const totalIncome = matchPrize + rev.tv + rev.sponsor + rev.merch + awayWinBonus + performanceBonus;
         const totalExpense = salaries + maintenance;
         const net = totalIncome - totalExpense;
 
@@ -526,13 +533,14 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
         const financeSummary = {
           outcome, division, round: next.round, is_home: isHome,
           competition: "cup",
-          income: { match_prize: matchPrize, tv: rev.tv, sponsor: rev.sponsor, merch: rev.merch, gate: 0, away_win_bonus: awayWinBonus },
+          income: { match_prize: matchPrize, tv: rev.tv, sponsor: rev.sponsor, merch: rev.merch, gate: 0, away_win_bonus: awayWinBonus, performance_bonus: performanceBonus, performance_rewards: (performance as any)?.rewards ?? [] },
           expense: { salaries, maintenance },
           totals: { income: totalIncome, expense: totalExpense, net },
         };
 
         await Promise.all([
-          adjustAcademyMoney(supabase, trainer.id, net),
+          // O RPC já credita apenas o bônus idempotente; esta operação liquida o restante.
+          adjustAcademyMoney(supabase, trainer.id, net - performanceBonus),
           supabase.from("financial_transactions").insert(txs),
           supabase.from("matches").update({ finance_summary: financeSummary }).eq("id", next.id),
         ]);

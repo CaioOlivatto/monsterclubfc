@@ -230,7 +230,7 @@ function LeagueBody({
   onPlayNext: () => void;
   onFinishSeason: () => void;
   isFinishing: boolean;
-  seasonStatus?: { eligible?: boolean; reason?: string | null };
+  seasonStatus?: { playerLeagueFinished?: boolean; eligible?: boolean; reason?: string | null };
 }) {
 
   const teamsById = new Map<string, any>((data.teams ?? []).map((t: any) => [t.id, t]));
@@ -250,10 +250,20 @@ function LeagueBody({
   }
   const roundNumbers = [...rounds.keys()].sort((a, b) => a - b);
   const nextRound = roundNumbers.find((r) => rounds.get(r)!.some((m) => m.status === "scheduled"));
+  const playerNextRound = playerTeam
+    ? roundNumbers.find((r) => rounds.get(r)!.some((m) =>
+        m.status === "scheduled" &&
+        (m.home_team_id === playerTeam.id || m.away_team_id === playerTeam.id),
+      ))
+    : undefined;
 
   const playerDivision = (data as any).playerDivision ?? "bronze";
   const isPlayerDivision = division === playerDivision;
-  const leagueDone = !nextRound;
+  // Partidas de bot atrasadas não podem oferecer ao jogador uma partida que
+  // não existe. O encerramento visual depende do calendário do próprio clube.
+  const leagueDone = isPlayerDivision
+    ? Boolean(seasonStatus?.playerLeagueFinished ?? !playerNextRound)
+    : !nextRound;
 
   return (
     <>
@@ -281,7 +291,7 @@ function LeagueBody({
                 ? isPlayerDivision
                   ? "Temporada concluída — encerre para promoção/rebaixamento."
                   : "Temporada concluída nesta divisão."
-                : `Rodada ${nextRound} de ${roundNumbers.length}`}
+                : `Rodada ${isPlayerDivision ? playerNextRound : nextRound} de ${roundNumbers.length}`}
             </p>
           </div>
           {isPlayerDivision && (
