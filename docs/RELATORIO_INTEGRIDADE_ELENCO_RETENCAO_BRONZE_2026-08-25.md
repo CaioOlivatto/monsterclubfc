@@ -2,7 +2,7 @@
 
 ## Veredito
 
-**INÍCIO DA CARREIRA APROVADO LOCALMENTE.** A publicação continua bloqueada até a migration ser revisada/aplicada no Supabase e a auditoria somente leitura confirmar os dados reais.
+**INÍCIO DA CARREIRA APROVADO.** A migration foi aplicada no Supabase após auditoria remota somente leitura retornar zero inconsistências, e o código foi publicado na `main`.
 
 ## 1–6. Integridade do elenco
 
@@ -32,7 +32,7 @@ Não existe coluna/regra persistente de suspensão no esquema atual; nenhuma reg
 
 ### Dados remotos
 
-Não auditados nem corrigidos nesta execução. Nenhum registro foi apagado. Antes da publicação, executar consulta somente leitura para medir: criatura do treinador com `owner_team_id` nulo/diferente, ID inexistente em titulares/banco, duplicata, aposentado ou lesionado selecionado.
+Auditados por consulta somente leitura antes da migration: **zero inconsistências** entre titulares/reservas e treinador/clube atual; nenhum ID inexistente ou aposentado selecionado. Nenhum registro foi apagado.
 
 ### Testes
 
@@ -93,11 +93,10 @@ A primeira temporada usava a ordem fixa do catálogo, criando uma sequência dif
 - build de produção: PASS.
 - `git diff --check`: PASS.
 
-### Pendências antes de publicar
+### Acompanhamento pós-publicação
 
-1. Revisar/aplicar a migration no Supabase.
-2. Rodar auditoria somente leitura dos dados reais e corrigir apenas inconsistências comprovadas.
-3. Tratar em tarefa separada o `owner_team_id` ausente na compra de mercado, pois mercado estava fora do escopo.
-4. Testar uma conta real com lineup antigo, venda, lesão, reload e troca de temporada.
+1. Tratar em tarefa separada o `owner_team_id` ausente na compra de mercado, pois mercado estava fora do escopo.
+2. Testar uma conta real com lineup antigo, venda, lesão, reload e troca de temporada.
+3. Monitorar os blocos da Bronze com playtest real para confrontar as simulações.
 
-Nenhum commit, push ou deploy foi realizado.
+Publicação: migration aplicada ao projeto Supabase `gwqvninbrmrsabuseqbx`; commit `b0338cc` enviado à `main`, acionando a sincronização do Lovable.

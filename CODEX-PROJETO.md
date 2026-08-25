@@ -5,7 +5,7 @@
 - Pasta local: `C:\Users\User\Documents\ChatGPT\Futebol`
 - Repositório: `CaioOlivatto/monsterclubfc`
 - Branch de trabalho: `codex/migrate-backend-supabase`
-- Status: `pronto para publicação controlada de playtest fechado`
+- Status: `playtest fechado publicado; integridade de escalação e retenção Bronze atualizadas em 25/08/2026`
 
 ## Sistemas conectados
 
@@ -25,4 +25,5 @@
 - Dependências instaladas com Bun usando o lockfile do projeto
 - Build de produção e regressão completa validados com sucesso em 24/08/2026
 - Supabase Auth, API REST, jornada canônica e migrations remotas validados no projeto ativo
+- Migration de integridade de escalação aplicada e auditoria remota retornou zero inconsistências em 25/08/2026
 - Pagamento real permanece desativado durante o playtest fechado
