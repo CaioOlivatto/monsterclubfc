@@ -19,7 +19,9 @@
     "supabase:check": "node --experimental-strip-types scripts/canonical-supabase-check.ts",
     "journey:check": "node --experimental-strip-types scripts/journey-check.ts",
     "tactics:check": "node --experimental-strip-types scripts/tactics-regression-check.ts",
-    "quality:check": "npm.cmd run balance:check && npm.cmd run monetization:check && npm.cmd run monetization:readiness && npm.cmd run arena:check && npm.cmd run supabase:check && npm.cmd run journey:check && npm.cmd run tactics:check && npm.cmd run build",
+    "playtest:bugs": "node --experimental-strip-types scripts/playtest-bugfix-check.ts",
+    "economy:matches": "node --experimental-strip-types scripts/match-economy-audit.ts",
+    "quality:check": "npm.cmd run balance:check && npm.cmd run monetization:check && npm.cmd run monetization:readiness && npm.cmd run arena:check && npm.cmd run supabase:check && npm.cmd run journey:check && npm.cmd run tactics:check && npm.cmd run playtest:bugs && npm.cmd run economy:matches && npm.cmd run build",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write ."

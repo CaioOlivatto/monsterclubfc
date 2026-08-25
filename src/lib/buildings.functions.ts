@@ -101,11 +101,11 @@ async function startUpgradeForUser(supabase: any, userId: string, type: Building
   const nextLevel = level + 1;
   const cost = spec.cost(nextLevel);
   if ((academy.money ?? 0) < cost) throw new Error("Saldo insuficiente para iniciar esta obra.");
-  const completesAt = new Date(Date.now() + spec.duration(nextLevel) * 1000).toISOString();
-  const { data: operation, error: operationError } = await supabase.rpc("start_building_upgrade_atomic" as any, {
+  const durationSeconds = spec.duration(nextLevel);
+  const { data: operation, error: operationError } = await supabase.rpc("start_building_upgrade_atomic_v2" as any, {
     p_type: type,
     p_cost: cost,
-    p_completes_at: completesAt,
+    p_duration_seconds: durationSeconds,
     p_idempotency_key: `building-start:${type}:${crypto.randomUUID()}`,
   });
   if (operationError) throw operationError;
@@ -114,7 +114,7 @@ async function startUpgradeForUser(supabase: any, userId: string, type: Building
     target_level: nextLevel,
     cost,
   });
-  return { ok: true, completesAt: (operation as any)?.completes_at ?? completesAt };
+  return { ok: true, completesAt: (operation as any)?.completes_at };
 }
 
 async function finishUpgradeForUser(supabase: any, userId: string, type: BuildingType) {

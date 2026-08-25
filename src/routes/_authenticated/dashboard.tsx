@@ -8,7 +8,7 @@ import { GameRecovery } from "@/components/GameRecovery";
 import { getDashboardWithSession } from "@/lib/creatures.functions";
 import { createFriendlyMatch } from "@/lib/match.functions";
 import { type ConfidenceInfo } from "@/lib/career.functions";
-import { getLeague, startLeague } from "@/lib/league.functions";
+import { finishSeasonAndAdvance, getLeague, getSeasonAdvanceStatus, startLeague } from "@/lib/league.functions";
 import { getMyLineup } from "@/lib/lineup.functions";
 import { getMarket } from "@/lib/market.functions";
 import { ageStatus } from "@/lib/age";
@@ -83,6 +83,8 @@ function Dashboard() {
   const fetchLineup = useServerFn(getMyLineup);
   const fetchMarket = useServerFn(getMarket);
   const fetchLeague = useServerFn(getLeague);
+  const fetchSeasonStatus = useServerFn(getSeasonAdvanceStatus);
+  const finishSeason = useServerFn(finishSeasonAndAdvance);
   const qc = useQueryClient();
 
   const { data, isLoading, isError } = useQuery({
@@ -217,6 +219,22 @@ function Dashboard() {
     },
     onError: (e: any) => toast.error(e?.message ?? "Não foi possível iniciar a temporada."),
   });
+  const { data: seasonStatus } = useQuery({
+    queryKey: ["season-advance-status"],
+    queryFn: () => fetchSeasonStatus(),
+    enabled: Boolean(data?.hasLeague),
+    staleTime: 10_000,
+  });
+  const finishSeasonMut = useMutation({
+    mutationFn: () => finishSeason(),
+    onSuccess: () => {
+      toast.success("Nova temporada preparada com sucesso.");
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["league"] });
+      qc.invalidateQueries({ queryKey: ["season-advance-status"] });
+    },
+    onError: (error: any) => toast.error(error?.message ?? "Não foi possível iniciar a nova temporada."),
+  });
 
   async function signOut() {
     await supabase.auth.signOut();
@@ -294,6 +312,7 @@ function Dashboard() {
         <NextMatchHero
           nextMatch={nextMatch}
           hasLeague={hasLeague}
+          seasonStatus={seasonStatus}
           onPlay={() => nav({
             to: "/lineup",
             search: (nextMatch?.competition
@@ -302,6 +321,8 @@ function Dashboard() {
           })}
           onStartSeason={() => startSeasonMut.mutate()}
           startSeasonPending={startSeasonMut.isPending}
+          onAdvanceSeason={() => finishSeasonMut.mutate()}
+          advanceSeasonPending={finishSeasonMut.isPending}
           onFriendly={() => friendlyMut.mutate()}
           friendlyPending={friendlyMut.isPending}
         />
@@ -465,23 +486,30 @@ function CompetitionEmblem({ competition }: { competition?: string | null }) {
 function NextMatchHero({
   nextMatch,
   hasLeague,
+  seasonStatus,
   onPlay,
   onStartSeason,
   startSeasonPending,
+  onAdvanceSeason,
+  advanceSeasonPending,
   onFriendly,
   friendlyPending,
 }: {
   nextMatch: any;
   hasLeague: boolean;
+  seasonStatus?: { leagueFinished?: boolean; eligible?: boolean; reason?: string | null };
   onPlay: () => void;
   onStartSeason: () => void;
   startSeasonPending: boolean;
+  onAdvanceSeason: () => void;
+  advanceSeasonPending: boolean;
   onFriendly: () => void;
   friendlyPending: boolean;
 }) {
   const hasMatch = !!nextMatch;
   const seasonNotStarted = !hasMatch && !hasLeague;
-  const seasonIdle = !hasMatch && hasLeague; // temporada ativa, sem partida pendente
+  const seasonIdle = !hasMatch && hasLeague;
+  const seasonFinished = seasonIdle && Boolean(seasonStatus?.leagueFinished);
   const competition = hasMatch ? nextMatch.competition : "league";
 
   return (
@@ -513,9 +541,9 @@ function NextMatchHero({
               </>
             ) : (
               <>
-                <h2 className="mt-0.5 text-base font-semibold">Rodada concluída</h2>
+                <h2 className="mt-0.5 text-base font-semibold">{seasonFinished ? "Temporada concluída" : "Rodada concluída"}</h2>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  Nada pendente no momento — próxima rodada em breve.
+                  {seasonFinished ? (seasonStatus?.reason ?? "Confira os resultados e prepare a próxima temporada.") : "Nada pendente no momento — próxima rodada em breve."}
                 </p>
               </>
             )}
@@ -558,12 +586,19 @@ function NextMatchHero({
             <Trophy className="mr-2 h-5 w-5" />
             {startSeasonPending ? "Iniciando..." : "Iniciar temporada"}
           </Button>
+        ) : seasonFinished ? (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button asChild size="lg" variant="secondary" className="h-12 w-full">
+              <Link to="/league"><Trophy className="mr-2 h-5 w-5" />Ver resultados</Link>
+            </Button>
+            <Button size="lg" className="h-12 w-full" onClick={onAdvanceSeason} disabled={!seasonStatus?.eligible || advanceSeasonPending}>
+              <Sparkles className="mr-2 h-5 w-5" />
+              {advanceSeasonPending ? "Preparando..." : "Iniciar nova temporada"}
+            </Button>
+          </div>
         ) : (
           <Button asChild size="lg" variant="secondary" className="h-12 w-full">
-            <Link to="/league">
-              <Trophy className="mr-2 h-5 w-5" />
-              Ver classificação
-            </Link>
+            <Link to="/league"><Trophy className="mr-2 h-5 w-5" />Ver classificação</Link>
           </Button>
         )}
 

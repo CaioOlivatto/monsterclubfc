@@ -7,7 +7,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { adjustAcademyMoney } from "./academy-money.server";
+import { GEM_ECONOMY_CONFIG } from "./gem-economy";
 
 export const MORALE_SESSION_INDIVIDUAL_MS = 4 * 60 * 60 * 1000;
 export const MORALE_MEETING_COLLECTIVE_MS = 4 * 60 * 60 * 1000;
@@ -125,13 +125,13 @@ export const startMoraleSession = createServerFn({ method: "POST" })
     if (c.morale_session_completes_at && new Date(c.morale_session_completes_at).getTime() > Date.now()) {
       throw new Error("Já há uma sessão de incentivo em andamento.");
     }
-    const completes = new Date(Date.now() + MORALE_SESSION_INDIVIDUAL_MS).toISOString();
-    const { error } = await supabase
-      .from("creatures")
-      .update({ morale_session_completes_at: completes })
-      .eq("id", c.id);
+    const { data: operation, error } = await supabase.rpc("start_individual_morale_atomic" as any, {
+      p_creature: c.id,
+      p_duration_seconds: Math.ceil(MORALE_SESSION_INDIVIDUAL_MS / 1000),
+      p_idempotency_key: `morale-start:${c.id}:${crypto.randomUUID()}`,
+    });
     if (error) throw error;
-    return { completes_at: completes };
+    return operation as { completes_at: string };
   });
 
 export const rushMoraleSession = createServerFn({ method: "POST" })
@@ -177,25 +177,14 @@ export const cancelMoraleSession = createServerFn({ method: "POST" })
 
 export const startMoraleMeeting = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { supabase, userId } = context;
-    const trainer = await loadTrainer(supabase, userId);
-    await sweepMoraleMeeting(supabase, trainer.id, trainer.academyId, trainer.meetingAt);
-    // Recarrega estado após sweep.
-    const { data: a } = await supabase
-      .from("academies")
-      .select("morale_meeting_completes_at")
-      .eq("id", trainer.academyId)
-      .maybeSingle();
-    if (a?.morale_meeting_completes_at && new Date(a.morale_meeting_completes_at).getTime() > Date.now()) {
-      throw new Error("Já há uma reunião de equipe em andamento.");
-    }
-    const completes = new Date(Date.now() + MORALE_MEETING_COLLECTIVE_MS).toISOString();
-    await supabase
-      .from("academies")
-      .update({ morale_meeting_completes_at: completes })
-      .eq("id", trainer.academyId);
-    return { completes_at: completes };
+  .inputValidator((raw: unknown) => z.object({ idempotencyKey: z.string().min(8) }).parse(raw))
+  .handler(async ({ data, context }) => {
+    const { data: result, error } = await context.supabase.rpc("apply_collective_morale_action_atomic", {
+      p_action_type: "meeting",
+      p_idempotency_key: data.idempotencyKey,
+    });
+    if (error) throw error;
+    return result;
   });
 
 export const rushMoraleMeeting = createServerFn({ method: "POST" })
@@ -239,7 +228,7 @@ export const getMoraleSessionsState = createServerFn({ method: "GET" })
     await sweepMoraleMeeting(supabase, trainer.id, trainer.academyId, trainer.meetingAt);
     await settleLegacyGeneralMorale(supabase, trainer.id);
     // Preço do Incentivo Geral (pago): preço por criatura × elenco não aposentado, escalado pela divisão atual.
-    const [academyResult, creaturesResult, divisionModule, shopModule] = await Promise.all([
+    const [academyResult, creaturesResult, cyclesResult, divisionModule, shopModule] = await Promise.all([
       supabase
         .from("academies")
         .select("morale_meeting_completes_at, gems, money")
@@ -249,11 +238,28 @@ export const getMoraleSessionsState = createServerFn({ method: "GET" })
         .from("creatures")
         .select("id, retired, morale_session_completes_at")
         .eq("owner_trainer_id", trainer.id),
+      supabase
+        .from("morale_action_cycles")
+        .select("action_type, cycle_started_at, use_count")
+        .eq("trainer_id", trainer.id),
       import("./division.server"),
       import("./shop.server"),
     ]);
     const { data: a } = academyResult;
     const { data: allCrs } = creaturesResult;
+    const cycles = cyclesResult.data ?? [];
+    const cycleState = (action: "meeting" | "general", hours: number, costs: readonly number[]) => {
+      const row = cycles.find((c: any) => c.action_type === action) as any;
+      const started = row?.cycle_started_at ? new Date(row.cycle_started_at).getTime() : 0;
+      const active = started + hours * 3_600_000 > Date.now();
+      const useCount = active ? Number(row?.use_count ?? 0) : 0;
+      return {
+        use_count: useCount,
+        next_use_number: useCount + 1,
+        next_gem_cost: useCount > 0 ? costs[Math.min(useCount - 1, costs.length - 1)] : 0,
+        resets_at: active ? new Date(started + hours * 3_600_000).toISOString() : null,
+      };
+    };
     const division = await divisionModule.resolvePlayerDivision(
       supabase,
       trainer.id,
@@ -280,6 +286,11 @@ export const getMoraleSessionsState = createServerFn({ method: "GET" })
       money: Number(a?.money ?? 0),
       individual_ms: MORALE_SESSION_INDIVIDUAL_MS,
       collective_ms: MORALE_MEETING_COLLECTIVE_MS,
+      meeting_cycle: cycleState(
+        "meeting",
+        GEM_ECONOMY_CONFIG.moraleCycles.meetingHours,
+        GEM_ECONOMY_CONFIG.moraleCycles.meetingExtraGemCosts,
+      ),
       general: {
         division,
         price_per_creature: pricePer,
@@ -288,87 +299,23 @@ export const getMoraleSessionsState = createServerFn({ method: "GET" })
         total_price: pricePer * freeOfSession.length,
         active_count: activeSessions.length,
         completes_at: activeCompletesAt,
+        cycle: cycleState(
+          "general",
+          GEM_ECONOMY_CONFIG.moraleCycles.generalHours,
+          GEM_ECONOMY_CONFIG.moraleCycles.generalExtraGemCosts,
+        ),
       },
     };
   });
 
 export const startMoraleGeneral = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { supabase, userId } = context;
-    const trainer = await loadTrainer(supabase, userId);
-    await sweepMoraleSessions(supabase, trainer.id);
-
-    const { data: academyState } = await supabase
-      .from("academies")
-      .select("morale_meeting_completes_at")
-      .eq("id", trainer.academyId)
-      .maybeSingle();
-    if (
-      academyState?.morale_meeting_completes_at &&
-      new Date(academyState.morale_meeting_completes_at).getTime() > Date.now()
-    ) {
-      throw new Error("Aguarde ou cancele a Reunião de Equipe antes de usar o Incentivo Geral.");
-    }
-
-    // Descobre divisão atual (fonte única: time atual do jogador)
-    const { resolvePlayerDivision } = await import("./division.server");
-    const division = await resolvePlayerDivision(supabase, trainer.id);
-
-    const { INCENTIVO_GERAL_PRICE_BY_DIVISION } = await import("./shop.server");
-    const pricePer = INCENTIVO_GERAL_PRICE_BY_DIVISION[division];
-
-    const { data: allCrs } = await supabase
-      .from("creatures")
-      .select("id, morale, retired, morale_session_completes_at")
-      .eq("owner_trainer_id", trainer.id);
-    const targets = (allCrs ?? []).filter(
-      (c: any) =>
-        !c.retired &&
-        (!c.morale_session_completes_at ||
-          new Date(c.morale_session_completes_at).getTime() <= Date.now()),
-    );
-    if (targets.length === 0) {
-      throw new Error("Aguarde as sessões individuais terminarem antes de aplicar o Incentivo Geral.");
-    }
-    if (targets.length !== (allCrs ?? []).filter((c: any) => !c.retired).length) {
-      throw new Error("Aguarde as sessões individuais terminarem antes de aplicar o Incentivo Geral.");
-    }
-
-    const totalCost = pricePer * targets.length;
-    const { data: acad } = await supabase
-      .from("academies")
-      .select("id, money")
-      .eq("id", trainer.academyId)
-      .maybeSingle();
-    if (!acad) throw new Error("Academia não encontrada.");
-    if (Number(acad.money) < totalCost) {
-      throw new Error(`Você precisa de $${totalCost.toLocaleString("pt-BR")} para o Incentivo Geral.`);
-    }
-
-    await adjustAcademyMoney(supabase, trainer.id, -totalCost);
-
-    await supabase.from("financial_transactions").insert({
-      trainer_id: trainer.id,
-      transaction_type: "expense",
-      amount: totalCost,
-      description: `Incentivo Geral (${targets.length} criaturas × $${pricePer.toLocaleString("pt-BR")})`,
+  .inputValidator((raw: unknown) => z.object({ idempotencyKey: z.string().min(8) }).parse(raw))
+  .handler(async ({ data, context }) => {
+    const { data: result, error } = await context.supabase.rpc("apply_collective_morale_action_atomic", {
+      p_action_type: "general",
+      p_idempotency_key: data.idempotencyKey,
     });
-
-    // O produto pago economiza tempo: o efeito é aplicado imediatamente.
-    await Promise.all(
-      targets.map((c: any) =>
-        supabase
-          .from("creatures")
-          .update({ morale: applyDiminishing(c.morale ?? 50, MORALE_GENERAL_BOOST) })
-          .eq("id", c.id),
-      ),
-    );
-
-    return {
-      applied: targets.length,
-      total_cost: totalCost,
-      price_per_creature: pricePer,
-      completes_at: null,
-    };
+    if (error) throw error;
+    return result;
   });

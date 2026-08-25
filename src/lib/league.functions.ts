@@ -942,6 +942,47 @@ async function recoverStaleRounds(
   }
 }
 
+export const getSeasonAdvanceStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const trainer = await getTrainer(supabase, userId);
+    const { data: leagues, error: leagueError } = await supabase
+      .from("competitions")
+      .select("id, season_id")
+      .eq("trainer_id", trainer.id)
+      .eq("type", "league")
+      .eq("status", "active");
+    if (leagueError) throw leagueError;
+    if (!leagues?.length) return { hasSeason: false, leagueFinished: false, eligible: false, reason: "Nenhuma temporada ativa." };
+
+    const seasonId = leagues[0].season_id;
+    const competitionIds = leagues.map((league: any) => league.id);
+    const [{ count: pendingMatches, error: pendingError }, { data: sideCompetitions, error: sideError }, { data: run }] = await Promise.all([
+      supabase.from("matches").select("id", { count: "exact", head: true }).in("competition_id", competitionIds).eq("status", "scheduled"),
+      supabase.from("competitions").select("type").eq("trainer_id", trainer.id).eq("season_id", seasonId).neq("type", "league").eq("status", "active"),
+      (supabase as any).from("season_transition_runs").select("status").eq("trainer_id", trainer.id).eq("season_id", seasonId).maybeSingle(),
+    ]);
+    if (pendingError) throw pendingError;
+    if (sideError) throw sideError;
+
+    const leagueFinished = (pendingMatches ?? 0) === 0;
+    const labels: Record<string, string> = { cup: "Copa Nacional", world_league: "Liga Mundial", world_cup: "Copa Mundial" };
+    const sideNames = Array.from(new Set((sideCompetitions ?? []).map((item: any) => labels[item.type] ?? "competição")));
+    const processing = run?.status === "processing";
+    const completed = run?.status === "completed";
+    const reason = !leagueFinished
+      ? `Ainda há ${pendingMatches ?? 0} partidas da Liga por jogar.`
+      : sideNames.length
+        ? `Conclua antes: ${sideNames.join(", ")}.`
+        : processing
+          ? "A nova temporada está sendo preparada."
+          : completed
+            ? "A transição desta temporada já foi concluída."
+            : null;
+    return { hasSeason: true, seasonId, leagueFinished, eligible: leagueFinished && !sideNames.length && !processing && !completed, reason };
+  });
+
 export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -1106,6 +1147,16 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
       availableAfterPrize,
       contractRenewal + infrastructureRenewal + treasuryReserve,
     );
+
+    const { data: transitionClaim, error: transitionClaimError } = await (supabase as any).rpc("claim_season_transition", {
+      p_season_id: String(seasonId),
+    });
+    if (transitionClaimError) throw transitionClaimError;
+    if (!transitionClaim?.claimed) {
+      if (transitionClaim?.completed && transitionClaim?.result) return transitionClaim.result;
+      throw new Error("A nova temporada já está sendo preparada. Aguarde alguns instantes.");
+    }
+
     await supabase
       .from("academies")
       .update({ money: availableAfterPrize - eliteSeasonExpense })
@@ -1361,7 +1412,7 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
       isChampion: playerIsChampion,
     });
 
-    return {
+    const result = {
       position,
       prize,
       championGems,
@@ -1378,6 +1429,12 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
       worldSummary,
       career: careerOutcome,
     };
+    const { error: transitionCompleteError } = await (supabase as any).rpc("complete_season_transition", {
+      p_season_id: String(seasonId),
+      p_result: result,
+    });
+    if (transitionCompleteError) throw transitionCompleteError;
+    return result;
   });
 
 function hashSeed(s: string): number {

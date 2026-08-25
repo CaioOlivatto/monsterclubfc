@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { getLeague, startLeague, finishSeasonAndAdvance } from "@/lib/league.functions";
+import { getLeague, startLeague, finishSeasonAndAdvance, getSeasonAdvanceStatus } from "@/lib/league.functions";
 import { recomputeWorldRanking } from "@/lib/ranking.functions";
 import { GamePageShell } from "@/components/GamePageShell";
 
@@ -39,6 +39,7 @@ function LeaguePage() {
   const qc = useQueryClient();
   const fetchLeague = useServerFn(getLeague);
   const start = useServerFn(startLeague);
+  const fetchSeasonStatus = useServerFn(getSeasonAdvanceStatus);
 
   const [division, setDivision] = useState<string | undefined>(undefined);
 
@@ -46,6 +47,11 @@ function LeaguePage() {
     queryKey: ["league", division ?? "auto"],
     queryFn: () => fetchLeague({ data: division ? { division } : {} } as any),
     staleTime: 30_000,
+  });
+  const { data: seasonStatus } = useQuery({
+    queryKey: ["season-advance-status"],
+    queryFn: () => fetchSeasonStatus(),
+    staleTime: 10_000,
   });
 
 
@@ -70,6 +76,7 @@ function LeaguePage() {
       qc.invalidateQueries({ queryKey: ["league"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       qc.invalidateQueries({ queryKey: ["world-ranking"] });
+      qc.invalidateQueries({ queryKey: ["season-advance-status"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Não foi possível encerrar a temporada."),
   });
@@ -113,6 +120,7 @@ function LeaguePage() {
             onPlayNext={() => nav({ to: "/lineup", search: { competition: "league" } })}
             onFinishSeason={() => finishMut.mutate()}
             isFinishing={finishMut.isPending}
+            seasonStatus={seasonStatus}
           />
         )}
 
@@ -187,7 +195,7 @@ function SeasonSummaryDialog({ summary, onClose }: { summary: any | null; onClos
         </div>
 
         <DialogFooter>
-          <Button onClick={onClose} className="w-full">Começar nova temporada</Button>
+          <Button onClick={onClose} className="w-full">Continuar para a nova temporada</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -201,6 +209,7 @@ function LeagueBody({
   onPlayNext,
   onFinishSeason,
   isFinishing,
+  seasonStatus,
 }: {
   data: any;
   division: string;
@@ -208,6 +217,7 @@ function LeagueBody({
   onPlayNext: () => void;
   onFinishSeason: () => void;
   isFinishing: boolean;
+  seasonStatus?: { eligible?: boolean; reason?: string | null };
 }) {
 
   const teamsById = new Map<string, any>((data.teams ?? []).map((t: any) => [t.id, t]));
@@ -263,9 +273,9 @@ function LeagueBody({
           </div>
           {isPlayerDivision && (
             leagueDone ? (
-              <Button onClick={onFinishSeason} disabled={isFinishing} variant="default">
+              <Button onClick={onFinishSeason} disabled={isFinishing || !seasonStatus?.eligible} variant="default" title={seasonStatus?.reason ?? undefined}>
                 <Trophy className="mr-2 h-4 w-4" />
-                {isFinishing ? "Encerrando..." : "Encerrar temporada"}
+                {isFinishing ? "Preparando..." : "Iniciar nova temporada"}
               </Button>
             ) : (
               <Button onClick={onPlayNext}>

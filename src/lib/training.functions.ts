@@ -133,23 +133,12 @@ export const startAttributeTraining = createServerFn({ method: "POST" })
     const newSpent = (c.xp_spent_training ?? 0) + ATTR_TRAINING_XP_COST;
     const pending = pendingHalfStarsFor({ ...c, xp: newXp, xp_spent_training: newSpent }, applied);
     const durationMs = attrTrainingDurationMs(c.element, data.key, !!isGk);
-    const completes = new Date(Date.now() + durationMs).toISOString();
-
-
-    const { error: uErr } = await supabase
-      .from("creatures")
-      .update({
-        xp: newXp,
-        xp_spent_training: newSpent,
-        pending_half_stars: pending,
-        energy: Math.max(0, (c.energy ?? 0) - ATTR_TRAINING_ENERGY_COST),
-        attr_training_key: data.key,
-        attr_training_completes_at: completes,
-      })
-      .eq("id", c.id);
+    const { data: operation, error: uErr } = await supabase.rpc("start_attribute_training_atomic" as any, {
+      p_creature: c.id, p_key: data.key, p_duration_seconds: Math.ceil(durationMs / 1000),
+      p_pending_half_stars: pending, p_idempotency_key: `training-start:${c.id}:${crypto.randomUUID()}`,
+    });
     if (uErr) throw uErr;
-
-    return { completes_at: completes, duration_ms: durationMs, xp_spent: ATTR_TRAINING_XP_COST, xp_left: newXp };
+    return { ...(operation as any), duration_ms: durationMs, xp_spent: ATTR_TRAINING_XP_COST, xp_left: newXp };
   });
 
 export const rushAttributeTraining = createServerFn({ method: "POST" })

@@ -115,9 +115,11 @@ function RosterPage() {
   const cancelMeetFn = useServerFn(cancelMoraleMeeting);
   const startGeneralFn = useServerFn(startMoraleGeneral);
   const startMeetMut = useMutation({
-    mutationFn: () => startMeetFn(),
-    onSuccess: () => {
-      toast.success("Reunião de equipe iniciada.");
+    mutationFn: () => startMeetFn({ data: { idempotencyKey: crypto.randomUUID() } }),
+    onSuccess: (r: any) => {
+      toast.success(r?.currency === "gems"
+        ? `Reunião iniciada (${Number(r?.cost ?? 0)} 💎).`
+        : "Reunião gratuita iniciada.");
       qc.invalidateQueries({ queryKey: ["morale-sessions"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao iniciar reunião"),
@@ -140,10 +142,10 @@ function RosterPage() {
     onError: (e: any) => toast.error(e?.message ?? "Falha ao cancelar"),
   });
   const startGeneralMut = useMutation({
-    mutationFn: () => startGeneralFn(),
+    mutationFn: () => startGeneralFn({ data: { idempotencyKey: crypto.randomUUID() } }),
     onSuccess: (r: any) => {
       toast.success(
-        `Incentivo aplicado imediatamente em ${r?.applied ?? 0} jogadores.`,
+        `Incentivo aplicado em ${r?.applied ?? 0} jogadores (${Number(r?.cost ?? 0).toLocaleString("pt-BR")} ${r?.currency === "gems" ? "💎" : "$"}).`,
       );
       qc.invalidateQueries({ queryKey: ["morale-sessions"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
@@ -285,13 +287,18 @@ function RosterPage() {
             <div className="flex h-full flex-wrap items-center justify-between gap-3 rounded-xl border border-violet-500/45 bg-gradient-to-r from-violet-950/65 to-slate-950 p-4 shadow-[0_0_18px_rgba(139,92,246,0.12)]">
               <div className="min-w-0 text-sm">
                 <p className="flex items-center gap-2 font-bold uppercase text-violet-300">
-                  <Users className="h-5 w-5" /> Reunião de equipe (gratuita)
+                  <Users className="h-5 w-5" /> Reunião de equipe {Number((morale as any)?.meeting_cycle?.use_count ?? 0) === 0 ? "(gratuita)" : `(uso extra: ${Number((morale as any)?.meeting_cycle?.next_gem_cost ?? 0)} 💎)`}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Após 4h, aumenta em até +{MORALE_MEETING_COLLECTIVE_BOOST} a moral de todo o elenco. Moral alta melhora o desempenho efetivo nas partidas; jogadores já motivados recebem ganho menor.
                 </p>
               </div>
-              <Button size="sm" className="w-full sm:w-auto" onClick={() => startMeetMut.mutate()} disabled={startMeetMut.isPending}>
+              <Button
+                size="sm"
+                className="w-full sm:w-auto"
+                onClick={() => startMeetMut.mutate()}
+                disabled={startMeetMut.isPending || (Number((morale as any)?.meeting_cycle?.use_count ?? 0) > 0 && Number(morale?.gems ?? 0) < Number((morale as any)?.meeting_cycle?.next_gem_cost ?? 0))}
+              >
                 Iniciar reunião
               </Button>
             </div>
@@ -301,7 +308,11 @@ function RosterPage() {
           const g = (morale as any)?.general;
           if (!g) return null;
           const money = (morale as any)?.money ?? 0;
-          const insufficient = money < g.total_price;
+          const isExtraUse = Number(g.cycle?.use_count ?? 0) > 0;
+          const actionCost = isExtraUse ? Number(g.cycle?.next_gem_cost ?? 0) : Number(g.total_price ?? 0);
+          const insufficient = isExtraUse
+            ? Number((morale as any)?.gems ?? 0) < actionCost
+            : money < actionCost;
           const noneEligible = g.appliable_count <= 0;
           const meetingActive = Boolean(
             morale?.meeting_completes_at &&
@@ -332,7 +343,7 @@ function RosterPage() {
                 <p className="mt-1 text-xs">
                   Aplicar em <b>{g.appliable_count}</b> criaturas por{" "}
                   <b className={insufficient ? "text-red-400" : "text-amber-300"}>
-                    ${g.total_price.toLocaleString("pt-BR")}
+                    {isExtraUse ? `${actionCost.toLocaleString("pt-BR")} 💎` : `$${actionCost.toLocaleString("pt-BR")}`}
                   </b>
                   {g.appliable_count < g.eligible_count && (
                     <span className="text-muted-foreground">

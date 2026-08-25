@@ -49,6 +49,12 @@ export const GEM_ECONOMY_CONFIG = {
     weeklyGemCeiling: 20,
   },
   speedCosts: { speed2x: 100, speed4x: 300, instant: 800, bundle: 1_050 },
+  moraleCycles: {
+    meetingHours: 12,
+    meetingExtraGemCosts: [15, 30, 60, 120] as const,
+    generalHours: 24,
+    generalExtraGemCosts: [30, 60, 120, 240] as const,
+  },
   shopPackages: [
     { gems: 100, priceCents: 790 },
     { gems: 450, priceCents: 2_490 },

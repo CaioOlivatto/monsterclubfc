@@ -3,6 +3,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getMatchWithSession } from "@/lib/match.functions";
+import { unlockSpeed } from "@/lib/shop.functions";
+import { GEM_ECONOMY_CONFIG } from "@/lib/gem-economy";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -93,10 +95,26 @@ function MatchPage() {
 
   const [minute, setMinute] = useState(0);
   const [playing, setPlaying] = useState(true);
-  const [speed, setSpeed] = useState<Speed>(2);
+  const [speed, setSpeed] = useState<Speed>(1);
   const [revealed, setRevealed] = useState<RevealedEvent[]>([]);
   const [pending, setPending] = useState<PendingPlay | null>(null);
-  const [unlockMode, setUnlockMode] = useState<"4x" | "instant" | null>(null);
+  const [unlockMode, setUnlockMode] = useState<"2x" | "4x" | "instant" | null>(null);
+  const unlockSpeedFn = useServerFn(unlockSpeed);
+  const unlockSpeedMutation = useMutation({
+    mutationFn: (mode: "2x" | "4x" | "instant") => unlockSpeedFn({ data: { mode } }),
+    onSuccess: async (result, mode) => {
+      toast.success(result.message);
+      setUnlockMode(null);
+      await qc.invalidateQueries({ queryKey: ["match", id] });
+      if (mode === "2x") setSpeed(2);
+      if (mode === "4x") setSpeed(4);
+      if (mode === "instant") {
+        setSpeed(0);
+        setPlaying(true);
+      }
+    },
+    onError: (cause) => toast.error(cause instanceof Error ? cause.message : "Não foi possível desbloquear a velocidade."),
+  });
 
   const timerRef = useRef<number | null>(null);
   const narrRef = useRef<NarrationSession>(new NarrationSession());
@@ -423,17 +441,18 @@ function MatchPage() {
                 variant={speed === 2 ? "default" : "outline"}
                 onClick={() => {
                   if (data.speed?.paid_2x) setSpeed(2);
-                  else window.location.assign("/shop");
+                  else setUnlockMode("2x");
                 }}
               >
                 {!data.speed?.paid_2x && <Lock className="mr-1 h-3 w-3" />} 2x
+                {!data.speed?.paid_2x && <span className="ml-1 text-[10px]">{GEM_ECONOMY_CONFIG.speedCosts.speed2x}♦</span>}
               </Button>
               <Button
                 size="sm"
                 variant={speed === 4 ? "default" : "outline"}
                 onClick={() => {
                   if (data.speed?.paid_4x) setSpeed(4);
-                  else window.location.assign("/shop");
+                  else setUnlockMode("4x");
                 }}
               >
                 {data.speed?.paid_4x ? (
@@ -442,6 +461,7 @@ function MatchPage() {
                   <Lock className="mr-1 h-3 w-3" />
                 )}{" "}
                 4x
+                {!data.speed?.paid_4x && <span className="ml-1 text-[10px]">{GEM_ECONOMY_CONFIG.speedCosts.speed4x}♦</span>}
               </Button>
               <Button
                 size="sm"
@@ -451,7 +471,7 @@ function MatchPage() {
                     setSpeed(0);
                     setPlaying(true);
                   } else {
-                    window.location.assign("/shop");
+                    setUnlockMode("instant");
                   }
                 }}
               >
@@ -461,6 +481,7 @@ function MatchPage() {
                   <Lock className="mr-1 h-3 w-3" />
                 )}{" "}
                 Instantâneo
+                {!data.speed?.paid_instant && <span className="ml-1 text-[10px]">{GEM_ECONOMY_CONFIG.speedCosts.instant}♦</span>}
               </Button>
               <TacticsSheet substitutionsUsed={substitutionsUsed} autoOpenSubstitutions={severePlayerInjuryActive} onSubstitute={registerCinematicSubstitution} />
             </div>
@@ -468,16 +489,9 @@ function MatchPage() {
             <UnlockSpeedDialog
               mode={unlockMode}
               onOpenChange={(open) => !open && setUnlockMode(null)}
-              price4x={data.speed?.price_4x ?? "R$ 14,90"}
-              priceInstant={data.speed?.price_instant ?? "R$ 29,90"}
-              onUnlocked={(mode) => {
-                setUnlockMode(null);
-                if (mode === "4x") setSpeed(4);
-                else {
-                  setSpeed(0);
-                  setPlaying(true);
-                }
-              }}
+              gems={data.speed?.gems ?? 0}
+              pending={unlockSpeedMutation.isPending}
+              onConfirm={(mode) => unlockSpeedMutation.mutate(mode)}
             />
 
 
@@ -696,19 +710,23 @@ function FinanceSummaryCard({ summary }: { summary: any }) {
 function UnlockSpeedDialog({
   mode,
   onOpenChange,
-  price4x,
-  priceInstant,
-  onUnlocked,
+  gems,
+  pending,
+  onConfirm,
 }: {
-  mode: "4x" | "instant" | null;
+  mode: "2x" | "4x" | "instant" | null;
   onOpenChange: (open: boolean) => void;
-  price4x: string;
-  priceInstant: string;
-  onUnlocked: (mode: "4x" | "instant") => void;
+  gems: number;
+  pending: boolean;
+  onConfirm: (mode: "2x" | "4x" | "instant") => void;
 }) {
-  void onUnlocked;
-  const price = mode === "4x" ? price4x : mode === "instant" ? priceInstant : "";
-  const label = mode === "4x" ? "Velocidade 4x" : "Modo Instantâneo";
+  const cost = mode === "2x"
+    ? GEM_ECONOMY_CONFIG.speedCosts.speed2x
+    : mode === "4x"
+      ? GEM_ECONOMY_CONFIG.speedCosts.speed4x
+      : GEM_ECONOMY_CONFIG.speedCosts.instant;
+  const label = mode === "2x" ? "Velocidade 2x" : mode === "4x" ? "Velocidade 4x" : "Modo Instantâneo";
+  const remaining = gems - cost;
 
   return (
     <AlertDialog open={!!mode} onOpenChange={onOpenChange}>
@@ -718,14 +736,19 @@ function UnlockSpeedDialog({
             <Lock className="h-4 w-4" /> Desbloquear {label}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            Desbloqueio permanente para todas as partidas futuras por{" "}
-            <span className="font-semibold text-foreground">{price}</span>.
-            Este recurso será vendido somente por pagamento em dinheiro real.
+            Desbloqueio permanente para todas as partidas futuras. Saldo atual: <strong>{gems} gemas</strong>.
+            Custo: <strong>{cost} gemas</strong>. Saldo após a compra: <strong>{Math.max(0, remaining)} gemas</strong>.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Voltar</AlertDialogCancel>
-          <AlertDialogAction disabled>Pagamentos em breve</AlertDialogAction>
+          {remaining < 0 ? (
+            <AlertDialogAction onClick={() => window.location.assign("/shop")}>Ir para a Loja de Gemas</AlertDialogAction>
+          ) : (
+            <AlertDialogAction disabled={pending || !mode} onClick={() => mode && onConfirm(mode)}>
+              {pending ? "Desbloqueando…" : `Confirmar por ${cost} gemas`}
+            </AlertDialogAction>
+          )}
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
