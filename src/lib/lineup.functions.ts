@@ -58,10 +58,17 @@ function buildAutomaticLineup(creatures: any[], formation: typeof FORMATIONS[num
   return { starters, bench: remaining.slice(0, MAX_BENCH).map((creature) => creature.id) };
 }
 
-async function getTrainer(supabase: any, userId: string): Promise<{ id: string; current_team_id: string | null }> {
+async function getTrainer(supabase: any, userId: string): Promise<{
+  id: string;
+  current_team_id: string | null;
+  trainer_name?: string | null;
+  academy_name?: string | null;
+  xp?: number | null;
+  academies?: any;
+}> {
   const { data: trainer } = await supabase
     .from("trainers")
-    .select("id, current_team_id")
+    .select("id, current_team_id, trainer_name, academy_name, xp, academies(money, gems)")
     .eq("user_id", userId)
     .maybeSingle();
   if (!trainer) throw new Error("Treinador não encontrado.");
@@ -77,10 +84,31 @@ async function loadMyLineup(supabase: any, userId: string) {
     const trainerId = trainer.id;
     // A escalação pode ser a primeira tela aberta após o onboarding. Garante
     // aqui o mesmo reparo seguro do painel para nunca renderizar 11 slots vazios.
-    const playerTeam = await resolvePlayerCareerTeam(supabase, trainer);
-    await ensureStarterRoster(supabase, trainerId, playerTeam);
+    const playerTeamPromise = resolvePlayerCareerTeam(supabase, trainer);
+    const lineupPromise = supabase
+      .from("team_lineups")
+      .select("formation, strategy, starters, bench, default_tactics")
+      .eq("trainer_id", trainerId)
+      .maybeSingle();
+    const creaturesPromise = supabase
+      .from("creatures")
+      .select("id, name, element, suggested_position, overall, energy, morale, injury_matches_remaining, injury_severity")
+      .eq("owner_trainer_id", trainerId)
+      .order("overall", { ascending: false });
+    const [playerTeam, lineupResult, creaturesResult, { data: membership }, { data: clubPreset }] = await Promise.all([
+      playerTeamPromise,
+      lineupPromise,
+      creaturesPromise,
+      (supabase as any).from("club_memberships").select("active_until").eq("trainer_id", trainerId).maybeSingle(),
+      (supabase as any).from("club_lineup_presets").select("formation,strategy,starters,bench").eq("trainer_id", trainerId).maybeSingle(),
+    ]);
+    if (creaturesResult.error) throw creaturesResult.error;
 
-    const [{ data: lineup }, { data: creatures }, { data: membership }, { data: clubPreset }] = await Promise.all([
+    let lineup = lineupResult.data;
+    let creatures = creaturesResult.data ?? [];
+    const repaired = await ensureStarterRoster(supabase, trainerId, playerTeam, creatures);
+    if (repaired) {
+      const [freshLineup, freshCreatures] = await Promise.all([
       supabase
         .from("team_lineups")
         .select("formation, strategy, starters, bench, default_tactics")
@@ -91,9 +119,11 @@ async function loadMyLineup(supabase: any, userId: string) {
         .select("id, name, element, suggested_position, overall, energy, morale, injury_matches_remaining, injury_severity")
         .eq("owner_trainer_id", trainerId)
         .order("overall", { ascending: false }),
-      (supabase as any).from("club_memberships").select("active_until").eq("trainer_id", trainerId).maybeSingle(),
-      (supabase as any).from("club_lineup_presets").select("formation,strategy,starters,bench").eq("trainer_id", trainerId).maybeSingle(),
-    ]);
+      ]);
+      if (freshCreatures.error) throw freshCreatures.error;
+      lineup = freshLineup.data;
+      creatures = freshCreatures.data ?? [];
+    }
 
     const savedStarters = Array.isArray(lineup?.starters) ? lineup.starters : [];
     const hasCompleteLineup = savedStarters.filter((slot: any) => slot?.creature_id).length === 11;
@@ -130,7 +160,13 @@ async function loadMyLineup(supabase: any, userId: string) {
         bench: [],
         default_tactics: NEUTRAL_TACTICS,
       },
-      creatures: creatures ?? [],
+      creatures,
+      trainer: {
+        trainer_name: trainer.trainer_name ?? "Treinador",
+        academy_name: trainer.academy_name ?? "Meu clube",
+        ...((await import("./trainer-xp.server")).levelProgress(trainer.xp ?? 0)),
+      },
+      academy: Array.isArray(trainer.academies) ? trainer.academies[0] : trainer.academies,
       club_active: !!membership && new Date(membership.active_until).getTime() > Date.now(),
       club_preset: clubPreset ?? null,
   };

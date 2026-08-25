@@ -3,7 +3,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { getMyLineupWithSession, saveClubLineupPreset, saveLineupWithSession } from "@/lib/lineup.functions";
-import { getDashboardWithSession } from "@/lib/creatures.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { getLineupPrognosticWithSession } from "@/lib/odds.functions";
 import { playNextLeagueMatch, advanceLeagueRoundBackground } from "@/lib/league.functions";
@@ -119,7 +118,6 @@ function LineupPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const fetchLineup = useServerFn(getMyLineupWithSession);
-  const fetchDashboard = useServerFn(getDashboardWithSession);
   const save = useServerFn(saveLineupWithSession);
   const saveClubPreset = useServerFn(saveClubLineupPreset);
   const fetchProg = useServerFn(getLineupPrognosticWithSession);
@@ -142,18 +140,6 @@ function LineupPage() {
     },
     staleTime: 2 * 60_000,
   });
-  const { data: dashboardData } = useQuery({
-    queryKey: ["dashboard"],
-    queryFn: async () => {
-      const { data: current, error } = await supabase.auth.getSession();
-      if (error || !current.session?.access_token) throw error ?? new Error("Sessão não encontrada.");
-      return fetchDashboard({ data: { access_token: current.session.access_token } });
-    },
-    staleTime: 20_000,
-  });
-  const dashboardAcademy = Array.isArray(dashboardData?.academy)
-    ? dashboardData.academy[0]
-    : dashboardData?.academy;
   const { data: upcomingMatch } = useQuery<OfficialMatchContext | null>({
     queryKey: ["upcoming-official-match", search.competition ?? "auto"],
     queryFn: async () => {
@@ -597,15 +583,15 @@ function LineupPage() {
       <header className="relative z-10 border-b border-violet-500/35 bg-slate-950/90 shadow-[0_4px_24px_rgba(76,29,149,0.28)] backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center gap-2 px-3 py-3 sm:px-4">
           <GameLogo size="xs" className="shrink-0" />
-          <TeamCrest teamName={dashboardData?.trainer?.academy_name ?? null} size="md" />
+          <TeamCrest teamName={data?.trainer?.academy_name ?? null} size="md" />
           <div className="min-w-0 flex-1">
             <p className="text-[10px] uppercase tracking-wider text-slate-400">Preparação da partida</p>
             <h1 className="truncate text-base font-bold sm:text-lg">Escalação</h1>
-            <p className="truncate text-[11px] text-slate-400">{dashboardData?.trainer?.academy_name ?? "Meu clube"} · Nível {dashboardData?.trainer?.level ?? 0}</p>
+            <p className="truncate text-[11px] text-slate-400">{data?.trainer?.academy_name ?? "Meu clube"} · Nível {data?.trainer?.level ?? 0}</p>
           </div>
           <div className="ml-auto hidden items-center gap-2 sm:flex">
-            <div className="flex h-9 items-center gap-2 rounded-lg border border-violet-400/25 bg-slate-900/80 px-3 text-sm font-bold">💎 {(dashboardAcademy?.gems ?? 0).toLocaleString("pt-BR")}</div>
-            <div className="flex h-9 items-center gap-2 rounded-lg border border-amber-400/25 bg-slate-900/80 px-3 text-sm font-bold">🪙 {(dashboardAcademy?.money ?? 0).toLocaleString("pt-BR")}</div>
+            <div className="flex h-9 items-center gap-2 rounded-lg border border-violet-400/25 bg-slate-900/80 px-3 text-sm font-bold">💎 {(data?.academy?.gems ?? 0).toLocaleString("pt-BR")}</div>
+            <div className="flex h-9 items-center gap-2 rounded-lg border border-amber-400/25 bg-slate-900/80 px-3 text-sm font-bold">🪙 {(data?.academy?.money ?? 0).toLocaleString("pt-BR")}</div>
           </div>
         </div>
       </header>

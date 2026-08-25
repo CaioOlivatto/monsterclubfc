@@ -48,8 +48,14 @@ function AuthenticatedLayout() {
       // carreira interrompida é manutenção em segundo plano e jamais deve
       // transformar uma falha secundária em bloqueio global do jogo.
       if (active) setSessionReady(true);
-      void repairCareer({ data: { access_token: data.session.access_token } })
-        .catch((repairError) => console.error("[career-repair]", repairError));
+      const repairKey = `monster-career-repair:${data.session.user.id}`;
+      const lastRepair = Number(window.sessionStorage.getItem(repairKey) ?? 0);
+      const repairIsFresh = Number.isFinite(lastRepair) && Date.now() - lastRepair < 5 * 60_000;
+      if (!repairIsFresh) {
+        void repairCareer({ data: { access_token: data.session.access_token } })
+          .then(() => window.sessionStorage.setItem(repairKey, String(Date.now())))
+          .catch((repairError) => console.error("[career-repair]", repairError));
+      }
     }
     void prepareSession();
     return () => { active = false; };

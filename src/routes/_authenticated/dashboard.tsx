@@ -120,12 +120,11 @@ function Dashboard() {
   const lowMoraleCount = (rosterList ?? []).filter((c: any) => (c.morale ?? 50) < 40).length;
   const tiredStarters = React.useMemo(() => {
     const starters: any[] = (lineupData as any)?.lineup?.starters ?? [];
-    const creatures: any[] = (lineupData as any)?.creatures ?? [];
-    const byId = new Map(creatures.map((c) => [c.id, c]));
+    const byId = new Map((rosterList as any[]).map((c) => [c.id, c]));
     return starters
       .map((s: any) => byId.get(s.creature_id))
       .filter((c: any) => c && (c.energy ?? 100) < 50).length;
-  }, [lineupData]);
+  }, [lineupData, rosterList]);
 
   const alerts: Alert[] = [];
   if (retiredCount > 0)

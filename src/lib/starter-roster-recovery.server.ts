@@ -36,14 +36,23 @@ export async function resolvePlayerCareerTeam(supabase: any, trainer: any): Prom
 
 // Garante que uma carreira já criada sempre possua o elenco inicial completo.
 // Não altera jogadores existentes, jogos, saldo, liga ou construções.
-export async function ensureStarterRoster(supabase: any, trainerId: string, team: PlayerCareerTeam | null) {
+export async function ensureStarterRoster(
+  supabase: any,
+  trainerId: string,
+  team: PlayerCareerTeam | null,
+  knownCreatures?: Array<{ id: string; owner_team_id?: string | null }>,
+) {
   if (!team?.starter_key || !getStarterTeam(team.starter_key)) return false;
 
-  const { data: currentCreatures, error: countError } = await supabase
-    .from("creatures")
-    .select("id, owner_team_id")
-    .eq("owner_trainer_id", trainerId);
-  if (countError) throw countError;
+  let currentCreatures = knownCreatures;
+  if (!currentCreatures) {
+    const { data, error: countError } = await supabase
+      .from("creatures")
+      .select("id, owner_team_id")
+      .eq("owner_trainer_id", trainerId);
+    if (countError) throw countError;
+    currentCreatures = data ?? [];
+  }
   const currentCount = currentCreatures?.length ?? 0;
   const unlinkedIds = (currentCreatures ?? [])
     .filter((creature: any) => !creature.owner_team_id)

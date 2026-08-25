@@ -171,12 +171,10 @@ async function loadDashboard(supabase: any, userId: string) {
 
     if (!trainer) return null;
 
-    const playerTeam = await resolvePlayerCareerTeam(supabase, trainer);
-    await ensureStarterRoster(supabase, trainer.id, playerTeam);
-
-    // O Dashboard também alimenta alertas, aposentadoria e titulares cansados.
-    // Carregamos o elenco completo uma vez e reutilizamos o resultado para todos
-    // esses blocos, em vez de disparar três server functions adicionais.
+    // Estas leituras dependem apenas do treinador e podem começar juntas. Antes,
+    // a recuperação consultava o elenco e só depois o Dashboard consultava os
+    // mesmos 26 registros novamente.
+    const playerTeamPromise = resolvePlayerCareerTeam(supabase, trainer);
     const rosterPromise = supabase
       .from("creatures")
       // O painel aceita instalações que ainda estejam concluindo uma migração.
@@ -194,14 +192,28 @@ async function loadDashboard(supabase: any, userId: string) {
       .select("building_type, level")
       .eq("trainer_id", trainer.id);
 
-    const [{ data: creatures, error: creaturesError }, { data: lineup }, { data: buildings }] = await Promise.all([
+    const [playerTeam, { data: creatures, error: creaturesError }, { data: lineup }, { data: buildings }] = await Promise.all([
+      playerTeamPromise,
       rosterPromise,
       lineupPromise,
       buildingsPromise,
     ]);
     if (creaturesError) throw creaturesError;
 
-    const list = creatures ?? [];
+    let list = creatures ?? [];
+    // Recuperação permanece disponível, mas não adiciona uma consulta ao caminho
+    // normal. Uma segunda leitura ocorre somente quando a carreira está de fato
+    // incompleta ou precisa religar jogadores antigos ao clube.
+    const repairedRoster = await ensureStarterRoster(supabase, trainer.id, playerTeam, list);
+    if (repairedRoster) {
+      const { data: repairedCreatures, error: repairedError } = await supabase
+        .from("creatures")
+        .select("*")
+        .eq("owner_trainer_id", trainer.id)
+        .order("overall", { ascending: false });
+      if (repairedError) throw repairedError;
+      list = repairedCreatures ?? [];
+    }
     const rosterCount = list.length;
     const avgEnergy = list.length
       ? Math.round(list.reduce((s, c) => s + (c.energy ?? 0), 0) / list.length)
@@ -251,9 +263,29 @@ async function loadDashboard(supabase: any, userId: string) {
       is_home: boolean;
     };
 
-    const [{ data: activeLeague }, officialMatch] = await Promise.all([
+    const standingsPromise = playerTeam?.competition_id
+      ? supabase
+          .from("standings")
+          .select("team_id, points, wins, draws, losses, goals_for, goals_against")
+          .eq("competition_id", playerTeam.competition_id)
+          .order("points", { ascending: false })
+      : Promise.resolve({ data: [] });
+    const recentMatchesPromise = trainer.current_team_id
+      ? supabase
+          .from("matches")
+          .select("home_team_id, away_team_id, home_score, away_score")
+          .or(`home_team_id.eq.${trainer.current_team_id},away_team_id.eq.${trainer.current_team_id}`)
+          .eq("status", "finished")
+          .eq("is_friendly", false)
+          .order("played_at", { ascending: false })
+          .limit(5)
+      : Promise.resolve({ data: [] });
+
+    const [{ data: activeLeague }, officialMatch, { data: standings }, { data: recentMatches }] = await Promise.all([
       activeLeaguePromise,
       getNextOfficialMatchForTrainer(supabase, trainer),
+      standingsPromise,
+      recentMatchesPromise,
     ]);
     if (officialMatch) {
       nextMatch = {
@@ -274,15 +306,8 @@ async function loadDashboard(supabase: any, userId: string) {
       };
     }
 
-    let confidenceStandings: any[] = [];
+    let confidenceStandings: any[] = standings ?? [];
     if (playerTeam && playerTeam.competition_id) {
-      const { data: standings } = await supabase
-        .from("standings")
-        .select("team_id, points, wins, draws, losses, goals_for, goals_against")
-        .eq("competition_id", playerTeam.competition_id)
-        .order("points", { ascending: false });
-
-      confidenceStandings = standings ?? [];
       if (standings && standings.length) {
         const idx = standings.findIndex((s) => s.team_id === playerTeam.id);
         if (idx >= 0) {
@@ -302,16 +327,6 @@ async function loadDashboard(supabase: any, userId: string) {
 
     }
 
-    const { data: recentMatches } = trainer.current_team_id
-      ? await supabase
-          .from("matches")
-          .select("home_team_id, away_team_id, home_score, away_score")
-          .or(`home_team_id.eq.${trainer.current_team_id},away_team_id.eq.${trainer.current_team_id}`)
-          .eq("status", "finished")
-          .eq("is_friendly", false)
-          .order("played_at", { ascending: false })
-          .limit(5)
-      : { data: [] };
     const confidence = buildConfidence(trainer, confidenceStandings, recentMatches ?? []);
     const division = ((playerTeam?.division ?? "bronze") as Division);
     const operatingCostPerMatch = Math.round(
@@ -351,7 +366,7 @@ async function loadDashboard(supabase: any, userId: string) {
       nextMatch,
       hasLeague: !!activeLeague,
       rosterList: list,
-      lineupData: { lineup: lineup ?? { starters: [] }, creatures: list },
+      lineupData: { lineup: lineup ?? { starters: [] } },
       confidence,
       financialHealth: {
         division,
@@ -379,6 +394,65 @@ export const getDashboardWithSession = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { supabase, userId } = await createOnboardingSupabase(data.access_token);
     return loadDashboard(supabase, userId);
+  });
+
+async function loadRosterPage(supabase: any, userId: string) {
+  const { data: trainer, error: trainerError } = await supabase
+    .from("trainers")
+    .select("id, current_team_id, trainer_name, academy_name, xp, academies(id)")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (trainerError) throw trainerError;
+  if (!trainer) return null;
+
+  const [playerTeam, { data: creatures, error: creaturesError }] = await Promise.all([
+    resolvePlayerCareerTeam(supabase, trainer),
+    supabase
+      .from("creatures")
+      .select("*")
+      .eq("owner_trainer_id", trainer.id)
+      .order("overall", { ascending: false }),
+  ]);
+  if (creaturesError) throw creaturesError;
+
+  let rosterList = creatures ?? [];
+  const repaired = await ensureStarterRoster(supabase, trainer.id, playerTeam, rosterList);
+  if (repaired) {
+    const { data: refreshed, error: refreshError } = await supabase
+      .from("creatures")
+      .select("*")
+      .eq("owner_trainer_id", trainer.id)
+      .order("overall", { ascending: false });
+    if (refreshError) throw refreshError;
+    rosterList = refreshed ?? [];
+  }
+
+  const { levelProgress } = await import("./trainer-xp.server");
+  const progress = levelProgress(trainer.xp ?? 0);
+  return {
+    trainer: {
+      id: trainer.id,
+      trainer_name: trainer.trainer_name,
+      academy_name: trainer.academy_name,
+      level: progress.level,
+      xp: trainer.xp ?? 0,
+      xpIntoLevel: progress.intoLevel,
+      xpForNextLevel: progress.levelNeed,
+      xpTotalForNext: progress.totalForNext,
+      isMaxLevel: progress.isMax,
+    },
+    academy: trainer.academies ?? null,
+    rosterList,
+  };
+}
+
+// O Elenco não precisa carregar partidas, classificação, construções e finanças
+// do Dashboard. Esta leitura dedicada reduz payload e consultas sem mudar a UI.
+export const getRosterPageWithSession = createServerFn({ method: "POST" })
+  .inputValidator((raw: unknown) => dashboardSessionSchema.parse(raw))
+  .handler(async ({ data }) => {
+    const { supabase, userId } = await createOnboardingSupabase(data.access_token);
+    return loadRosterPage(supabase, userId);
   });
 
 const createSchema = z.object({

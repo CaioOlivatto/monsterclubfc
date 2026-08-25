@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { getDashboardWithSession } from "@/lib/creatures.functions";
+import { getRosterPageWithSession } from "@/lib/creatures.functions";
 import { supabase } from "@/integrations/supabase/client";
 import {
   getMoraleSessionsState,
@@ -88,16 +88,16 @@ function xpForHalfStarsLocal(count: number) {
 
 function RosterPage() {
   const qc = useQueryClient();
-  const fetchDashboard = useServerFn(getDashboardWithSession);
+  const fetchRosterPage = useServerFn(getRosterPageWithSession);
   const fetchMorale = useServerFn(getMoraleSessionsState);
   const { data: dashboardData, isLoading } = useQuery({
-    queryKey: ["dashboard"],
+    queryKey: ["roster-page"],
     queryFn: async () => {
       const { data: current, error: sessionError } = await supabase.auth.getSession();
       if (sessionError || !current.session?.access_token) {
         throw sessionError ?? new Error("Sessão não encontrada.");
       }
-      return fetchDashboard({ data: { access_token: current.session.access_token } });
+      return fetchRosterPage({ data: { access_token: current.session.access_token } });
     },
     // Ações do elenco já invalidam esta chave. Mantê-la fresca por alguns
     // segundos evita repetir a leitura completa das 26 criaturas ao alternar
@@ -130,6 +130,7 @@ function RosterPage() {
       toast.success(r?.spent ? `Reunião acelerada (${r.spent} 💎).` : "Reunião concluída.");
       qc.invalidateQueries({ queryKey: ["morale-sessions"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["roster-page"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao acelerar"),
   });
@@ -149,6 +150,7 @@ function RosterPage() {
       );
       qc.invalidateQueries({ queryKey: ["morale-sessions"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["roster-page"] });
     },
     onError: (e: any) => toast.error(e?.message ?? "Falha ao aplicar Incentivo Geral"),
   });
