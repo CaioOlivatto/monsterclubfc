@@ -227,7 +227,16 @@ export function generateStarterRoster(teamKey: StarterKey, bestiary: LoadedBesti
     roster.push(scaleAttrs(c, target));
   }
 
-  return roster;
+  // Os seis clubes iniciais têm estilos diferentes, mas a mesma força útil.
+  // Normalizamos o melhor XI natural (4-4-2) em 46 OVR, ligeiramente acima
+  // do bloco médio da Bronze sem alcançar a elite da divisão.
+  const plan: Array<[Position, number]> = [["Goleiro", 1], ["Zagueiro", 4], ["Meio-campo", 4], ["Atacante", 2]];
+  const expectedXi = plan.flatMap(([position, count]) =>
+    roster.filter((creature) => creature.position === position).sort((a, b) => b.overall - a.overall).slice(0, count),
+  );
+  const xiAverage = expectedXi.reduce((sum, creature) => sum + creature.overall, 0) / Math.max(1, expectedXi.length);
+  const adjustment = Math.round(46 - xiAverage);
+  return roster.map((creature) => scaleAttrs(creature, Math.max(5, Math.min(99, creature.overall + adjustment))));
 }
 
 

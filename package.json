@@ -23,6 +23,8 @@
     "economy:matches": "node --experimental-strip-types scripts/match-economy-audit.ts",
     "economy:performance": "node --experimental-strip-types scripts/performance-rewards-check.ts",
     "economy:v3": "node --experimental-strip-types scripts/economy-v3-sim.ts",
+    "lineup:integrity": "node --experimental-strip-types scripts/lineup-integrity-check.ts",
+    "bronze:retention": "node --experimental-strip-types scripts/bronze-retention-sim.ts",
     "quality:check": "npm.cmd run balance:check && npm.cmd run monetization:check && npm.cmd run monetization:readiness && npm.cmd run arena:check && npm.cmd run supabase:check && npm.cmd run journey:check && npm.cmd run tactics:check && npm.cmd run playtest:bugs && npm.cmd run economy:matches && npm.cmd run build",
     "preview": "vite preview",
     "lint": "eslint .",

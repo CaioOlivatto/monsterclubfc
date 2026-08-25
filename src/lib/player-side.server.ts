@@ -54,8 +54,11 @@ export async function buildPlayerSideFromDb(
   const { data: creatures, error } = await supabase
     .from("creatures")
     .select(
-      "id, name, element, suggested_position, overall, is_goalkeeper, attr_pique, attr_forca, energy, morale, age, aff_fogo, aff_agua, aff_terra, aff_ar, aff_gelo, injury_matches_remaining",
+      "id, name, element, suggested_position, overall, is_goalkeeper, attr_pique, attr_forca, energy, morale, age, aff_fogo, aff_agua, aff_terra, aff_ar, aff_gelo, injury_matches_remaining, retired, owner_trainer_id, owner_team_id",
     )
+    .eq("owner_trainer_id", trainerId)
+    .eq("owner_team_id", teamId)
+    .eq("retired", false)
     .in("id", allIds);
   if (error) throw error;
   const byId = new Map<string, any>((creatures ?? []).map((c: any) => [c.id, c]));
@@ -136,8 +139,11 @@ export async function buildPlayerSideFromDraft(
     supabase
       .from("creatures")
       .select(
-        "id, name, element, suggested_position, overall, is_goalkeeper, attr_pique, attr_forca, energy, morale, age, aff_fogo, aff_agua, aff_terra, aff_ar, aff_gelo, injury_matches_remaining, owner_trainer_id",
+        "id, name, element, suggested_position, overall, is_goalkeeper, attr_pique, attr_forca, energy, morale, age, aff_fogo, aff_agua, aff_terra, aff_ar, aff_gelo, injury_matches_remaining, retired, owner_trainer_id, owner_team_id",
       )
+      .eq("owner_trainer_id", trainerId)
+      .eq("owner_team_id", teamId)
+      .eq("retired", false)
       .in("id", allIds),
     fetchMedicalLevel(supabase, teamId),
     fetchTeamDivision(supabase, teamId),
@@ -145,7 +151,7 @@ export async function buildPlayerSideFromDraft(
   const { data: creatures, error } = creaturesResult;
   if (error) throw error;
   const byId = new Map<string, any>(
-    (creatures ?? []).filter((c: any) => c.owner_trainer_id === trainerId).map((c: any) => [c.id, c]),
+    (creatures ?? []).filter((c: any) => c.owner_trainer_id === trainerId && c.owner_team_id === teamId && !c.retired).map((c: any) => [c.id, c]),
   );
 
   const posToRole = (pos: string | null | undefined): SlotRole => {

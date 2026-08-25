@@ -162,7 +162,7 @@ export interface GeneratedCreature {
   is_prodigy?: boolean;
 }
 
-export function generateTeamRoster(bestiary: LoadedBestiary, team: WorldTeam, division: DivisionSlug, seed: number): GeneratedCreature[] {
+export function generateTeamRoster(bestiary: LoadedBestiary, team: WorldTeam, division: DivisionSlug, seed: number, xiTarget?: number): GeneratedCreature[] {
   const rng = mulberry32(seed);
   const ages = buildAgeList(rng);
   const out: GeneratedCreature[] = [];
@@ -221,7 +221,18 @@ export function generateTeamRoster(bestiary: LoadedBestiary, team: WorldTeam, di
     });
   }
 
-  return out;
+  if (!xiTarget) return out;
+  const plan: Array<[Position, number]> = [["Goleiro", 1], ["Zagueiro", 4], ["Meio-campo", 4], ["Atacante", 2]];
+  const xi = plan.flatMap(([position, count]) =>
+    out.filter((creature) => creature.suggested_position === position).sort((a, b) => b.overall - a.overall).slice(0, count),
+  );
+  const average = xi.reduce((sum, creature) => sum + creature.overall, 0) / Math.max(1, xi.length);
+  const adjustment = Math.round(xiTarget - average);
+  return out.map((creature) => {
+    const target = Math.max(5, Math.min(99, creature.overall + adjustment));
+    const scaled = scaleAttrsToTarget(creature, creature.overall, target);
+    return { ...creature, ...scaled, overall: target, market_value: Math.max(1000, target * target * 20) };
+  });
 }
 
 // ---------- Seed completo (chamado por seedWorldForTrainer) ----------
@@ -319,7 +330,10 @@ export async function seedWorldForTrainer({
         continue;
       }
       const seed = hashSeed(`${trainerId}:${div}:${i}:${teams[i].name}`);
-      const roster = generateTeamRoster(bestiary, teams[i], div, seed);
+      // Bronze tem blocos reais: base, médio, forte e elite. Os seis clubes
+      // selecionáveis permanecem equivalentes quando controlados pela CPU.
+      const bronzeTargets = [46, 46, 46, 46, 46, 46, 39, 40, 41, 42, 43, 45, 46, 47];
+      const roster = generateTeamRoster(bestiary, teams[i], div, seed, div === "bronze" ? bronzeTargets[i] : undefined);
       for (const c of roster) creatureRows.push({ ...c, owner_team_id: teamId });
     }
   }
@@ -343,6 +357,13 @@ export async function seedWorldForTrainer({
   for (const div of DIVISION_ORDER) {
     const compId = competitionsByDiv[div];
     const teamIds = WORLD_TEAMS[div].map((_, i) => teamIdByKey.get(`${div}:${i}`)!);
+    // A temporada inaugural também precisa ser neutra. Embaralhamento
+    // determinístico mantém reprodutibilidade sem fixar rivais por starter.
+    const scheduleRng = mulberry32(hashSeed(`${trainerId}:${seasonId}:${div}:schedule`));
+    for (let i = teamIds.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(scheduleRng() * (i + 1));
+      [teamIds[i], teamIds[j]] = [teamIds[j], teamIds[i]];
+    }
 
     standingsRows.push(...teamIds.map((tid) => ({
       competition_id: compId,

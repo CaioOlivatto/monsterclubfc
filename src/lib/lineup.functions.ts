@@ -43,7 +43,7 @@ function roleForPosition(position: string | null | undefined): SlotRole {
 
 function buildAutomaticLineup(creatures: any[], formation: typeof FORMATIONS[number]) {
   const remaining = [...creatures]
-    .filter((creature) => (creature.injury_matches_remaining ?? 0) === 0)
+    .filter((creature) => !creature.retired && (creature.injury_matches_remaining ?? 0) === 0)
     .sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0));
   const take = (role: SlotRole) => {
     const matchingIndex = remaining.findIndex((creature) => roleForPosition(creature.suggested_position) === role);
@@ -56,6 +56,19 @@ function buildAutomaticLineup(creatures: any[], formation: typeof FORMATIONS[num
     creature_id: take(slot.role)?.id ?? null,
   }));
   return { starters, bench: remaining.slice(0, MAX_BENCH).map((creature) => creature.id) };
+}
+
+async function persistValidatedLineup(
+  supabase: any,
+  data: z.infer<typeof SaveInput>,
+) {
+  const { error } = await (supabase as any).rpc("save_team_lineup_atomic", {
+    p_formation: data.formation,
+    p_strategy: data.strategy,
+    p_starters: data.starters,
+    p_bench: data.bench,
+  });
+  if (error) throw error;
 }
 
 async function getTrainer(supabase: any, userId: string): Promise<{
@@ -92,8 +105,10 @@ async function loadMyLineup(supabase: any, userId: string) {
       .maybeSingle();
     const creaturesPromise = supabase
       .from("creatures")
-      .select("id, name, element, suggested_position, overall, energy, morale, injury_matches_remaining, injury_severity")
+      .select("id, name, element, suggested_position, overall, energy, morale, injury_matches_remaining, injury_severity, retired, owner_team_id")
       .eq("owner_trainer_id", trainerId)
+      .eq("owner_team_id", trainer.current_team_id)
+      .eq("retired", false)
       .order("overall", { ascending: false });
     const [playerTeam, lineupResult, creaturesResult, { data: membership }, { data: clubPreset }] = await Promise.all([
       playerTeamPromise,
@@ -116,8 +131,10 @@ async function loadMyLineup(supabase: any, userId: string) {
         .maybeSingle(),
       supabase
         .from("creatures")
-        .select("id, name, element, suggested_position, overall, energy, morale, injury_matches_remaining, injury_severity")
+        .select("id, name, element, suggested_position, overall, energy, morale, injury_matches_remaining, injury_severity, retired, owner_team_id")
         .eq("owner_trainer_id", trainerId)
+        .eq("owner_team_id", trainer.current_team_id)
+        .eq("retired", false)
         .order("overall", { ascending: false }),
       ]);
       if (freshCreatures.error) throw freshCreatures.error;
@@ -125,8 +142,12 @@ async function loadMyLineup(supabase: any, userId: string) {
       creatures = freshCreatures.data ?? [];
     }
 
+    const availableIds = new Set(creatures.map((creature: any) => creature.id));
     const savedStarters = Array.isArray(lineup?.starters) ? lineup.starters : [];
-    const hasCompleteLineup = savedStarters.filter((slot: any) => slot?.creature_id).length === 11;
+    const savedBench = Array.isArray(lineup?.bench) ? lineup.bench : [];
+    const hasCompleteLineup = savedStarters.filter((slot: any) => slot?.creature_id && availableIds.has(slot.creature_id)).length === 11;
+    const hasStaleSelection = savedStarters.some((slot: any) => slot?.creature_id && !availableIds.has(slot.creature_id))
+      || savedBench.some((id: unknown) => typeof id === "string" && !availableIds.has(id));
     const formation = (lineup?.formation as typeof FORMATIONS[number] | undefined) ?? "4-4-2";
     const automatic = !hasCompleteLineup && (creatures?.length ?? 0) >= 11
       ? buildAutomaticLineup(creatures ?? [], formation)
@@ -134,24 +155,22 @@ async function loadMyLineup(supabase: any, userId: string) {
 
     // Todo clube novo entra em campo pronto. Persistimos uma única vez para que
     // a escalação continue igual ao reabrir a página ou iniciar a partida.
-    if (automatic) {
-      const { error } = await supabase.from("team_lineups").upsert({
-        trainer_id: trainerId,
+    if (automatic || hasStaleSelection) {
+      const safeLineup = automatic ?? buildAutomaticLineup(creatures ?? [], formation);
+      await persistValidatedLineup(supabase, {
         formation,
         strategy: lineup?.strategy ?? "equilibrada",
-        starters: automatic.starters,
-        bench: automatic.bench,
-        default_tactics: lineup?.default_tactics ?? NEUTRAL_TACTICS,
-      }, { onConflict: "trainer_id" });
-      if (error) throw error;
+        starters: safeLineup.starters,
+        bench: safeLineup.bench,
+      });
     }
 
   return {
-      lineup: automatic ? {
+      lineup: (automatic || hasStaleSelection) ? {
         formation,
         strategy: lineup?.strategy ?? "equilibrada",
-        starters: automatic.starters,
-        bench: automatic.bench,
+        starters: (automatic ?? buildAutomaticLineup(creatures ?? [], formation)).starters,
+        bench: (automatic ?? buildAutomaticLineup(creatures ?? [], formation)).bench,
         default_tactics: lineup?.default_tactics ?? NEUTRAL_TACTICS,
       } : lineup ?? {
         formation: "4-4-2",
@@ -192,9 +211,17 @@ export const saveClubLineupPreset = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((raw: unknown) => SaveInput.parse(raw))
   .handler(async ({ data, context }) => {
-    const trainerId = await getTrainerId(context.supabase, context.userId);
+    const trainer = await getTrainer(context.supabase, context.userId);
+    const trainerId = trainer.id;
+    if (!trainer.current_team_id) throw new Error("Clube atual não encontrado.");
     const { data: membership } = await (context.supabase as any).from("club_memberships").select("active_until").eq("trainer_id", trainerId).maybeSingle();
     if (!membership || new Date(membership.active_until).getTime() <= Date.now()) throw new Error("O segundo plano é exclusivo do Clube Mensal.");
+    const ids = [...data.starters.map((slot) => slot.creature_id).filter(Boolean), ...data.bench] as string[];
+    if (new Set(ids).size !== ids.length) throw new Error("A mesma criatura não pode ocupar dois lugares.");
+    const { data: available } = ids.length
+      ? await context.supabase.from("creatures").select("id").eq("owner_trainer_id", trainerId).eq("owner_team_id", trainer.current_team_id).eq("retired", false).eq("injury_matches_remaining", 0).in("id", ids)
+      : { data: [] };
+    if ((available?.length ?? 0) !== ids.length) throw new Error("Um jogador selecionado não está mais disponível para este clube. O plano não foi salvo.");
     const { error } = await (context.supabase as any).from("club_lineup_presets").upsert({ trainer_id: trainerId, ...data, updated_at: new Date().toISOString() }, { onConflict: "trainer_id" });
     if (error) throw error;
     return { ok: true, preset: data };
@@ -218,11 +245,10 @@ export const saveTactics = createServerFn({ method: "POST" })
   .inputValidator((raw: unknown) => TacticsSchema.parse(raw))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const trainerId = await getTrainerId(supabase, userId);
-    const { error } = await supabase
-      .from("team_lineups")
-      .update({ default_tactics: data })
-      .eq("trainer_id", trainerId);
+    await getTrainerId(supabase, userId);
+    const { error } = await (supabase as any).rpc("save_team_tactics_atomic", {
+      p_tactics: data,
+    });
     if (error) throw error;
     return { ok: true, tactics: data };
   });
@@ -234,7 +260,9 @@ export const saveLineup = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => saveLineupForUser(context.supabase, context.userId, data));
 
 async function saveLineupForUser(supabase: any, userId: string, data: z.infer<typeof SaveInput>) {
-    const trainerId = await getTrainerId(supabase, userId);
+    const trainer = await getTrainer(supabase, userId);
+    const trainerId = trainer.id;
+    if (!trainer.current_team_id) throw new Error("Clube atual não encontrado.");
 
     // valida que nenhuma criatura está duplicada e todas pertencem ao treinador
     const starterIds = data.starters.map((s) => s.creature_id).filter(Boolean) as string[];
@@ -246,31 +274,22 @@ async function saveLineupForUser(supabase: any, userId: string, data: z.infer<ty
     if (allIds.length > 0) {
       const { data: owned } = await supabase
         .from("creatures")
-        .select("id, name, injury_matches_remaining")
+        .select("id, name, injury_matches_remaining, retired, owner_team_id")
         .eq("owner_trainer_id", trainerId)
+        .eq("owner_team_id", trainer.current_team_id)
         .in("id", allIds);
       if ((owned?.length ?? 0) !== allIds.length) {
-        throw new Error("Uma das criaturas selecionadas não pertence ao seu elenco.");
+        throw new Error("Um jogador selecionado não está mais disponível para este clube. A escalação não foi salva.");
       }
+      const retired = (owned ?? []).find((c: any) => c.retired);
+      if (retired) throw new Error(`${retired.name} está aposentada e não pode ser escalada.`);
       const injured = (owned ?? []).find((c: any) => (c.injury_matches_remaining ?? 0) > 0);
       if (injured) {
         throw new Error(`${injured.name} está lesionada e não pode ser escalada.`);
       }
     }
 
-    const { error } = await supabase
-      .from("team_lineups")
-      .upsert(
-        {
-          trainer_id: trainerId,
-          formation: data.formation,
-          strategy: data.strategy,
-          starters: data.starters,
-          bench: data.bench,
-        },
-        { onConflict: "trainer_id" },
-      );
-    if (error) throw error;
+    await persistValidatedLineup(supabase, data);
     return { ok: true };
 }
 
