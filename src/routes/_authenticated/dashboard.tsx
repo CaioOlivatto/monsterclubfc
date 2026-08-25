@@ -92,7 +92,7 @@ function Dashboard() {
   const finishSeason = useServerFn(finishSeasonAndAdvanceWithSession);
   const qc = useQueryClient();
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch: refetchDashboard, error: dashboardError } = useQuery({
     queryKey: ["dashboard"],
     queryFn: async () => {
       const { data: current, error: sessionError } = await supabase.auth.getSession();
@@ -230,9 +230,16 @@ function Dashboard() {
       if (error || !current.session?.access_token) throw error ?? new Error("Sessão não encontrada.");
       return fetchSeasonStatus({ data: { access_token: current.session.access_token } });
     },
-    enabled: Boolean(data?.hasLeague),
+    // Também executa quando o painel entrou em recuperação. Essa consulta
+    // conclui rodadas de CPU antigas e não pode depender do próprio dashboard
+    // para destravar uma virada de temporada interrompida.
+    enabled: !isLoading,
     staleTime: 10_000,
   });
+
+  React.useEffect(() => {
+    if (isError && seasonStatus) void refetchDashboard();
+  }, [isError, refetchDashboard, seasonStatus]);
   const finishSeasonMut = useMutation({
     mutationFn: async () => {
       const { data: current, error } = await supabase.auth.getSession();
@@ -262,7 +269,8 @@ function Dashboard() {
   }
 
   if (isError || !data) {
-    return <GameRecovery area="o painel" />;
+    console.error("[dashboard] Falha ao carregar o painel", dashboardError);
+    return <GameRecovery area="o painel" onRetry={() => void refetchDashboard()} />;
   }
 
   const { trainer, academy, roster, standing, nextMatch, hasLeague } = data;

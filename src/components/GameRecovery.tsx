@@ -3,7 +3,7 @@ import { RefreshCw, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-export function GameRecovery({ area = "esta área" }: { area?: string }) {
+export function GameRecovery({ area = "esta área", onRetry }: { area?: string; onRetry?: () => void }) {
   return (
     <div className="grid min-h-[60vh] place-items-center px-4">
       <Card className="w-full max-w-md border-primary/25">
@@ -18,7 +18,7 @@ export function GameRecovery({ area = "esta área" }: { area?: string }) {
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
-            <Button onClick={() => window.location.reload()}>
+            <Button onClick={() => onRetry ? onRetry() : window.location.reload()}>
               <RefreshCw className="mr-2 h-4 w-4" />
               Tentar novamente
             </Button>

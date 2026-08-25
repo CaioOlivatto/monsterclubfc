@@ -163,12 +163,13 @@ export const getMyTrainer = createServerFn({ method: "GET" })
   });
 
 async function loadDashboard(supabase: any, userId: string) {
-    const { data: trainer } = await supabase
+    const { data: trainer, error: trainerError } = await supabase
       .from("trainers")
       .select("*, academies(*)")
       .eq("user_id", userId)
       .maybeSingle();
 
+    if (trainerError) throw trainerError;
     if (!trainer) return null;
 
     // Estas leituras dependem apenas do treinador e podem começar juntas. Antes,
@@ -281,12 +282,21 @@ async function loadDashboard(supabase: any, userId: string) {
           .limit(5)
       : Promise.resolve({ data: [] });
 
-    const [{ data: activeLeague }, officialMatch, { data: standings }, { data: recentMatches }] = await Promise.all([
+    const [{ data: activeLeague }, officialMatchResult, { data: standings }, { data: recentMatches }] = await Promise.all([
       activeLeaguePromise,
-      getNextOfficialMatchForTrainer(supabase, trainer),
+      // Uma competição secundária incompleta não pode tirar o treinador do
+      // painel. O contexto da próxima partida é um complemento; o restante do
+      // clube continua utilizável enquanto a competição é recuperada.
+      getNextOfficialMatchForTrainer(supabase, trainer)
+        .then((match) => ({ match, error: null }))
+        .catch((error) => ({ match: null, error })),
       standingsPromise,
       recentMatchesPromise,
     ]);
+    if (officialMatchResult.error) {
+      console.error("[dashboard] Falha ao localizar a próxima partida oficial", officialMatchResult.error);
+    }
+    const officialMatch = officialMatchResult.match;
     if (officialMatch) {
       nextMatch = {
         competition: officialMatch.competition,
