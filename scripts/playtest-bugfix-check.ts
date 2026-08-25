@@ -25,6 +25,7 @@ expect("confirmação de velocidade com saldo", match.includes("Saldo após a co
 expect("fim de temporada protegido", seasonMigration.includes("claim_season_transition") && seasonMigration.includes("complete_season_transition") && seasonMigration.includes("pg_advisory_xact_lock"));
 expect("transição canônica no servidor", league.includes("claim_season_transition") && league.includes("complete_season_transition"));
 expect("CTAs da temporada", /Ver resultados/i.test(dashboard) && /Iniciar nova temporada/i.test(dashboard) && /Iniciar nova temporada/i.test(leagueUi));
+expect("continuidade de temporada com sessão direta", league.includes("getSeasonAdvanceStatusWithSession") && league.includes("finishSeasonAndAdvanceWithSession") && league.includes("await recoverStaleRounds") && dashboard.includes("getSeasonAdvanceStatusWithSession") && dashboard.includes("finishSeasonAndAdvanceWithSession") && leagueUi.includes("getSeasonAdvanceStatusWithSession") && leagueUi.includes("finishSeasonAndAdvanceWithSession"));
 expect("compra de mercado atômica", market.includes("purchase_market_creature_atomic") && marketMigration.includes("CREATE OR REPLACE FUNCTION public.purchase_market_creature_atomic"));
 expect("mercado com idempotência", marketMigration.includes("idempotency") && marketMigration.includes("FOR UPDATE"));
 expect("ciclos coletivos atômicos", morale.includes("apply_collective_morale_action_atomic") && moraleMigration.includes("CREATE OR REPLACE FUNCTION public.apply_collective_morale_action_atomic"));

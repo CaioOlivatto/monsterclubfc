@@ -10,9 +10,14 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { getLeague, startLeague, finishSeasonAndAdvance, getSeasonAdvanceStatus } from "@/lib/league.functions";
+import { getLeague, startLeague } from "@/lib/league.functions";
 import { recomputeWorldRanking } from "@/lib/ranking.functions";
 import { GamePageShell } from "@/components/GamePageShell";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  finishSeasonAndAdvanceWithSession,
+  getSeasonAdvanceStatusWithSession,
+} from "@/lib/league.functions";
 
 const DIV_LABEL: Record<string, string> = {
   lendaria: "1ª — Lendária",
@@ -39,7 +44,7 @@ function LeaguePage() {
   const qc = useQueryClient();
   const fetchLeague = useServerFn(getLeague);
   const start = useServerFn(startLeague);
-  const fetchSeasonStatus = useServerFn(getSeasonAdvanceStatus);
+  const fetchSeasonStatus = useServerFn(getSeasonAdvanceStatusWithSession);
 
   const [division, setDivision] = useState<string | undefined>(undefined);
 
@@ -50,7 +55,11 @@ function LeaguePage() {
   });
   const { data: seasonStatus } = useQuery({
     queryKey: ["season-advance-status"],
-    queryFn: () => fetchSeasonStatus(),
+    queryFn: async () => {
+      const { data: current, error } = await supabase.auth.getSession();
+      if (error || !current.session?.access_token) throw error ?? new Error("Sessão não encontrada.");
+      return fetchSeasonStatus({ data: { access_token: current.session.access_token } });
+    },
     staleTime: 10_000,
   });
 
@@ -65,11 +74,15 @@ function LeaguePage() {
     onError: (e: any) => toast.error(e?.message ?? "Não foi possível iniciar a liga."),
   });
 
-  const finishSeasonFn = useServerFn(finishSeasonAndAdvance);
+  const finishSeasonFn = useServerFn(finishSeasonAndAdvanceWithSession);
   const recomputeRankingFn = useServerFn(recomputeWorldRanking);
   const [summary, setSummary] = useState<any | null>(null);
   const finishMut = useMutation({
-    mutationFn: () => finishSeasonFn(),
+    mutationFn: async () => {
+      const { data: current, error } = await supabase.auth.getSession();
+      if (error || !current.session?.access_token) throw error ?? new Error("Sessão não encontrada.");
+      return finishSeasonFn({ data: { access_token: current.session.access_token } });
+    },
     onSuccess: async (res: any) => {
       setSummary(res);
       try { await recomputeRankingFn(); } catch { /* ignora */ }

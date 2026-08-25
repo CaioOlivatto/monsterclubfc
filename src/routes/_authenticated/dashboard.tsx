@@ -8,7 +8,12 @@ import { GameRecovery } from "@/components/GameRecovery";
 import { getDashboardWithSession } from "@/lib/creatures.functions";
 import { createFriendlyMatch } from "@/lib/match.functions";
 import { type ConfidenceInfo } from "@/lib/career.functions";
-import { finishSeasonAndAdvance, getLeague, getSeasonAdvanceStatus, startLeague } from "@/lib/league.functions";
+import {
+  finishSeasonAndAdvanceWithSession,
+  getLeague,
+  getSeasonAdvanceStatusWithSession,
+  startLeague,
+} from "@/lib/league.functions";
 import { getMyLineup } from "@/lib/lineup.functions";
 import { getMarket } from "@/lib/market.functions";
 import { ageStatus } from "@/lib/age";
@@ -83,8 +88,8 @@ function Dashboard() {
   const fetchLineup = useServerFn(getMyLineup);
   const fetchMarket = useServerFn(getMarket);
   const fetchLeague = useServerFn(getLeague);
-  const fetchSeasonStatus = useServerFn(getSeasonAdvanceStatus);
-  const finishSeason = useServerFn(finishSeasonAndAdvance);
+  const fetchSeasonStatus = useServerFn(getSeasonAdvanceStatusWithSession);
+  const finishSeason = useServerFn(finishSeasonAndAdvanceWithSession);
   const qc = useQueryClient();
 
   const { data, isLoading, isError } = useQuery({
@@ -220,12 +225,20 @@ function Dashboard() {
   });
   const { data: seasonStatus } = useQuery({
     queryKey: ["season-advance-status"],
-    queryFn: () => fetchSeasonStatus(),
+    queryFn: async () => {
+      const { data: current, error } = await supabase.auth.getSession();
+      if (error || !current.session?.access_token) throw error ?? new Error("Sessão não encontrada.");
+      return fetchSeasonStatus({ data: { access_token: current.session.access_token } });
+    },
     enabled: Boolean(data?.hasLeague),
     staleTime: 10_000,
   });
   const finishSeasonMut = useMutation({
-    mutationFn: () => finishSeason(),
+    mutationFn: async () => {
+      const { data: current, error } = await supabase.auth.getSession();
+      if (error || !current.session?.access_token) throw error ?? new Error("Sessão não encontrada.");
+      return finishSeason({ data: { access_token: current.session.access_token } });
+    },
     onSuccess: () => {
       toast.success("Nova temporada preparada com sucesso.");
       qc.invalidateQueries({ queryKey: ["dashboard"] });

@@ -942,10 +942,7 @@ async function recoverStaleRounds(
   }
 }
 
-export const getSeasonAdvanceStatus = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { supabase, userId } = context;
+async function getSeasonAdvanceStatusForUser(supabase: any, userId: string) {
     const trainer = await getTrainer(supabase, userId);
     const { data: leagues, error: leagueError } = await supabase
       .from("competitions")
@@ -958,6 +955,20 @@ export const getSeasonAdvanceStatus = createServerFn({ method: "GET" })
 
     const seasonId = leagues[0].season_id;
     const competitionIds = leagues.map((league: any) => league.id);
+    // Se a simulação das outras divisões falhou em segundo plano na última
+    // rodada, conclui somente as partidas de CPU restantes antes de calcular
+    // o estado. Assim a carreira nunca fica presa após a última partida.
+    const { data: playerTeam } = trainer.current_team_id
+      ? await supabase
+          .from("teams")
+          .select("competition_id")
+          .eq("id", trainer.current_team_id)
+          .eq("trainer_id", trainer.id)
+          .maybeSingle()
+      : { data: null };
+    if (playerTeam?.competition_id && competitionIds.includes(playerTeam.competition_id)) {
+      await recoverStaleRounds(supabase, trainer.id, seasonId, playerTeam.competition_id);
+    }
     const [{ count: pendingMatches, error: pendingError }, { data: sideCompetitions, error: sideError }, { data: run }] = await Promise.all([
       supabase.from("matches").select("id", { count: "exact", head: true }).in("competition_id", competitionIds).eq("status", "scheduled"),
       supabase.from("competitions").select("type").eq("trainer_id", trainer.id).eq("season_id", seasonId).neq("type", "league").eq("status", "active"),
@@ -981,12 +992,24 @@ export const getSeasonAdvanceStatus = createServerFn({ method: "GET" })
             ? "A transição desta temporada já foi concluída."
             : null;
     return { hasSeason: true, seasonId, leagueFinished, eligible: leagueFinished && !sideNames.length && !processing && !completed, reason };
+}
+
+const directSessionSchema = z.object({ access_token: z.string().min(20) });
+
+export const getSeasonAdvanceStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(({ context }) => getSeasonAdvanceStatusForUser(context.supabase, context.userId));
+
+// O host publicado nem sempre encaminha a sessão para funções internas GET.
+// Esta variante usa o mesmo JWT validado diretamente que já executa partidas.
+export const getSeasonAdvanceStatusWithSession = createServerFn({ method: "POST" })
+  .inputValidator((raw: unknown) => directSessionSchema.parse(raw))
+  .handler(async ({ data }) => {
+    const { supabase, userId } = await getDirectSession(data.access_token);
+    return getSeasonAdvanceStatusForUser(supabase, userId);
   });
 
-export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { supabase, userId } = context;
+async function finishSeasonAndAdvanceForUser(supabase: any, userId: string) {
     const trainer = await getTrainer(supabase, userId);
 
     // 1) Carrega TODAS as 5 competições ativas da temporada atual
@@ -1435,6 +1458,17 @@ export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
     });
     if (transitionCompleteError) throw transitionCompleteError;
     return result;
+}
+
+export const finishSeasonAndAdvance = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(({ context }) => finishSeasonAndAdvanceForUser(context.supabase, context.userId));
+
+export const finishSeasonAndAdvanceWithSession = createServerFn({ method: "POST" })
+  .inputValidator((raw: unknown) => directSessionSchema.parse(raw))
+  .handler(async ({ data }) => {
+    const { supabase, userId } = await getDirectSession(data.access_token);
+    return finishSeasonAndAdvanceForUser(supabase, userId);
   });
 
 function hashSeed(s: string): number {
