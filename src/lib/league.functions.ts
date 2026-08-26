@@ -922,21 +922,26 @@ async function recoverStaleRounds(
 
   const compIds = comps.map((c) => c.id);
   // Fast path: LIMIT 1 confirma se há qualquer partida presa antes de baixar tudo.
-  const { data: probe } = await supabase
+  let probeQuery = supabase
     .from("matches")
     .select("id")
     .in("competition_id", compIds)
-    .eq("status", "scheduled")
-    .lt("round", playerNextRound)
-    .limit(1);
+    .eq("status", "scheduled");
+  // Quando o clube já concluiu todas as partidas, playerNextRound é Infinity.
+  // Não envie `lt.Infinity` ao PostgREST: round é inteiro e o filtro falha.
+  if (Number.isFinite(playerNextRound)) probeQuery = probeQuery.lt("round", playerNextRound);
+  const { data: probe, error: probeError } = await probeQuery.limit(1);
+  if (probeError) throw probeError;
   if (!probe?.length) return;
 
-  const { data: stale } = await supabase
+  let staleQuery = supabase
     .from("matches")
     .select("id, competition_id, round, home_team_id, away_team_id")
     .in("competition_id", compIds)
-    .eq("status", "scheduled")
-    .lt("round", playerNextRound);
+    .eq("status", "scheduled");
+  if (Number.isFinite(playerNextRound)) staleQuery = staleQuery.lt("round", playerNextRound);
+  const { data: stale, error: staleError } = await staleQuery;
+  if (staleError) throw staleError;
   if (!stale?.length) return;
 
   console.warn(`[playNextLeagueMatch] RECUPERANDO ${stale.length} partidas de rodadas anteriores`);
