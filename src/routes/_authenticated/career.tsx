@@ -164,7 +164,7 @@ function CareerPage() {
                             <Badge variant="outline" className={`text-[10px] ${meta.tone}`}>
                               {meta.label}
                             </Badge>
-                            <Badge variant="outline" className="text-[10px]">
+                            <Badge variant="outline" className="border-slate-400/60 bg-slate-900/80 text-[10px] text-slate-100">
                               {DIV_LABEL[e.division] ?? e.division}
                             </Badge>
                           </div>
@@ -207,10 +207,10 @@ function OfferCard({ offer }: { offer: JobOffer }) {
       <div className="rounded-md border bg-card p-3">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-sm font-medium">{offer.team_name}</span>
-          <Badge variant="outline" className="text-[10px]">
+          <Badge variant="outline" className="border-slate-400/60 bg-slate-900/80 text-[10px] text-slate-100">
             {DIV_LABEL[offer.division] ?? offer.division}
           </Badge>
-          <Badge variant="outline" className="text-[10px]">
+          <Badge variant="outline" className="border-slate-400/60 bg-slate-900/80 text-[10px] text-slate-100">
             {REASON_LABEL[offer.reason]}
           </Badge>
         </div>
@@ -313,11 +313,11 @@ function MiniStat({
     accent === "amber"   ? "text-amber-300"   :
     accent === "emerald" ? "text-emerald-300" :
     accent === "red"     ? "text-red-300"     :
-    accent === "orange"  ? "text-orange-300"  : "text-foreground";
+    accent === "orange"  ? "text-orange-300"  : "text-slate-100";
   return (
-    <div className="rounded-md border bg-card p-2 text-center">
+    <div className="rounded-md border border-violet-400/35 bg-slate-950/85 p-2 text-center shadow-[0_8px_18px_rgba(2,6,23,0.25)]">
       <div className={`text-lg font-semibold leading-none ${tone}`}>{value}</div>
-      <div className="mt-1 text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="mt-1 text-[10px] uppercase tracking-wide text-slate-400">{label}</div>
     </div>
   );
 }
