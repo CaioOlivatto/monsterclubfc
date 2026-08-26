@@ -54,6 +54,7 @@ import {
   Shield,
   ChevronRight,
   Star,
+  Sparkles,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
