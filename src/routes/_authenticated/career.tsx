@@ -1,15 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { Award, Trophy, TrendingUp, TrendingDown, DoorOpen, Building2, Sparkles, Handshake, AlertTriangle } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { Award, Trophy, TrendingUp, TrendingDown, DoorOpen, Building2, Sparkles, Handshake, AlertTriangle, ShieldCheck, Target, CalendarDays, Crown, Medal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { getCareer, listOffers, declineOffer, acceptOffer, type CareerEntry, type JobOffer } from "@/lib/career.functions";
+import { getCareer, getConfidence, listOffers, declineOffer, acceptOffer, type CareerEntry, type JobOffer } from "@/lib/career.functions";
 import { GamePageShell } from "@/components/GamePageShell";
 
 const DIV_LABEL: Record<string, string> = {
@@ -61,8 +61,10 @@ export const Route = createFileRoute("/_authenticated/career")({
 
 function CareerPage() {
   const fetchCareer = useServerFn(getCareer);
+  const fetchConfidence = useServerFn(getConfidence);
   const fetchOffers = useServerFn(listOffers);
   const { data, isLoading } = useQuery({ queryKey: ["career"], queryFn: () => fetchCareer() });
+  const { data: confidence } = useQuery({ queryKey: ["career", "confidence"], queryFn: () => fetchConfidence(), enabled: !!data });
   const { data: offersData } = useQuery({ queryKey: ["career", "offers"], queryFn: () => fetchOffers() });
 
   return (
@@ -88,41 +90,36 @@ function CareerPage() {
             </Card>
           )}
 
-          <Card className="mb-3">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Award className="h-4 w-4 text-primary" />
-                {data.trainer_name}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Clube atual</span>
-                <span className="font-medium">
-                  {data.current_team_name ?? "Sem clube"}
-                  {data.current_division ? (
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      {DIV_LABEL[data.current_division] ?? data.current_division}
-                    </span>
-                  ) : null}
-                </span>
+          <section className="mb-4 overflow-hidden rounded-2xl border border-violet-400/35 bg-gradient-to-br from-violet-950/75 via-slate-950/90 to-cyan-950/35 shadow-[0_14px_36px_rgba(2,6,23,0.5)]">
+            <div className="flex flex-col gap-5 p-4 sm:flex-row sm:items-center sm:p-5">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-amber-300/40 bg-amber-400/10 shadow-[0_0_22px_rgba(251,191,36,0.14)]"><Award className="h-7 w-7 text-amber-300" /></div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-violet-300">Perfil do treinador</p>
+                <h2 className="mt-1 text-xl font-black text-white sm:text-2xl">{data.trainer_name}</h2>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                  <Badge className="border-cyan-400/35 bg-cyan-400/10 text-cyan-100"><Building2 className="mr-1 h-3 w-3" />{data.current_team_name ?? "Sem clube"}</Badge>
+                  {data.current_division && <Badge variant="outline" className="border-violet-400/40 text-violet-100">{DIV_LABEL[data.current_division] ?? data.current_division}</Badge>}
+                  <span className="text-slate-400">Nv {data.level} · {data.xp.toLocaleString("pt-BR")} XP</span>
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Nível do treinador</span>
-                <span className="font-medium">Nv {data.level} · {data.xp.toLocaleString("pt-BR")} XP</span>
+              <div className="min-w-44 rounded-xl border border-white/10 bg-slate-950/65 p-3 sm:text-right">
+                <div className="flex items-center gap-2 text-xs text-slate-400 sm:justify-end"><ShieldCheck className="h-4 w-4 text-emerald-300" />Confiança da diretoria</div>
+                <p className={`mt-1 text-lg font-black ${confidence?.tone === "danger" ? "text-red-300" : confidence?.tone === "warn" ? "text-orange-300" : "text-emerald-300"}`}>{confidence?.label ?? "Calculando..."}</p>
+                {confidence && <><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-emerald-400" style={{ width: `${confidence.score}%` }} /></div><p className="mt-1 text-[11px] text-slate-400">{confidence.score}/100</p></>}
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Temporadas no clube atual</span>
-                <span className="font-medium">{data.seasons_at_current_club}</span>
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+            <div className="grid border-t border-white/10 bg-slate-950/35 sm:grid-cols-3">
+              <CareerHighlight icon={<CalendarDays className="h-4 w-4" />} label="Vínculo atual" value={`${data.seasons_at_current_club} temporada${data.seasons_at_current_club === 1 ? "" : "s"}`} />
+              <CareerHighlight icon={<Target className="h-4 w-4" />} label="Posição atual" value={confidence?.position && confidence.totalTeams ? `${confidence.position}º de ${confidence.totalTeams}` : "Em preparação"} />
+              <CareerHighlight icon={<Crown className="h-4 w-4" />} label="Última temporada" value={data.last_final_position ? `${data.last_final_position}º lugar` : "Primeira jornada"} />
+            </div>
+          </section>
 
-          <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-            <MiniStat label="Clubes" value={data.totals.clubs} />
+          <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <MiniStat label="Clubes dirigidos" value={data.totals.clubs} />
             <MiniStat label="Temporadas" value={data.totals.seasons} />
             <MiniStat label="Títulos" value={data.totals.titles} accent="amber" />
-            <MiniStat label="Promoções" value={data.totals.promotions} accent="emerald" />
+            <MiniStat label="Acessos" value={data.totals.promotions} accent="emerald" />
             <MiniStat label="Rebaixamentos" value={data.totals.relegations} accent="red" />
             <MiniStat label="Demissões" value={data.totals.dismissals} accent="orange" />
           </div>
@@ -143,26 +140,27 @@ function CareerPage() {
             </Card>
           )}
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Trajetória</CardTitle>
+          <Card className="overflow-hidden border-violet-400/30 bg-slate-950/85">
+            <CardHeader className="border-b border-white/10 pb-3">
+              <CardTitle className="flex items-center gap-2 text-base"><Medal className="h-4 w-4 text-amber-300" />Linha do tempo</CardTitle>
+              <p className="text-xs text-slate-400">Marcos que construíram sua reputação no futebol das criaturas.</p>
             </CardHeader>
             <CardContent className="p-0">
               {data.entries.length === 0 ? (
                 <p className="p-4 text-sm text-muted-foreground">Ainda sem histórico registrado.</p>
               ) : (
-                <ul className="divide-y">
+                <ul className="divide-y divide-violet-300/15">
                   {data.entries.map((e) => {
                     const meta = EVENT_META[e.event];
                     const Icon = meta.Icon;
                     return (
-                      <li key={e.id} className="flex items-start gap-3 p-3">
-                        <div className="mt-0.5 rounded-md border bg-muted/40 p-1.5">
+                      <li key={e.id} className="relative flex items-start gap-3 p-4 transition-colors hover:bg-violet-400/[0.04]">
+                        <div className="mt-0.5 rounded-lg border border-violet-300/25 bg-violet-400/[0.08] p-2">
                           <Icon className="h-4 w-4" />
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="text-sm font-medium">{e.team_name}</span>
+                            <span className="text-sm font-bold text-white">{e.team_name}</span>
                             <Badge variant="outline" className={`text-[10px] ${meta.tone}`}>
                               {meta.label}
                             </Badge>
@@ -320,6 +318,18 @@ function MiniStat({
     <div className="rounded-md border bg-card p-2 text-center">
       <div className={`text-lg font-semibold leading-none ${tone}`}>{value}</div>
       <div className="mt-1 text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+    </div>
+  );
+}
+
+function CareerHighlight({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-2.5 border-white/10 px-4 py-3 sm:border-r last:border-r-0">
+      <div className="text-violet-300">{icon}</div>
+      <div className="min-w-0">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+        <p className="truncate text-sm font-bold text-slate-100">{value}</p>
+      </div>
     </div>
   );
 }
