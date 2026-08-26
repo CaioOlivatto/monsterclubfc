@@ -72,7 +72,7 @@ function AuthenticatedLayout() {
     );
   }
 
-  const brandedPages = ["/dashboard", "/onboarding", "/roster", "/lineup", "/buildings", "/shop", "/club", "/finances", "/league", "/career"];
+  const brandedPages = ["/dashboard", "/onboarding", "/roster", "/lineup", "/buildings", "/shop", "/club", "/finances", "/league", "/career", "/ranking"];
   const pageOwnsBranding = brandedPages.includes(pathname) || pathname.startsWith("/match/");
   return (
     <div className="flex min-h-screen flex-col bg-background pb-[env(safe-area-inset-bottom)]">
