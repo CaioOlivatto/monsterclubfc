@@ -3,7 +3,7 @@ import { computeOdds, type EngineSide, type SlotRole } from "../src/lib/match-en
 
 const roles: SlotRole[] = ["GOL", "DEF", "DEF", "DEF", "DEF", "MEI", "MEI", "MEI", "MEI", "ATA", "ATA"];
 
-function side(id: string, overall: number): EngineSide {
+function side(id: string, overall: number, division: EngineSide["division"] = "prata"): EngineSide {
   const creature = (index: number) => ({
     id: `${id}-${index}`,
     name: `${id}-${index}`,
@@ -23,7 +23,7 @@ function side(id: string, overall: number): EngineSide {
   return {
     team_id: id,
     team_name: id,
-    division: "prata",
+    division,
     strategy: "equilibrada",
     tactics: { mentalidade: 0, verticalidade: 0, pressao: 0, cortes: 0 },
     medical_level: 1,
@@ -32,35 +32,49 @@ function side(id: string, overall: number): EngineSide {
   };
 }
 
-const promoted = side("promovido", 46);
-const established = side("prata-estabelecida", 56);
 const samples = 4_000;
+const promotions = [
+  { from: "bronze", to: "prata", promotedOvr: 46, establishedOvr: 56 },
+  { from: "prata", to: "ouro", promotedOvr: 59, establishedOvr: 64 },
+  { from: "ouro", to: "diamante", promotedOvr: 70, establishedOvr: 74 },
+  { from: "diamante", to: "lendaria", promotedOvr: 80, establishedOvr: 83 },
+] as const;
 
-const promotedHome = computeOdds(promoted, established, 712_904, samples);
-const establishedHome = computeOdds(established, promoted, 712_905, samples);
+const reports = promotions.map(({ from, to, promotedOvr, establishedOvr }, index) => {
+  const promoted = side(`${from}-promovido`, promotedOvr, to);
+  const established = side(`${to}-estabelecido`, establishedOvr, to);
+  const promotedHome = computeOdds(promoted, established, 712_904 + index * 2, samples);
+  const establishedHome = computeOdds(established, promoted, 712_905 + index * 2, samples);
 
-// Dez pontos de OVR precisam superar o mando de campo. A zebra continua
-// possível, mas não pode se tornar o resultado mais provável.
-assert.ok(
-  promotedHome.away_win > promotedHome.home_win,
-  `Prata +10 OVR como visitante deve ser favorita: ${JSON.stringify(promotedHome)}`,
-);
-assert.ok(
-  establishedHome.home_win > establishedHome.away_win,
-  `Prata +10 OVR em casa deve ser favorita: ${JSON.stringify(establishedHome)}`,
-);
+  // O acesso preserva chance de surpresa, mas o patamar superior continua
+  // favorito nos dois mandos quando possui OVR maior.
+  assert.ok(
+    promotedHome.away_win > promotedHome.home_win,
+    `${to}: time estabelecido deve ser favorito fora: ${JSON.stringify(promotedHome)}`,
+  );
+  assert.ok(
+    establishedHome.home_win > establishedHome.away_win,
+    `${to}: time estabelecido deve ser favorito em casa: ${JSON.stringify(establishedHome)}`,
+  );
+  return { from, to, promotedHome, establishedHome };
+});
 
-const averageGoals = (
-  promotedHome.avg_home_goals + promotedHome.avg_away_goals
-  + establishedHome.avg_home_goals + establishedHome.avg_away_goals
-) / 2;
+const averageGoals = reports.reduce(
+  (sum, report) => sum
+    + report.promotedHome.avg_home_goals + report.promotedHome.avg_away_goals
+    + report.establishedHome.avg_home_goals + report.establishedHome.avg_away_goals,
+  0,
+) / (reports.length * 2);
 assert.ok(
   averageGoals >= 1.5 && averageGoals <= 4.2,
   `Média de gols fora da faixa de futebol: ${averageGoals.toFixed(2)}`,
 );
 
-console.log("Match balance regression: PASS", {
-  promotedHome,
-  establishedHome,
+console.log("Match balance regression: PASS", JSON.stringify({
+  promotions: reports.map(({ from, to, promotedHome, establishedHome }) => ({
+    route: `${from} → ${to}`,
+    promotedHome: { home: promotedHome.home_win, draw: promotedHome.draw, away: promotedHome.away_win },
+    establishedHome: { home: establishedHome.home_win, draw: establishedHome.draw, away: establishedHome.away_win },
+  })),
   averageGoals: Number(averageGoals.toFixed(2)),
-});
+}, null, 2));

@@ -14,7 +14,7 @@ import {
 import { stadiumCapacity } from "../src/lib/buildings.server.ts";
 
 const DIVISION_OVR: Record<Division, number> = {
-  bronze: 33, prata: 44, ouro: 55, diamante: 64, lendaria: 72,
+  bronze: 42, prata: 53, ouro: 64, diamante: 74, lendaria: 83,
 };
 const MATCH_PRIZE: Record<Division, [number, number, number]> = {
   bronze: [15_000, 6_000, 2_000],

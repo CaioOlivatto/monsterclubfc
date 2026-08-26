@@ -132,7 +132,7 @@ const DIVISION_OVR: Record<Division, number> = {
 function referenceOvr(side: EngineSide, attackAvg: number): number {
   if (side.division) return DIVISION_OVR[side.division];
   // Fallback: aproxima ao balde de divisão mais próximo do attackAvg.
-  const buckets: number[] = [33, 44, 55, 64, 72];
+  const buckets: number[] = [42, 53, 64, 74, 83];
   let best = buckets[0], d = Infinity;
   for (const b of buckets) { const dd = Math.abs(b - attackAvg); if (dd < d) { d = dd; best = b; } }
   return best;
@@ -984,7 +984,7 @@ function buildCpuSideCore(
   const rand = mulberry32(seed ^ 0x9e3779b9);
   const roles: SlotRole[] = ["GOL", "DEF", "DEF", "DEF", "DEF", "MEI", "MEI", "MEI", "MEI", "ATA", "ATA"];
   const benchRoles: SlotRole[] = ["GOL", "DEF", "MEI", "ATA", "MEI"];
-  const buckets: [number, Division][] = [[33,"bronze"],[44,"prata"],[55,"ouro"],[64,"diamante"],[72,"lendaria"]];
+  const buckets: [number, Division][] = [[42,"bronze"],[53,"prata"],[64,"ouro"],[74,"diamante"],[83,"lendaria"]];
   let division: Division = "bronze"; let dbest = Infinity;
   for (const [ovr, d] of buckets) { const dd = Math.abs(ovr - target); if (dd < dbest) { dbest = dd; division = d; } }
   const cpuMorale: Record<Division, number> = { bronze: 50, prata: 55, ouro: 60, diamante: 65, lendaria: 70 };
