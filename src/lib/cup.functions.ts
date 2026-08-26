@@ -390,7 +390,7 @@ export const playNextCupMatch = createServerFn({ method: "POST" })
         playerSideRef.current = s;
         return s;
       }
-      return buildPersistentCpuSide(supabase, team, (team.division ?? cup.division ?? "bronze") as any, bestiary);
+      return buildPersistentCpuSide(supabase, team, (team.division ?? cup?.division ?? "bronze") as any, bestiary);
     }
     stamp("bestiary");
     const [homeSide, awaySide] = await Promise.all([side(home), side(away)]);

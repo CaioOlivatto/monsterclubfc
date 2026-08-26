@@ -346,12 +346,12 @@ function LineupPage() {
 
     for (const s of newStarters) {
       const hint = ROLE_HINT[s.role];
-      const pick = pool.find((c) => !used.has(c.id) && hint.includes(c.suggested_position ?? ""));
+      const pick = pool.find((c: any) => !used.has(c.id) && hint.includes(c.suggested_position ?? ""));
       if (pick) { s.creature_id = pick.id; used.add(pick.id); }
     }
     for (const s of newStarters) {
       if (s.creature_id) continue;
-      const pick = pool.find((c) => !used.has(c.id));
+      const pick = pool.find((c: any) => !used.has(c.id));
       if (pick) { s.creature_id = pick.id; used.add(pick.id); }
     }
     const newBench: string[] = [];
@@ -809,7 +809,7 @@ function LineupPage() {
                             Nenhuma criatura de {s.role} disponível.
                           </div>
                         ) : (
-                          inPos.map((c) => renderItem(c))
+                          inPos.map((c: any) => renderItem(c))
                         )}
                       </SelectContent>
                     </Select>
@@ -843,7 +843,7 @@ function LineupPage() {
             {bench.length > 0 && (
               <div className="space-y-2">
                 {bench.map((id) => {
-                  const c = creatures.find((x) => x.id === id);
+                  const c = creatures.find((x: any) => x.id === id);
                   if (!c) return null;
                   const fs = fatigueState(c.energy ?? 100);
                   const eff = effectiveOverall(c.overall ?? 0, c.energy ?? 100, c.morale);

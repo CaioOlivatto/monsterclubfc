@@ -331,8 +331,8 @@ function MarketPage() {
               </p>
               <Button
                 className="w-full bg-amber-400 font-black text-amber-950 hover:bg-amber-300"
-                disabled={premiumBuyMut.isPending || (data.gems ?? 0) < data.premium_offer.gem_price}
-                onClick={() => premiumBuyMut.mutate(data.premium_offer.id)}
+                disabled={premiumBuyMut.isPending || (data.gems ?? 0) < (data.premium_offer?.gem_price ?? 0)}
+                onClick={() => premiumBuyMut.mutate(data.premium_offer!.id)}
               >
                 {premiumBuyMut.isPending
                   ? "Contratando com segurança..."
