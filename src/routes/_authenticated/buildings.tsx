@@ -291,7 +291,9 @@ function BuildingsPage() {
                         disabled={disabled}
                         onClick={() => startMut.mutate(b.type)}
                       >
-                        {otherBusy
+                        {startMut.isPending
+                          ? "Iniciando..."
+                          : otherBusy
                           ? "Construtor ocupado"
                           : insufficientMoney
                           ? "Sem $"

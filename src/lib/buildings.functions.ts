@@ -15,15 +15,16 @@ const buildingSessionSchema = sessionSchema.extend({ type: buildingTypeSchema })
 // Idempotente: contas criadas ou recuperadas parcialmente sempre recebem as três estruturas.
 async function ensureBuildingFoundation(supabase: any, trainer: { id: string; current_team_id: string | null }) {
   const trainerId = trainer.id;
-  const { data: academy, error: academyError } = await supabase.from("academies").select("id").eq("trainer_id", trainerId).maybeSingle();
-  if (academyError) throw academyError;
+  if (!trainer.current_team_id) throw new Error("Escolha seu clube antes de acessar as construções.");
+  const [{ data: academy, error: academyError }, { data: current, error: buildingsError }] = await Promise.all([
+    supabase.from("academies").select("id").eq("trainer_id", trainerId).maybeSingle(),
+    supabase.from("buildings").select("building_type").eq("team_id", trainer.current_team_id),
+  ]);
+  if (academyError || buildingsError) throw academyError ?? buildingsError;
   if (!academy) {
     const { error } = await supabase.from("academies").insert({ trainer_id: trainerId, money: 400000, gems: 10, builders: 1, roster_slots: 26 });
     if (error) throw error;
   }
-  if (!trainer.current_team_id) throw new Error("Escolha seu clube antes de acessar as construções.");
-  const { data: current, error: buildingsError } = await supabase.from("buildings").select("building_type").eq("team_id", trainer.current_team_id);
-  if (buildingsError) throw buildingsError;
   const present = new Set((current ?? []).map((building: any) => building.building_type));
   const missing = BUILDING_TYPES.filter((type) => !present.has(type)).map((building_type) => ({ trainer_id: trainerId, team_id: trainer.current_team_id, building_type, level: 1 }));
   if (missing.length) {
@@ -87,20 +88,19 @@ async function startUpgradeForUser(supabase: any, userId: string, type: Building
   const trainer = await trainerForUser(supabase, userId);
   await ensureBuildingFoundation(supabase, trainer);
   await completeFinishedUpgrades(supabase, trainer.current_team_id);
-  const [{ data: academy, error: academyError }, { data: building, error: buildingError }, { data: busy, error: busyError }] = await Promise.all([
-    supabase.from("academies").select("money").eq("trainer_id", trainer.id).maybeSingle(),
-    supabase.from("buildings").select("id, level").eq("team_id", trainer.current_team_id).eq("building_type", type).maybeSingle(),
-    supabase.from("buildings").select("id").eq("team_id", trainer.current_team_id).not("upgrade_completes_at", "is", null),
-  ]);
-  if (academyError || buildingError || busyError) throw academyError ?? buildingError ?? busyError;
-  if (!academy || !building) throw new Error("Não foi possível preparar esta construção.");
-  if ((busy ?? []).length) throw new Error("Seu construtor já está trabalhando em outra obra.");
+  const { data: building, error: buildingError } = await supabase
+    .from("buildings")
+    .select("level")
+    .eq("team_id", trainer.current_team_id)
+    .eq("building_type", type)
+    .maybeSingle();
+  if (buildingError) throw buildingError;
+  if (!building) throw new Error("Não foi possível preparar esta construção.");
   const spec = BUILDINGS[type];
   const level = Number(building.level ?? 1);
   if (level >= spec.maxLevel) throw new Error("Esta estrutura já está no nível máximo.");
   const nextLevel = level + 1;
   const cost = spec.cost(nextLevel);
-  if ((academy.money ?? 0) < cost) throw new Error("Saldo insuficiente para iniciar esta obra.");
   const durationSeconds = spec.duration(nextLevel);
   const { data: operation, error: operationError } = await supabase.rpc("start_building_upgrade_atomic_v2" as any, {
     p_type: type,
@@ -109,7 +109,7 @@ async function startUpgradeForUser(supabase: any, userId: string, type: Building
     p_idempotency_key: `building-start:${type}:${crypto.randomUUID()}`,
   });
   if (operationError) throw operationError;
-  await recordTelemetryBestEffort(supabase, "stadium_upgraded", "/buildings", {
+  void recordTelemetryBestEffort(supabase, "stadium_upgraded", "/buildings", {
     building_type: type,
     target_level: nextLevel,
     cost,
