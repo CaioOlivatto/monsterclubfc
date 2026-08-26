@@ -377,7 +377,7 @@ function Dashboard() {
 
         <FacilitiesBanner />
 
-        <NavigationHubs onDestinationIntent={prefetchDestination} />
+        <NavigationHubs level={trainer.level ?? 0} onDestinationIntent={prefetchDestination} />
       </main>
     </div>
   );
@@ -987,7 +987,7 @@ const HUBS: {
   },
 ];
 
-function NavigationHubs({ onDestinationIntent }: { onDestinationIntent: (destination: string) => void }) {
+function NavigationHubs({ level, onDestinationIntent }: { level: number; onDestinationIntent: (destination: string) => void }) {
   return (
     <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-4">
       {HUBS.map((hub) => (
@@ -1013,7 +1013,9 @@ function NavigationHubs({ onDestinationIntent }: { onDestinationIntent: (destina
               <SheetTitle>{hub.label}</SheetTitle>
               <SheetDescription>Escolha uma área.</SheetDescription>
             </SheetHeader>
-            <div className="mt-4 space-y-2 pb-6">
+            {hub.key === "compet" ? (
+              <CompetitionHubMenu level={level} links={hub.links} onDestinationIntent={onDestinationIntent} />
+            ) : <div className="mt-4 space-y-2 pb-6">
               {hub.links.map((l) => (
                 <Link
                   key={l.to}
@@ -1033,10 +1035,44 @@ function NavigationHubs({ onDestinationIntent }: { onDestinationIntent: (destina
                   <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                 </Link>
               ))}
-            </div>
+            </div>}
           </SheetContent>
         </Sheet>
       ))}
+    </div>
+  );
+}
+
+function CompetitionHubMenu({ level, links, onDestinationIntent }: { level: number; links: HubLink[]; onDestinationIntent: (destination: string) => void }) {
+  const primary = links.filter((link) => link.to === "/league" || link.to === "/cup");
+  const global = links.filter((link) => link.to === "/world-league" || link.to === "/world-cup");
+  const tools = links.filter((link) => link.to === "/ranking" || link.to === "/arena");
+  const linkRow = (link: HubLink, compact = false) => {
+    const locked = link.to === "/arena" && level < 10;
+    return (
+      <Link
+        key={link.to}
+        to={link.to}
+        preload="intent"
+        onPointerEnter={() => onDestinationIntent(link.to)}
+        onFocus={() => onDestinationIntent(link.to)}
+        className={`flex items-center gap-3 rounded-xl border p-3 transition-colors ${locked ? "border-slate-700 bg-slate-950/50 opacity-65" : "border-violet-300/25 bg-slate-950/75 hover:border-violet-300/55 hover:bg-violet-950/35"}`}
+      >
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-violet-400/10 text-violet-300">{link.icon}</div>
+        <div className="min-w-0 flex-1"><p className="text-sm font-bold text-slate-100">{link.label}</p><p className="text-xs text-slate-400">{locked ? "Disponível a partir do nível 10" : link.desc}</p></div>
+        {!compact && <ChevronRight className="h-4 w-4 shrink-0 text-slate-500" />}
+      </Link>
+    );
+  };
+
+  return (
+    <div className="mt-4 space-y-4 pb-6">
+      <section><p className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300">Sua temporada</p><div className="space-y-2">{primary.map((link) => linkRow(link))}</div></section>
+      <details className="group rounded-xl border border-white/10 bg-slate-950/45 p-3">
+        <summary className="cursor-pointer list-none text-sm font-semibold text-slate-200">Competições globais <span className="ml-1 text-xs font-normal text-slate-500">· quando classificadas</span></summary>
+        <div className="mt-3 space-y-2">{global.map((link) => linkRow(link, true))}</div>
+      </details>
+      <section><p className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Modo e ranking</p><div className="grid gap-2 sm:grid-cols-2">{tools.map((link) => linkRow(link, true))}</div></section>
     </div>
   );
 }
