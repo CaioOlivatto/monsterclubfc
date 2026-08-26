@@ -217,10 +217,10 @@ async function loadDashboard(supabase: any, userId: string) {
     }
     const rosterCount = list.length;
     const avgEnergy = list.length
-      ? Math.round(list.reduce((s, c) => s + (c.energy ?? 0), 0) / list.length)
+      ? Math.round(list.reduce((s: number, c: any) => s + (c.energy ?? 0), 0) / list.length)
       : 0;
     const avgOverall = list.length
-      ? Math.round(list.reduce((s, c) => s + (c.overall ?? 0), 0) / list.length)
+      ? Math.round(list.reduce((s: number, c: any) => s + (c.overall ?? 0), 0) / list.length)
       : 0;
     const topCreatures = [...list]
       .sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0))
@@ -319,7 +319,7 @@ async function loadDashboard(supabase: any, userId: string) {
     let confidenceStandings: any[] = standings ?? [];
     if (playerTeam && playerTeam.competition_id) {
       if (standings && standings.length) {
-        const idx = standings.findIndex((s) => s.team_id === playerTeam.id);
+        const idx = standings.findIndex((s: any) => s.team_id === playerTeam.id);
         if (idx >= 0) {
           const s = standings[idx];
           standing = {
@@ -340,7 +340,7 @@ async function loadDashboard(supabase: any, userId: string) {
     const confidence = buildConfidence(trainer, confidenceStandings, recentMatches ?? []);
     const division = ((playerTeam?.division ?? "bronze") as Division);
     const operatingCostPerMatch = Math.round(
-      list.reduce((sum, c: any) => sum + Math.round(divisionalMatchSalary(c.overall ?? 40, division) * (c.salary_mult ?? 1)), 0) +
+      list.reduce((sum: number, c: any) => sum + Math.round(divisionalMatchSalary(c.overall ?? 40, division) * (c.salary_mult ?? 1)), 0) +
       totalMaintenancePerMatch(division, buildings ?? []),
     );
     const academyState = Array.isArray(trainer.academies) ? trainer.academies[0] : trainer.academies;
@@ -683,7 +683,7 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
       if (!existingTeamId || !existingCompetitionId) {
         const { data: playerTeam } = await supabase
           .from("teams")
-          .select("id, name, competition_id, starter_key")
+          .select("id, name, competition_id, starter_key, division")
           .eq("trainer_id", trainer.id)
           .eq("is_player", true)
           .maybeSingle();
@@ -694,7 +694,7 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
       if (existingTeamId && existingCompetitionId) {
         const { data: resumableTeam, error: resumableTeamError } = await supabase
           .from("teams")
-          .select("id, name, competition_id, starter_key")
+          .select("id, name, competition_id, starter_key, division")
           .eq("id", existingTeamId)
           .single();
         if (resumableTeamError) throw resumableTeamError;

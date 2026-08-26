@@ -230,7 +230,7 @@ export function generateTeamRoster(bestiary: LoadedBestiary, team: WorldTeam, di
   const adjustment = Math.round(xiTarget - average);
   return out.map((creature) => {
     const target = Math.max(5, Math.min(99, creature.overall + adjustment));
-    const scaled = scaleAttrsToTarget(creature, creature.overall, target);
+    const scaled = scaleAttrsToTarget(creature as any, creature.overall, target);
     return { ...creature, ...scaled, overall: target, market_value: Math.max(1000, target * target * 20) };
   });
 }

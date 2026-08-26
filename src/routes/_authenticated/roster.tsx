@@ -163,7 +163,7 @@ function RosterPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const lastSeasonCount = useMemo(
-    () => (data ?? []).filter((c) => ageStatus((c as any).age) === "last_season").length,
+    () => (data ?? []).filter((c: any) => ageStatus((c as any).age) === "last_season").length,
     [data],
   );
 
@@ -171,14 +171,14 @@ function RosterPage() {
     let list = (data ?? []).slice();
     if (q.trim()) {
       const t = q.trim().toLowerCase();
-      list = list.filter((c) => c.name.toLowerCase().includes(t));
+      list = list.filter((c: any) => c.name.toLowerCase().includes(t));
     }
-    if (elem) list = list.filter((c) => c.element === elem);
-    if (pos) list = list.filter((c) => c.suggested_position === pos);
+    if (elem) list = list.filter((c: any) => c.element === elem);
+    if (pos) list = list.filter((c: any) => c.suggested_position === pos);
     if (ageFilter !== "all") {
-      list = list.filter((c) => ageStatus((c as any).age) === ageFilter);
+      list = list.filter((c: any) => ageStatus((c as any).age) === ageFilter);
     }
-    list.sort((a, b) => {
+    list.sort((a: any, b: any) => {
       if (sort === "name") return a.name.localeCompare(b.name);
       if (sort === "energy") return (b.energy ?? 0) - (a.energy ?? 0);
       if (sort === "age") return ((b as any).age ?? 0) - ((a as any).age ?? 0);
