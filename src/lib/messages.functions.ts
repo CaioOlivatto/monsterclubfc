@@ -21,6 +21,7 @@ export const listMessages = createServerFn({ method: "GET" })
       .from("messages")
       .select("id, kind, title, body, read, created_at")
       .eq("trainer_id", trainerId)
+      .neq("kind", "match")
       .order("created_at", { ascending: false })
       .limit(100);
     const list = data ?? [];
@@ -50,6 +51,7 @@ export const markAllRead = createServerFn({ method: "POST" })
       .from("messages")
       .update({ read: true })
       .eq("trainer_id", trainerId)
+      .neq("kind", "match")
       .eq("read", false);
     return { ok: true };
   });

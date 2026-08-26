@@ -282,6 +282,9 @@ export async function insertMessage(
   title: string,
   body: string,
 ) {
+  // Resultados já ficam disponíveis nas telas das competições. A caixa de
+  // mensagens é reservada para novidades e decisões importantes do clube.
+  if (kind === "match") return;
   try {
     await supabase.from("messages").insert({ trainer_id: trainerId, kind, title, body });
   } catch (e) {
