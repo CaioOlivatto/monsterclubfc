@@ -115,10 +115,13 @@ const WEATHER_LABEL: Record<Weather, string> = {
   sol: "Sol forte", chuva: "Chuva", vento: "Vento", neve: "Neve", nublado: "Nublado",
 };
 
-const K_DUEL = 24;              // sensibilidade do duelo logístico
+// Um intervalo de 10 OVR precisa ser perceptível durante a partida. O valor
+// é combinado com bônus táticos menores, para que a decisão de escalação
+// influencie sem substituir a qualidade do elenco.
+const K_DUEL = 32;              // sensibilidade do duelo logístico
 const GOALIE_BONUS = 20;        // vantagem do goleiro no duelo 2
-const HOME_ATK_BONUS = 4;       // fator casa somado à força ofensiva
-const CHANCE_RATE = 0.09;       // taxa-base de criação de lance por minuto (normalizada pela divisão)
+const HOME_ATK_BONUS = 2;       // fator casa somado à força ofensiva
+const CHANCE_RATE = 0.065;      // taxa-base de criação de lance por minuto (normalizada pela divisão)
 
 /** OVR médio de cada divisão — usado para normalizar a chance de lance por minuto. */
 const DIVISION_OVR: Record<Division, number> = {
@@ -146,11 +149,11 @@ function elementalMult(attacker: Element, defender: Element): number {
   return 1.0;
 }
 
-// Estratégia (Mentalidade) — GDD: multiplica chance de lance (x0.70..x1.30)
-// e altera rating dos defensores adversários (+8 defensiva / -8 ofensiva).
+// Estratégia é uma vantagem de plano de jogo, não um substituto para elenco.
+// Seus efeitos devem melhorar um confronto equilibrado sem apagar 8–10 OVR.
 function strategyMod(s: EngineSide["strategy"]): { atk: number; def: number; freqMul: number; energyAdj: number; injuryMul: number } {
-  if (s === "ofensiva") return { atk: 8, def: -8, freqMul: 1.18, energyAdj: 2, injuryMul: 1.15 };
-  if (s === "defensiva") return { atk: -8, def: 8, freqMul: 0.78, energyAdj: -1, injuryMul: 0.90 };
+  if (s === "ofensiva") return { atk: 4, def: -4, freqMul: 1.10, energyAdj: 2, injuryMul: 1.15 };
+  if (s === "defensiva") return { atk: -4, def: 4, freqMul: 0.90, energyAdj: -1, injuryMul: 0.90 };
   return { atk: 0, def: 0, freqMul: 1.0, energyAdj: 0, injuryMul: 1.0 };
 }
 
@@ -173,10 +176,10 @@ function tacticsMod(t: Tactics | undefined) {
     cortes: axis(raw.cortes),
   };
   return {
-    atk: T.mentalidade * 2 + T.pressao * 1,
-    def: T.mentalidade * 1 + T.cortes * 2,
-    freq: 1 + T.verticalidade * 0.05 + T.mentalidade * 0.03 + Math.max(0, T.pressao) * 0.03,
-    vertical2: T.verticalidade * 1.5,   // soma no duelo 2 (chute mais direto)
+    atk: T.mentalidade * 1 + T.pressao * 0.5,
+    def: T.mentalidade * 0.6 + T.cortes * 1,
+    freq: 1 + T.verticalidade * 0.03 + T.mentalidade * 0.02 + Math.max(0, T.pressao) * 0.02,
+    vertical2: T.verticalidade * 0.75,  // soma no duelo 2 (chute mais direto)
     yellowMul: 1 + T.pressao * 0.3 + T.cortes * 0.5,
     injuryMul: 1 + Math.max(0, T.pressao) * 0.4,
   };
