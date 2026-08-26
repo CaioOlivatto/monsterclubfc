@@ -10,7 +10,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { getCareer, listOffers, declineOffer, acceptOffer, type CareerEntry, type JobOffer } from "@/lib/career.functions";
-import { listMyCreatures } from "@/lib/creatures.functions";
 import { GamePageShell } from "@/components/GamePageShell";
 
 const DIV_LABEL: Record<string, string> = {
@@ -257,21 +256,13 @@ function AcceptDialog({
   onOpenChange: (v: boolean) => void;
 }) {
   const qc = useQueryClient();
-  const listFn = useServerFn(listMyCreatures);
   const acceptFn = useServerFn(acceptOffer);
-  const { data: creatures = [], isLoading } = useQuery({
-    queryKey: ["my-creatures", "for-transfer"],
-    queryFn: () => listFn(),
-    enabled: open,
-  });
-
-  const [picked, setPicked] = useState<string[]>([]);
 
   const acceptMut = useMutation({
-    mutationFn: () => acceptFn({ data: { offerId: offer.id, keepCreatureIds: picked } }),
+    mutationFn: () => acceptFn({ data: { offerId: offer.id } }),
     onSuccess: (res: any) => {
       toast.success(`Bem-vindo ao ${res.new_team_name}!`, {
-        description: `Bônus de R$ ${Math.round(res.signing_bonus).toLocaleString("pt-BR")} recebido. Você trouxe 2 criaturas.`,
+        description: `Bônus de R$ ${Math.round(res.signing_bonus).toLocaleString("pt-BR")} recebido. O elenco permanece vinculado a cada clube.`,
       });
       qc.invalidateQueries();
       onOpenChange(false);
@@ -279,23 +270,13 @@ function AcceptDialog({
     onError: (e: any) => toast.error(e?.message ?? "Falha ao aceitar proposta"),
   });
 
-  function toggle(id: string) {
-    setPicked((prev) => {
-      if (prev.includes(id)) return prev.filter((x) => x !== id);
-      if (prev.length >= 2) return prev;
-      return [...prev, id];
-    });
-  }
-
-  const eligible = (creatures as any[]).filter((c) => !c.retired);
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] max-w-md overflow-hidden">
         <DialogHeader>
           <DialogTitle>Aceitar proposta do {offer.team_name}</DialogTitle>
           <DialogDescription>
-            Escolha 2 criaturas do seu elenco atual para levar. As demais e toda a infraestrutura permanecem no clube antigo.
+            As criaturas e a infraestrutura permanecem vinculadas aos clubes. Você assumirá o elenco completo do novo time.
           </DialogDescription>
         </DialogHeader>
 
@@ -305,60 +286,13 @@ function AcceptDialog({
           <p className="mt-2 text-amber-200">Estádio, CT e Centro Médico não acompanham o treinador na transferência.</p>
         </div>
 
-        <div className="max-h-[45vh] overflow-y-auto rounded-md border">
-          {isLoading ? (
-            <div className="space-y-2 p-2">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          ) : (
-            <ul className="divide-y">
-              {eligible.map((c: any) => {
-                const selected = picked.includes(c.id);
-                const disabled = !selected && picked.length >= 2;
-                return (
-                  <li
-                    key={c.id}
-                    className={`flex cursor-pointer items-center gap-2 p-2 text-sm transition ${
-                      selected ? "bg-primary/15" : ""
-                    } ${disabled ? "opacity-40" : "hover:bg-muted/50"}`}
-                    onClick={() => !disabled && toggle(c.id)}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selected}
-                      readOnly
-                      disabled={disabled}
-                      className="pointer-events-none"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="truncate font-medium">{c.name}</span>
-                        <Badge variant="outline" className="text-[10px]">{c.suggested_position}</Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        OVR {c.overall} · {c.age} anos · {c.element}
-                      </p>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-
-        <p className="text-center text-xs text-muted-foreground">
-          {picked.length}/2 selecionadas
-        </p>
-
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
           <Button
             onClick={() => acceptMut.mutate()}
-            disabled={picked.length !== 2 || acceptMut.isPending}
+            disabled={acceptMut.isPending}
           >
             {acceptMut.isPending ? "Assinando..." : "Confirmar transferência"}
           </Button>

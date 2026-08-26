@@ -264,6 +264,11 @@ export interface JobOffer {
   signing_bonus: number;
   message: string | null;
   created_at: string;
+  club_cash: number;
+  league_position: number | null;
+  league_size: number | null;
+  buildings: Record<string, number>;
+  matches_until_expiry: number;
 }
 
 export interface OffersOverview {
@@ -272,6 +277,42 @@ export interface OffersOverview {
   current_team_id: string | null;
   current_team_name: string | null;
   offers: JobOffer[];
+  expired_offers: JobOffer[];
+}
+
+const CLUB_CASH_BY_DIVISION: Record<string, number> = {
+  bronze: 250_000, prata: 500_000, ouro: 1_000_000, diamante: 2_000_000, lendaria: 4_000_000,
+};
+
+async function enrichOffers(supabase: any, offers: any[], currentTeamId: string | null) {
+  if (!offers.length) return [] as JobOffer[];
+  const teamIds = [...new Set(offers.map((offer) => offer.team_id))] as string[];
+  const earliest = offers.reduce((date, offer) => offer.created_at < date ? offer.created_at : date, offers[0].created_at);
+  const [{ data: teams }, { data: buildings }, matchesResult] = await Promise.all([
+    supabase.from("teams").select("id, competition_id").in("id", teamIds),
+    supabase.from("buildings").select("team_id, building_type, level").in("team_id", teamIds),
+    currentTeamId
+      ? supabase.from("matches").select("played_at").eq("status", "finished").eq("is_friendly", false).gte("played_at", earliest).or(`home_team_id.eq.${currentTeamId},away_team_id.eq.${currentTeamId}`)
+      : Promise.resolve({ data: [] }),
+  ]);
+  const competitionIds = [...new Set((teams ?? []).map((team: any) => team.competition_id).filter(Boolean))] as string[];
+  const { data: standings } = competitionIds.length
+    ? await supabase.from("standings").select("competition_id, team_id, points, wins, goals_for, goals_against").in("competition_id", competitionIds)
+    : { data: [] };
+  const teamCompetition = new Map((teams ?? []).map((team: any) => [team.id, team.competition_id]));
+  const ranks = new Map<string, { position: number; size: number }>();
+  for (const competitionId of competitionIds) {
+    const table = (standings ?? []).filter((row: any) => row.competition_id === competitionId).sort((a: any, b: any) =>
+      b.points - a.points || b.wins - a.wins || ((b.goals_for - b.goals_against) - (a.goals_for - a.goals_against)) || b.goals_for - a.goals_for
+    );
+    table.forEach((row: any, index: number) => ranks.set(row.team_id, { position: index + 1, size: table.length }));
+  }
+  return offers.map((offer) => {
+    const played = (matchesResult.data ?? []).filter((match: any) => match.played_at && match.played_at >= offer.created_at).length;
+    const infrastructure = Object.fromEntries((buildings ?? []).filter((b: any) => b.team_id === offer.team_id).map((b: any) => [b.building_type, b.level]));
+    const rank = ranks.get(offer.team_id);
+    return { ...offer, club_cash: CLUB_CASH_BY_DIVISION[offer.division] ?? CLUB_CASH_BY_DIVISION.bronze, league_position: rank?.position ?? null, league_size: rank?.size ?? null, buildings: infrastructure, matches_until_expiry: Math.max(0, 2 - played) } as JobOffer;
+  });
 }
 
 export const listOffers = createServerFn({ method: "GET" })
@@ -297,18 +338,26 @@ export const listOffers = createServerFn({ method: "GET" })
         .from("job_offers")
         .select("id, team_id, team_name, division, season_offered, reason, status, signing_bonus, message, created_at")
         .eq("trainer_id", trainer.id)
-        .eq("status", "pending")
+        .in("status", ["pending", "expired"])
         .order("created_at", { ascending: false }),
     ]);
     const currentTeamName = teamResult.data?.name ?? null;
-    const { data: offers } = offersResult;
+    const enriched = await enrichOffers(supabase, offersResult.data ?? [], trainer.current_team_id);
+    const timedOut = enriched.filter((offer) => offer.status === "pending" && offer.matches_until_expiry === 0);
+    if (timedOut.length) {
+      await supabase.from("job_offers").update({ status: "expired" }).in("id", timedOut.map((offer) => offer.id));
+      timedOut.forEach((offer) => { offer.status = "expired"; });
+    }
+    const latestBatch = Math.max(...enriched.map((offer) => offer.season_offered), 0);
+    const currentOffers = enriched.filter((offer) => offer.season_offered === latestBatch);
 
     return {
       status: (trainer.status as "employed" | "dismissed") ?? "employed",
       pending_transition: !!trainer.pending_transition,
       current_team_id: trainer.current_team_id,
       current_team_name: currentTeamName,
-      offers: (offers ?? []) as JobOffer[],
+      offers: currentOffers.filter((offer) => offer.status === "pending"),
+      expired_offers: currentOffers.filter((offer) => offer.status === "expired" && offer.matches_until_expiry === 0),
     };
   });
 
@@ -343,6 +392,7 @@ export interface AcceptOfferResult {
   new_division: string;
   signing_bonus: number;
   brought_creatures: number;
+  club_cash: number;
 }
 
 const CLUB_INFRASTRUCTURE_BASELINE: Record<string, { estadio: number; ct_treino: number; centro_medico: number }> = {
@@ -355,15 +405,7 @@ const CLUB_INFRASTRUCTURE_BASELINE: Record<string, { estadio: number; ct_treino:
 
 export const acceptOffer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: { offerId: string; keepCreatureIds: string[] }) => {
-    if (!Array.isArray(input.keepCreatureIds) || input.keepCreatureIds.length !== 2) {
-      throw new Error("Você deve escolher exatamente 2 criaturas para levar.");
-    }
-    if (input.keepCreatureIds[0] === input.keepCreatureIds[1]) {
-      throw new Error("Escolha duas criaturas diferentes.");
-    }
-    return input;
-  })
+  .inputValidator((input: { offerId: string }) => input)
   .handler(async ({ data, context }): Promise<AcceptOfferResult> => {
     const { supabase, userId } = context;
 
@@ -378,12 +420,20 @@ export const acceptOffer = createServerFn({ method: "POST" })
     // 2) Proposta
     const { data: offer } = await supabase
       .from("job_offers")
-      .select("id, team_id, team_name, division, signing_bonus, status")
+      .select("id, team_id, team_name, division, signing_bonus, status, created_at")
       .eq("id", data.offerId)
       .eq("trainer_id", trainer.id)
       .maybeSingle();
     if (!offer) throw new Error("Proposta não encontrada.");
     if (offer.status !== "pending") throw new Error("Esta proposta não está mais disponível.");
+
+    if (trainer.current_team_id) {
+      const { count } = await supabase.from("matches").select("id", { count: "exact", head: true }).eq("status", "finished").eq("is_friendly", false).gte("played_at", offer.created_at).or(`home_team_id.eq.${trainer.current_team_id},away_team_id.eq.${trainer.current_team_id}`);
+      if ((count ?? 0) >= 2) {
+        await supabase.from("job_offers").update({ status: "expired" }).eq("id", offer.id);
+        throw new Error("Esta proposta foi rejeitada por tempo após 2 partidas oficiais.");
+      }
+    }
 
     // 3) Novo time (verifica que está livre)
     const { data: newTeam } = await supabase
@@ -396,45 +446,17 @@ export const acceptOffer = createServerFn({ method: "POST" })
       throw new Error("Este clube já contratou outro treinador.");
     }
 
-    // 4) Valida as 2 criaturas escolhidas
-    const { data: kept } = await supabase
-      .from("creatures")
-      .select("id, name, owner_trainer_id, retired")
-      .in("id", data.keepCreatureIds)
-      .eq("owner_trainer_id", trainer.id);
-    if (!kept || kept.length !== 2) {
-      throw new Error("Criaturas inválidas. Escolha duas do seu elenco atual.");
-    }
-    if (kept.some((c: any) => c.retired)) {
-      throw new Error("Criaturas aposentadas não podem ser levadas.");
-    }
-
-    // 5) Absorve o elenco EXISTENTE do novo clube (CPU): assume owner_trainer_id
-    //    e descarta as 2 criaturas mais fracas para dar espaço às 2 trazidas.
+    // 4) O treinador assume integralmente o elenco existente do novo clube.
     const { data: existingRoster } = await supabase
       .from("creatures")
       .select("id, overall, retired")
       .eq("owner_team_id", newTeam.id);
     const activeRoster = (existingRoster ?? []).filter((c: any) => !c.retired);
-    const sortedByOvr = [...activeRoster].sort((a: any, b: any) => (a.overall ?? 0) - (b.overall ?? 0));
-    const dropIds = sortedByOvr.slice(0, 2).map((c: any) => c.id);
-    const keepFromNewClubIds = sortedByOvr.slice(2).map((c: any) => c.id);
+    const keepFromNewClubIds = activeRoster.map((c: any) => c.id);
 
-    // 6) Solta o elenco antigo (menos as 2 escolhidas): owner_trainer_id → null
+    // 5) Todo o elenco permanece no clube antigo.
     if (trainer.current_team_id) {
-      const keepSet = new Set(data.keepCreatureIds);
-      const { data: allOld } = await supabase
-        .from("creatures")
-        .select("id")
-        .eq("owner_trainer_id", trainer.id)
-        .eq("owner_team_id", trainer.current_team_id);
-      const releaseIds = (allOld ?? []).map((c: any) => c.id).filter((id: string) => !keepSet.has(id));
-      if (releaseIds.length) {
-        await supabase
-          .from("creatures")
-          .update({ owner_trainer_id: null })
-          .in("id", releaseIds);
-      }
+      await supabase.from("creatures").update({ owner_trainer_id: null }).eq("owner_trainer_id", trainer.id).eq("owner_team_id", trainer.current_team_id);
 
       // Libera clube antigo
       await supabase
@@ -449,25 +471,13 @@ export const acceptOffer = createServerFn({ method: "POST" })
         .eq("team_id", trainer.current_team_id);
     }
 
-    // 7) Descarta os 2 mais fracos do novo clube (liberados para nada — sumiram)
-    if (dropIds.length) {
-      await supabase.from("creatures").delete().in("id", dropIds);
-    }
-
-    // 8) Assume o elenco remanescente do novo clube
+    // 6) Assume o elenco do novo clube sem excluir ou transportar criaturas.
     if (keepFromNewClubIds.length) {
       await supabase
         .from("creatures")
         .update({ owner_trainer_id: trainer.id })
         .in("id", keepFromNewClubIds);
     }
-
-    // 9) Reassinala as 2 mantidas do treinador ao novo clube
-    await supabase
-      .from("creatures")
-      .update({ owner_team_id: newTeam.id })
-      .in("id", data.keepCreatureIds);
-
 
     // 9) Novo clube passa a ser do jogador
     await supabase
@@ -550,8 +560,9 @@ export const acceptOffer = createServerFn({ method: "POST" })
       });
     }
 
-    // Bônus de boas-vindas único: substitui "caixa inicial + bônus de contratação"
-    // por uma linha só, com valor 10× receita fixa da divisão do novo clube.
+    const clubCash = CLUB_CASH_BY_DIVISION[newTeam.division ?? "bronze"] ?? CLUB_CASH_BY_DIVISION.bronze;
+    await supabase.from("financial_transactions").insert({ trainer_id: trainer.id, transaction_type: "income", category: "club_cash", amount: clubCash, description: `Caixa do clube — ${newTeam.name}` });
+
     const welcomeBonus = WELCOME_BONUS[(newTeam.division as keyof typeof WELCOME_BONUS) ?? "bronze"] ?? WELCOME_BONUS.bronze;
     await supabase.from("financial_transactions").insert({
       trainer_id: trainer.id,
@@ -592,7 +603,8 @@ export const acceptOffer = createServerFn({ method: "POST" })
       new_team_name: newTeam.name,
       new_division: newTeam.division ?? "bronze",
       signing_bonus: offer.signing_bonus,
-      brought_creatures: 2,
+      brought_creatures: 0,
+      club_cash: clubCash,
     };
   });
 
