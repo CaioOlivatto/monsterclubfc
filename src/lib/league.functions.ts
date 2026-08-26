@@ -941,24 +941,23 @@ async function recoverStaleRounds(
 
   console.warn(`[playNextLeagueMatch] RECUPERANDO ${stale.length} partidas de rodadas anteriores`);
 
-  // Agrupa por competição e delega para o mesmo helper de outras divisões
-  const byComp = new Map<string, Map<number, any[]>>();
+  // Agrupa por competição e conclui todas as rodadas acumuladas em uma única
+  // carga por divisão. O fluxo antigo fazia uma consulta completa para cada
+  // rodada e podia exceder o tempo da função quando o jogador terminava a Liga.
+  const byComp = new Map<string, any[]>();
   for (const m of stale) {
-    const c = byComp.get(m.competition_id) ?? new Map<number, any[]>();
-    const r = c.get(m.round) ?? [];
-    r.push(m);
-    c.set(m.round, r);
-    byComp.set(m.competition_id, c);
+    const matches = byComp.get(m.competition_id) ?? [];
+    matches.push(m);
+    byComp.set(m.competition_id, matches);
   }
-  for (const [compId, rounds] of byComp) {
-    for (const round of rounds.keys()) {
-      try {
-        await fastAdvanceCompetitionRound(supabase, compId, round);
-      } catch (e) {
-        console.error(`[recoverStaleRounds] ERRO comp=${compId} round=${round}:`, e);
-      }
-    }
-  }
+  await Promise.all(
+    [...byComp].map(([compId, matches]) =>
+      fastAdvanceCompetitionMatches(supabase, compId, matches).catch((e) => {
+        console.error(`[recoverStaleRounds] ERRO comp=${compId}:`, e);
+        throw e;
+      }),
+    ),
+  );
 }
 
 async function getSeasonAdvanceStatusForUser(supabase: any, userId: string) {
@@ -1571,6 +1570,16 @@ async function fastAdvanceCompetitionRound(supabase: any, compId: string, round:
     .eq("round", round)
     .eq("status", "scheduled");
   if (!matches || !matches.length) return;
+
+  await fastAdvanceCompetitionMatches(supabase, compId, matches);
+}
+
+/**
+ * Conclui um lote já selecionado de partidas da mesma competição e persiste a
+ * classificação uma única vez. Mantém a simulação determinística pelo id.
+ */
+async function fastAdvanceCompetitionMatches(supabase: any, compId: string, matches: any[]) {
+  if (!matches.length) return;
 
   const teamIds = Array.from(
     new Set(matches.flatMap((m: any) => [m.home_team_id, m.away_team_id])),
