@@ -18,6 +18,7 @@ import { getMyLineup } from "@/lib/lineup.functions";
 import { getMarket } from "@/lib/market.functions";
 import { ageStatus } from "@/lib/age";
 import { RetirementDialog } from "@/components/RetirementDialog";
+import { SeasonTransitionProgress } from "@/components/SeasonTransitionProgress";
 import { TeamCrest } from "@/components/TeamCrest";
 import { GameLogo } from "@/components/GameLogo";
 import { Button } from "@/components/ui/button";
@@ -283,6 +284,7 @@ function Dashboard() {
     >
       <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 bg-gradient-to-b from-slate-950/30 via-background/58 to-background/78" />
       <RetirementDialog creatures={rosterList as any} />
+      <SeasonTransitionProgress open={finishSeasonMut.isPending} />
       {/* Header slim: identidade + ações no canto */}
       <header className="relative z-10 border-b border-violet-500/35 bg-slate-950/90 text-white shadow-[0_4px_24px_rgba(76,29,149,0.28)] backdrop-blur-md">
         <div className="mx-auto flex max-w-3xl items-center gap-2 px-3 py-3 sm:px-4">

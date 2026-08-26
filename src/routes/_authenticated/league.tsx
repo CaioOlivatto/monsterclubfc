@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { getLeague, startLeague } from "@/lib/league.functions";
 import { recomputeWorldRanking } from "@/lib/ranking.functions";
 import { GamePageShell } from "@/components/GamePageShell";
+import { SeasonTransitionProgress } from "@/components/SeasonTransitionProgress";
 import { supabase } from "@/integrations/supabase/client";
 import {
   finishSeasonAndAdvanceWithSession,
@@ -107,7 +108,9 @@ function LeaguePage() {
   const comp = data?.competition;
 
   return (
-    <GamePageShell title="Competições" subtitle="Classificação, calendário e evolução nas divisões" maxWidth="4xl">
+    <>
+      <SeasonTransitionProgress open={finishMut.isPending} />
+      <GamePageShell title="Competições" subtitle="Classificação, calendário e evolução nas divisões" maxWidth="4xl">
         {!comp && (
           <Card>
             <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
@@ -138,7 +141,8 @@ function LeaguePage() {
         )}
 
       <SeasonSummaryDialog summary={summary} onClose={() => setSummary(null)} />
-    </GamePageShell>
+      </GamePageShell>
+    </>
   );
 }
 
