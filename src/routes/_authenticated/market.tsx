@@ -373,9 +373,7 @@ function MarketPage() {
               const belowReserve = canAfford && cashAfter < reserve;
               const overCap = newPayroll > cap;
               const disabled = !canAfford || rosterFull || overCap || buyMut.isPending;
-              const btnLabel = rosterFull
-                ? "Cheio"
-                : overCap
+              const btnLabel = overCap
                 ? "Folha"
                 : !canAfford
                 ? "Sem $"
@@ -408,9 +406,21 @@ function MarketPage() {
                           <span className="truncate">de {l.seller}</span>
                         </div>
                       </div>
-                      <div className="flex shrink-0 flex-col gap-1 text-right">
-                        <Button size="sm" className="h-8" disabled={disabled} onClick={() => buyMut.mutate({ listing_id: l.id, currency: "money" })}>{btnLabel} {formatMoney(l.price)}</Button>
-                        <Button size="sm" variant="outline" className="h-8 border-violet-400/50 bg-violet-950/70 text-violet-100" disabled={rosterFull || overCap || buyMut.isPending || (data?.gems ?? 0) < l.gem_price} onClick={() => buyMut.mutate({ listing_id: l.id, currency: "gems" })}><Gem className="mr-1 h-3.5 w-3.5" />{l.gem_price}</Button>
+                      <div className="w-44 shrink-0 text-right">
+                        {rosterFull ? (
+                          <p className="rounded-md border border-amber-400/35 bg-amber-400/10 px-2 py-2 text-center text-[11px] font-medium leading-snug text-amber-200">
+                            Elenco cheio. Venda jogadores para conseguir comprar novos.
+                          </p>
+                        ) : (
+                          <div className="flex flex-col gap-1">
+                            <Button size="sm" className="h-8" disabled={disabled} onClick={() => buyMut.mutate({ listing_id: l.id, currency: "money" })}>
+                              {btnLabel === "Comprar" ? `Comprar por ${formatMoney(l.price)}` : btnLabel}
+                            </Button>
+                            <Button size="sm" variant="outline" className="h-8 border-violet-400/50 bg-violet-950/70 text-violet-100" disabled={overCap || buyMut.isPending || (data?.gems ?? 0) < l.gem_price} onClick={() => buyMut.mutate({ listing_id: l.id, currency: "gems" })}>
+                              ou <Gem className="mx-1 h-3.5 w-3.5" /> {l.gem_price} gemas
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-2 text-xs">
