@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { ATTENDANCE_DEMAND_CAP, MATCH_REVENUE, TICKET_PRICE, divisionalMatchSalary, totalMaintenancePerMatch, type Division as EconomyDivision } from "./economy";
+import { ATTENDANCE_DEMAND_CAP, DIVISION_SALARY_CAP, MATCH_REVENUE, TICKET_PRICE, divisionalMatchSalary, totalMaintenancePerMatch, type Division as EconomyDivision } from "./economy";
 import { stadiumCapacity, stadiumRevenueMultiplier } from "./buildings.server";
 
 
@@ -292,19 +292,27 @@ const CLUB_MATCH_PRIZE: Record<string, [number, number, number]> = {
   bronze: [15_000, 6_000, 2_000], prata: [28_000, 11_000, 4_000], ouro: [50_000, 20_000, 7_000], diamante: [90_000, 36_000, 13_000], lendaria: [160_000, 64_000, 24_000],
 };
 const POSITION_MULTIPLIER = [10, 6, 3, 3, 1.5, 1.5, 0.5, 0.5];
+const CPU_INFRASTRUCTURE_BASELINE: Record<string, Record<string, number>> = {
+  bronze: { estadio: 1, ct_treino: 1, centro_medico: 1 },
+  prata: { estadio: 2, ct_treino: 2, centro_medico: 2 },
+  ouro: { estadio: 4, ct_treino: 3, centro_medico: 3 },
+  diamante: { estadio: 6, ct_treino: 4, centro_medico: 4 },
+  lendaria: { estadio: 8, ct_treino: 5, centro_medico: 5 },
+};
 
 function computeCpuClubCash(offer: any, standing: any, infrastructure: Record<string, number>, roster: any[]) {
-  const base = CLUB_CASH_BY_DIVISION[offer.division] ?? CLUB_CASH_BY_DIVISION.bronze;
-  if (!standing) return base;
-  const division = offer.division as EconomyDivision;
-  const [winPrize, drawPrize, lossPrize] = CLUB_MATCH_PRIZE[offer.division] ?? CLUB_MATCH_PRIZE.bronze;
+  if (!standing) return CLUB_CASH_BY_DIVISION[offer.division] ?? CLUB_CASH_BY_DIVISION.bronze;
+  const division = (standing.division ?? offer.division) as EconomyDivision;
+  const base = CLUB_CASH_BY_DIVISION[division] ?? CLUB_CASH_BY_DIVISION.bronze;
+  const [winPrize, drawPrize, lossPrize] = CLUB_MATCH_PRIZE[division] ?? CLUB_MATCH_PRIZE.bronze;
   const played = standing.wins + standing.draws + standing.losses;
   const sportingIncome = standing.wins * winPrize + standing.draws * drawPrize + standing.losses * lossPrize;
   const revenue = MATCH_REVENUE[division] ?? MATCH_REVENUE.bronze;
   const recurringIncome = played * (revenue.tv + revenue.sponsor + revenue.merch);
   const buildings = Object.entries(infrastructure).map(([building_type, level]) => ({ building_type, level }));
   const maintenance = played * totalMaintenancePerMatch(division, buildings);
-  const payroll = played * roster.reduce((sum, creature) => sum + divisionalMatchSalary(creature.overall ?? 40, division) * (creature.salary_mult ?? 1), 0);
+  const rosterPayrollPerMatch = roster.reduce((sum, creature) => sum + divisionalMatchSalary(creature.overall ?? 40, division) * (creature.salary_mult ?? 1), 0);
+  const payroll = roster.length ? played * rosterPayrollPerMatch : Math.round((DIVISION_SALARY_CAP[division] ?? DIVISION_SALARY_CAP.bronze) * 0.65);
   const winRate = played ? standing.wins / played : 0;
   const capacity = Math.min(stadiumCapacity(infrastructure.estadio ?? 1), ATTENDANCE_DEMAND_CAP[division]);
   const estimatedAttendance = Math.round(capacity * (0.55 + winRate * 0.35));
@@ -325,7 +333,7 @@ async function enrichOffers(supabase: any, offers: any[], currentTeamId: string 
     currentTeamId
       ? supabase.from("matches").select("played_at").eq("status", "finished").eq("is_friendly", false).gte("played_at", earliest).or(`home_team_id.eq.${currentTeamId},away_team_id.eq.${currentTeamId}`)
       : Promise.resolve({ data: [] }),
-    supabase.from("competitions").select("id, type, status, champion_team_id, created_at").eq("status", "finished").order("created_at", { ascending: false }).limit(100),
+    supabase.from("competitions").select("id, type, status, division, champion_team_id, created_at").eq("status", "finished").order("created_at", { ascending: false }).limit(100),
     supabase.from("creatures").select("owner_team_id, overall, salary_mult, retired").in("owner_team_id", teamIds).eq("retired", false),
   ]);
   const competitionIds = [...new Set((teams ?? []).map((team: any) => team.competition_id).filter(Boolean))] as string[];
@@ -338,6 +346,7 @@ async function enrichOffers(supabase: any, offers: any[], currentTeamId: string 
     ? await supabase.from("standings").select("competition_id, team_id, points, wins, draws, losses, goals_for, goals_against").in("competition_id", finishedIds).in("team_id", teamIds)
     : { data: [] };
   const competitionOrder = new Map(finishedCompetitions.map((c: any, index: number) => [c.id, index]));
+  const competitionDivision = new Map(finishedCompetitions.map((c: any) => [c.id, c.division]));
   const lastSeasonByTeam = new Map<string, any>();
   for (const teamId of teamIds) {
     const rows = (historicalStandings ?? []).filter((row: any) => row.team_id === teamId).sort((a: any, b: any) => (competitionOrder.get(a.competition_id) ?? 999) - (competitionOrder.get(b.competition_id) ?? 999));
@@ -345,7 +354,7 @@ async function enrichOffers(supabase: any, offers: any[], currentTeamId: string 
     if (!latest) continue;
     const table = (await supabase.from("standings").select("team_id, points, wins, goals_for, goals_against").eq("competition_id", latest.competition_id)).data ?? [];
     table.sort((a: any, b: any) => b.points - a.points || b.wins - a.wins || ((b.goals_for - b.goals_against) - (a.goals_for - a.goals_against)) || b.goals_for - a.goals_for);
-    lastSeasonByTeam.set(teamId, { ...latest, position: table.findIndex((row: any) => row.team_id === teamId) + 1, size: table.length });
+    lastSeasonByTeam.set(teamId, { ...latest, division: competitionDivision.get(latest.competition_id), position: table.findIndex((row: any) => row.team_id === teamId) + 1, size: table.length });
   }
   const teamCompetition = new Map((teams ?? []).map((team: any) => [team.id, team.competition_id]));
   const ranks = new Map<string, { position: number; size: number }>();
@@ -357,12 +366,14 @@ async function enrichOffers(supabase: any, offers: any[], currentTeamId: string 
   }
   return offers.map((offer) => {
     const played = (matchesResult.data ?? []).filter((match: any) => match.played_at && match.played_at >= offer.created_at).length;
-    const infrastructure = Object.fromEntries((buildings ?? []).filter((b: any) => b.team_id === offer.team_id).map((b: any) => [b.building_type, b.level]));
+    const storedInfrastructure = Object.fromEntries((buildings ?? []).filter((b: any) => b.team_id === offer.team_id).map((b: any) => [b.building_type, b.level]));
+    const infrastructure = Object.keys(storedInfrastructure).length ? storedInfrastructure : { ...(CPU_INFRASTRUCTURE_BASELINE[offer.division] ?? CPU_INFRASTRUCTURE_BASELINE.bronze) };
     const rank = ranks.get(offer.team_id);
     const lastSeason = lastSeasonByTeam.get(offer.team_id);
     const titles = finishedCompetitions.filter((competition: any) => competition.champion_team_id === offer.team_id).length;
     const roster = (rostersResult.data ?? []).filter((creature: any) => creature.owner_team_id === offer.team_id);
-    return { ...offer, club_cash: computeCpuClubCash(offer, lastSeason, infrastructure, roster), league_position: rank?.position ?? null, league_size: rank?.size ?? null, buildings: infrastructure, matches_until_expiry: Math.max(0, 2 - played), last_league_position: lastSeason?.position ?? null, last_league_size: lastSeason?.size ?? null, titles } as JobOffer;
+    const cashInfrastructure = Object.keys(storedInfrastructure).length ? infrastructure : { ...(CPU_INFRASTRUCTURE_BASELINE[lastSeason?.division] ?? infrastructure) };
+    return { ...offer, club_cash: computeCpuClubCash(offer, lastSeason, cashInfrastructure, roster), league_position: rank?.position ?? null, league_size: rank?.size ?? null, buildings: infrastructure, matches_until_expiry: Math.max(0, 2 - played), last_league_position: lastSeason?.position ?? null, last_league_size: lastSeason?.size ?? null, titles } as JobOffer;
   });
 }
 
