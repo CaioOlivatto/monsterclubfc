@@ -694,7 +694,7 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
       if (existingTeamId && existingCompetitionId) {
         const { data: resumableTeam, error: resumableTeamError } = await supabase
           .from("teams")
-          .select("id, name, competition_id, starter_key")
+          .select("id, name, competition_id, starter_key, division")
           .eq("id", existingTeamId)
           .single();
         if (resumableTeamError) throw resumableTeamError;
