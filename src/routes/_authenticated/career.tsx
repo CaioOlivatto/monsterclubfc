@@ -164,9 +164,12 @@ function CareerPage() {
                             <Badge variant="outline" className={`text-[10px] ${meta.tone}`}>
                               {meta.label}
                             </Badge>
-                            <Badge variant="outline" className="border-slate-400/60 bg-slate-900/80 text-[10px] text-slate-100">
+                            <span
+                              className="rounded-md border px-2 py-0.5 text-[10px] font-semibold"
+                              style={{ borderColor: "#cbd5e1", backgroundColor: "#0f172a", color: "#f8fafc" }}
+                            >
                               {DIV_LABEL[e.division] ?? e.division}
-                            </Badge>
+                            </span>
                           </div>
                           <p className="mt-0.5 text-xs text-muted-foreground">
                             Temporada {e.season_start}
@@ -207,10 +210,10 @@ function OfferCard({ offer }: { offer: JobOffer }) {
       <div className="rounded-md border bg-card p-3">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-sm font-medium">{offer.team_name}</span>
-          <Badge variant="outline" className="border-slate-400/60 bg-slate-900/80 text-[10px] text-slate-100">
+          <Badge variant="outline" className="border-slate-400/60 bg-slate-900/80 text-[10px] text-slate-100" style={{ color: "#f8fafc" }}>
             {DIV_LABEL[offer.division] ?? offer.division}
           </Badge>
-          <Badge variant="outline" className="border-slate-400/60 bg-slate-900/80 text-[10px] text-slate-100">
+          <Badge variant="outline" className="border-slate-400/60 bg-slate-900/80 text-[10px] text-slate-100" style={{ color: "#f8fafc" }}>
             {REASON_LABEL[offer.reason]}
           </Badge>
         </div>
@@ -309,15 +312,15 @@ function MiniStat({
   value: number;
   accent?: "amber" | "emerald" | "red" | "orange";
 }) {
-  const tone =
-    accent === "amber"   ? "text-amber-300"   :
-    accent === "emerald" ? "text-emerald-300" :
-    accent === "red"     ? "text-red-300"     :
-    accent === "orange"  ? "text-orange-300"  : "text-slate-100";
+  const color =
+    accent === "amber"   ? "#fcd34d" :
+    accent === "emerald" ? "#6ee7b7" :
+    accent === "red"     ? "#fca5a5" :
+    accent === "orange"  ? "#fdba74" : "#f8fafc";
   return (
-    <div className="rounded-md border border-violet-400/35 bg-slate-950/85 p-2 text-center shadow-[0_8px_18px_rgba(2,6,23,0.25)]">
-      <div className={`text-lg font-semibold leading-none ${tone}`}>{value}</div>
-      <div className="mt-1 text-[10px] uppercase tracking-wide text-slate-400">{label}</div>
+    <div className="rounded-md border p-2 text-center shadow-[0_8px_18px_rgba(2,6,23,0.25)]" style={{ borderColor: "#7c3aed99", backgroundColor: "#020617e6" }}>
+      <div className="text-lg font-semibold leading-none" style={{ color }}>{String(value)}</div>
+      <div className="mt-1 text-[10px] uppercase tracking-wide" style={{ color: "#94a3b8" }}>{label}</div>
     </div>
   );
 }
