@@ -719,7 +719,83 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
         };
       }
 
-      throw new Error("Seu clube está sendo finalizado. Aguarde alguns segundos e tente novamente.");
+      // As 26 criaturas podem ter sido gravadas antes de uma queda no meio do
+      // primeiro seed. Não há clube jogador, calendário ou progresso para
+      // preservar: reaproveitamos o elenco e terminamos a carreira aqui.
+      const { data: partialComps, error: partialCompsError } = await supabase
+        .from("competitions")
+        .select("id")
+        .eq("trainer_id", trainer.id)
+        .eq("type", "league")
+        .eq("status", "active");
+      if (partialCompsError) throw partialCompsError;
+      const partialIds = (partialComps ?? []).map((competition: any) => competition.id);
+      if (partialIds.length) {
+        const [{ count: partialTeams }, { count: partialStandings }, { count: partialMatches }] = await Promise.all([
+          supabase.from("teams").select("id", { count: "exact", head: true }).in("competition_id", partialIds),
+          supabase.from("standings").select("team_id", { count: "exact", head: true }).in("competition_id", partialIds),
+          supabase.from("matches").select("id", { count: "exact", head: true }).in("competition_id", partialIds),
+        ]);
+        if ((partialTeams ?? 0) || (partialStandings ?? 0) || (partialMatches ?? 0)) {
+          throw new Error("Encontramos uma criação incompleta com partidas ou classificação. Entre em contato para recuperar esta conta sem perder dados.");
+        }
+        const { error: removePartialError } = await supabase
+          .from("competitions")
+          .delete()
+          .in("id", partialIds);
+        if (removePartialError) throw removePartialError;
+      }
+
+      const { data: currentSeason } = await supabase
+        .from("game_seasons")
+        .select("id")
+        .eq("trainer_id", trainer.id)
+        .eq("is_current", true)
+        .maybeSingle();
+      let recoverySeasonId = currentSeason?.id;
+      if (!recoverySeasonId) {
+        const { data: createdSeason, error: createdSeasonError } = await supabase
+          .from("game_seasons")
+          .insert({ trainer_id: trainer.id, season_number: 1, is_current: true })
+          .select("id")
+          .single();
+        if (createdSeasonError) throw createdSeasonError;
+        recoverySeasonId = createdSeason.id;
+      }
+
+      const { seedWorldForTrainer } = await import("./world/seed.server");
+      const { competitionsByDiv, playerTeamId } = await seedWorldForTrainer({
+        supabase,
+        trainerId: trainer.id,
+        seasonId: recoverySeasonId,
+        playerStarterKey: data.key,
+        playerRoster: [],
+      });
+      const { error: linkRecoveredRosterError } = await supabase
+        .from("creatures")
+        .update({ owner_team_id: playerTeamId })
+        .eq("owner_trainer_id", trainer.id)
+        .is("owner_team_id", null);
+      if (linkRecoveredRosterError) throw linkRecoveredRosterError;
+
+      const { data: recoveredTeam, error: recoveredTeamError } = await supabase
+        .from("teams")
+        .select("id, name, competition_id, starter_key")
+        .eq("id", playerTeamId)
+        .eq("trainer_id", trainer.id)
+        .eq("is_player", true)
+        .single();
+      if (recoveredTeamError) throw recoveredTeamError;
+      if (recoveredTeam.starter_key !== data.key) throw new Error("Não foi possível confirmar o time escolhido. Tente novamente.");
+      await activateCareer(supabase, trainer.id, recoveredTeam);
+      await supabase.from("trainers").update({ academy_name: recoveredTeam.name }).eq("id", trainer.id);
+      return {
+        trainerId: trainer.id,
+        competitionId: recoveredTeam.competition_id ?? competitionsByDiv.bronze,
+        teamKey: recoveredTeam.starter_key,
+        teamName: recoveredTeam.name,
+        resumed: true,
+      };
     }
 
     // 1. Elenco do jogador (26 criaturas, via Bestiário)

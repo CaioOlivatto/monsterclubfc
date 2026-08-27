@@ -107,7 +107,11 @@ function Onboarding() {
 
 
   useEffect(() => {
-    if (trainer?.has_roster) nav({ to: "/dashboard", replace: true });
+    // Ter criaturas não basta: uma criação interrompida pode ter gravado o
+    // elenco antes de concluir o clube e a Liga. Nesse caso permanecemos aqui
+    // para que a confirmação recupere a carreira, em vez de abrir um painel
+    // vazio e sem partidas.
+    if (trainer?.has_roster && trainer?.current_team_id) nav({ to: "/dashboard", replace: true });
   }, [trainer, nav]);
 
   useEffect(() => {
