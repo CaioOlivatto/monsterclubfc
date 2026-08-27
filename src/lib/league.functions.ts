@@ -1191,7 +1191,14 @@ async function finishSeasonAndAdvanceForUser(supabase: any, userId: string) {
     const prize = Math.round(winPrize * posMult);
     const championGems = playerIsChampion ? GEM_ECONOMY_CONFIG.championshipRewards[playerDiv] : 0;
 
-    const playerMove = movement.get(playerTeam.id)!;
+    // Uma carreira interrompida em versões antigas pode ter o time ativo sem
+    // a linha correspondente na tabela daquela temporada. A ausência não pode
+    // derrubar a Liga com "reading 'fromDiv'"; o clube permanece na divisão
+    // atual e a próxima temporada é montada normalmente.
+    const playerMove = movement.get(playerTeam.id) ?? {
+      fromDiv: playerDiv,
+      toDiv: playerDiv,
+    };
     const previousDivision = playerMove.fromDiv;
     const newDivision = playerMove.toDiv;
     const promoted = DIVISION_ORDER.indexOf(newDivision) > DIVISION_ORDER.indexOf(previousDivision);

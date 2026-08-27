@@ -176,9 +176,12 @@ function Onboarding() {
           });
         }
 
-        await choose({
+        const choice = await choose({
           data: { key: openKey, access_token: accessToken },
         });
+        if (choice.teamKey !== openKey) {
+          throw new Error("O clube confirmado não corresponde à sua escolha. Tente novamente.");
+        }
       });
       setSetupProgress(100);
       setSetupStep("Tudo pronto! Entrando no clube...");

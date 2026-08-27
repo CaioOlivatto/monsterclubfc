@@ -503,6 +503,15 @@ export const repairCurrentCareerWithSession = createServerFn({ method: "POST" })
     if (countError) throw countError;
     if ((count ?? 0) < 26) throw new Error("Não foi possível concluir o elenco inicial. Tente entrar novamente.");
 
+    // Corrige apenas a etiqueta exibida para contas criadas durante uma
+    // confirmação interrompida: o clube ativo é sempre a fonte de verdade.
+    // Não move jogadores, partidas, dinheiro ou qualquer progresso.
+    await supabase
+      .from("trainers")
+      .update({ academy_name: team.name })
+      .eq("id", trainer.id)
+      .neq("academy_name", team.name);
+
     // Uma carreira que já possui clube ativo e elenco completo não deve passar
     // novamente pelo ritual de ativação. Carreiras criadas antes da migração
     // atômica podem não possuir marcadores novos (como world_state.seeded), mas
@@ -628,8 +637,6 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
   .inputValidator((raw: unknown) => starterChoiceSchema.parse(raw))
   .handler(async ({ data }) => {
     const { supabase, userId } = await createOnboardingSupabase(data.access_token);
-    const teamDef = getStarterTeam(data.key)!;
-
     const { data: trainer } = await supabase
       .from("trainers")
       .select("id, academy_name, current_team_id")
@@ -652,10 +659,12 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
         throw new Error("Estamos concluindo seu elenco. Tente novamente em alguns instantes.");
       }
       await activateCareer(supabase, trainer.id, existingCareerTeam);
+      await supabase.from("trainers").update({ academy_name: existingCareerTeam.name }).eq("id", trainer.id);
       return {
         trainerId: trainer.id,
         competitionId: existingCareerTeam.competition_id,
-        teamKey: existingCareerTeam.starter_key ?? data.key,
+        teamKey: existingCareerTeam.starter_key ?? "",
+        teamName: existingCareerTeam.name,
         resumed: true,
       };
     }
@@ -700,10 +709,12 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
         if (resumableTeamError) throw resumableTeamError;
         await ensureStarterRoster(supabase, trainer.id, resumableTeam);
         await activateCareer(supabase, trainer.id, resumableTeam);
+        await supabase.from("trainers").update({ academy_name: resumableTeam.name }).eq("id", trainer.id);
         return {
           trainerId: trainer.id,
           competitionId: existingCompetitionId,
-          teamKey: data.key,
+          teamKey: resumableTeam.starter_key ?? "",
+          teamName: resumableTeam.name,
           resumed: true,
         };
       }
@@ -783,18 +794,36 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
       throw new Error("A criação do elenco não foi concluída. Tente novamente para finalizar seu clube.");
     }
 
+    // O catálogo é a intenção enviada pelo cliente; o registro recém-criado é
+    // a fonte de verdade. Nunca ativamos a carreira com o nome da prévia caso
+    // uma tentativa anterior, cache ou falha de rede tenha apontado para outro
+    // slot do mundo.
+    const { data: selectedTeam, error: selectedTeamError } = await supabase
+      .from("teams")
+      .select("id, name, competition_id, starter_key")
+      .eq("id", playerTeamId)
+      .eq("trainer_id", trainer.id)
+      .eq("is_player", true)
+      .single();
+    if (selectedTeamError) throw selectedTeamError;
+    if (selectedTeam.starter_key !== data.key) {
+      throw new Error("Não foi possível confirmar o time escolhido. Volte e escolha o clube novamente.");
+    }
+
     // Ultimo passo e uma unica transacao no banco. Clube, recursos,
     // construcoes, escalacao e carreira so ficam ativos juntos.
     await activateCareer(supabase, trainer.id, {
-      id: playerTeamId,
-      name: teamDef.name,
-      competition_id: competitionsByDiv.bronze,
+      id: selectedTeam.id,
+      name: selectedTeam.name,
+      competition_id: selectedTeam.competition_id,
     });
+    await supabase.from("trainers").update({ academy_name: selectedTeam.name }).eq("id", trainer.id);
 
     return {
       trainerId: trainer.id,
-      competitionId: competitionsByDiv.bronze,
-      teamKey: data.key,
+      competitionId: selectedTeam.competition_id ?? competitionsByDiv.bronze,
+      teamKey: selectedTeam.starter_key,
+      teamName: selectedTeam.name,
     };
   });
 
