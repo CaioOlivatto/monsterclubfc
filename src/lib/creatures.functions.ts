@@ -798,19 +798,8 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
       };
     }
 
-    // 1. Elenco do jogador (26 criaturas, via Bestiário)
-    const { loadBestiary } = await import("./bestiary.server");
-    const bestiary = await loadBestiary(supabase);
-    const roster = generateStarterRoster(data.key as StarterKey, bestiary);
-    const creatureRows = rosterToDbRows(trainer.id, roster);
-    // Insere criaturas sem owner_team_id ainda (será atualizado depois)
-    const { data: createdCreatures, error: cErr } = await supabase
-      .from("creatures")
-      .insert(creatureRows as any)
-      .select("id");
-    if (cErr) throw cErr;
-
-    // 2. Temporada corrente
+    // 1. Temporada corrente. O clube e a Liga são montados antes do elenco:
+    // caso a requisição seja interrompida, não deixamos 26 criaturas órfãs.
     let seasonId: string;
     const { data: existingSeason } = await supabase
       .from("game_seasons")
@@ -830,33 +819,30 @@ export const chooseStarterTeam = createServerFn({ method: "POST" })
       seasonId = s.id;
     }
 
-    // 3. Popular o MUNDO (70 times, 5 divisões, 1820 criaturas, 5 calendários)
+    // 2. Popular o MUNDO (70 times, 5 divisões, 1820 criaturas, 5 calendários).
+    // Se esta etapa falhar, o próximo acesso encontra um time jogador sem
+    // elenco e `ensureStarterRoster` conclui apenas os jogadores que faltam.
     const { seedWorldForTrainer } = await import("./world/seed.server");
-    // Buscamos os rows para passar ao seeder (com IDs para vincular ao time do jogador)
-    const playerCreatureFullRows = creatureRows.map((r, i) => ({
-      ...r,
-      // id não vai ser reutilizado — o seeder ignora, mas mantém o shape
-    }));
-    // O seeder recebe o elenco do jogador só para "reservar" o slot e vincular owner_team_id.
-    // Como as criaturas já existem, vamos ATUALIZAR seu owner_team_id ao invés de inserir de novo.
     const { competitionsByDiv, playerTeamId } = await seedWorldForTrainer({
       supabase,
       trainerId: trainer.id,
       seasonId,
       playerStarterKey: data.key,
-      // passa lista vazia: o seeder cria os slots dos outros 69 times e nós vinculamos as criaturas do jogador manualmente logo abaixo
+      // O elenco é inserido só após existir um clube seguro para recebê-lo.
       playerRoster: [],
     });
 
-    // Vincula as criaturas do jogador ao seu time recém-criado
-    if (createdCreatures && createdCreatures.length) {
-      const ids = createdCreatures.map((c: any) => c.id);
-      const { error: linkErr } = await supabase
-        .from("creatures")
-        .update({ owner_team_id: playerTeamId })
-        .in("id", ids);
-      if (linkErr) throw linkErr;
-    }
+    // 3. Elenco do jogador (26 criaturas, via Bestiário), já vinculado ao
+    // clube recém-criado. Esta é a mudança que elimina o estado órfão.
+    const { loadBestiary } = await import("./bestiary.server");
+    const bestiary = await loadBestiary(supabase);
+    const roster = generateStarterRoster(data.key as StarterKey, bestiary);
+    const creatureRows = rosterToDbRows(trainer.id, roster).map((creature) => ({
+      ...creature,
+      owner_team_id: playerTeamId,
+    }));
+    const { error: cErr } = await supabase.from("creatures").insert(creatureRows as any);
+    if (cErr) throw cErr;
 
     // Trava de ativação: o cliente não recebe uma carreira utilizável antes de
     // o servidor confirmar os 26 jogadores e o vínculo com o clube.
